@@ -14,11 +14,11 @@ export function PublicHeader() {
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         {/* Logo */}
-        <a href="#" className="flex items-center gap-2">
+        <a href="#" className="flex items-center shrink-0">
           <img 
             src="/logo.svg" 
             alt="Westrom Group Logo" 
-            className="h-20 w-auto"
+            className="h-12 w-auto md:h-14"
             referrerPolicy="no-referrer"
           />
         </a>
