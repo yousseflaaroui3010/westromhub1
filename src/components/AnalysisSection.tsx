@@ -1,4 +1,4 @@
-import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
+import React, { useState, useRef } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, FileText, ShieldAlert, ShieldCheck } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { runRuleEngine, AnalysisResult, PropertyData, runInsuranceRuleEngine, InsuranceAnalysisResult, InsuranceData } from '../lib/ruleEngine';
@@ -41,7 +41,7 @@ export function AnalysisSection() {
   const taxInputRef = useRef<HTMLInputElement>(null);
   const insInputRef = useRef<HTMLInputElement>(null);
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'address' || name === 'zillowLink' || name === 'county') {
       setFormData(prev => ({ ...prev, [name]: value }));
@@ -50,7 +50,7 @@ export function AnalysisSection() {
     }
   };
 
-  const handleTaxUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleTaxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -83,7 +83,7 @@ export function AnalysisSection() {
     }
   };
 
-  const handleInsUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleInsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -111,7 +111,7 @@ export function AnalysisSection() {
     }
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.currentValue || !formData.priorValue) {
       setError('Current and Prior values are required for tax analysis.');

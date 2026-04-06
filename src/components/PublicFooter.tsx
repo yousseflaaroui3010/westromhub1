@@ -8,7 +8,7 @@ export function PublicFooter() {
               <img 
                 src="/logo-white.svg" 
                 alt="Westrom Group Logo" 
-                className="h-14 w-auto md:h-16"
+                className="h-20 w-auto"
                 referrerPolicy="no-referrer"
               />
             </div>

@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import React, { useState } from 'react';
 import { ChevronDown, ShieldAlert, ShieldCheck, FileWarning, ExternalLink } from 'lucide-react';
 
 interface AccordionItemProps {
   title: string;
-  icon: ReactNode;
-  children: ReactNode;
+  icon: React.ReactNode;
+  children: React.ReactNode;
   isOpen: boolean;
   onClick: () => void;
 }
