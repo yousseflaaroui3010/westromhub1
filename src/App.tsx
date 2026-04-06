@@ -69,7 +69,7 @@ export default function App() {
                   Watch our step-by-step guide on how to successfully protest your property taxes in Texas.
                 </p>
               </div>
-              <VideoEmbed title="Tax Protest Walkthrough" />
+              <VideoEmbed title="Tax Protest Walkthrough" url="https://www.youtube.com/embed/tt21f_mheH8" />
             </section>
 
             {/* Protest Options */}

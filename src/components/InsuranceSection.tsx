@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { ChevronDown, ShieldAlert, ShieldCheck, FileWarning, ExternalLink } from 'lucide-react';
 
 interface AccordionItemProps {
