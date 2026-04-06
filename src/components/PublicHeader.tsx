@@ -16,9 +16,9 @@ export function PublicHeader() {
         {/* Logo */}
         <a href="#" className="flex items-center gap-2">
           <img 
-            src="/logo.png" 
+            src="/logo.svg" 
             alt="Westrom Group Logo" 
-            className="h-12 w-auto"
+            className="h-16 w-auto"
             referrerPolicy="no-referrer"
           />
         </a>

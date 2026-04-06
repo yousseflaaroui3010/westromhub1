@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="100%" height="100%">
+  <defs>
+    <clipPath id="circleClip">
+      <circle cx="200" cy="70" r="55" />
+    </clipPath>
+  </defs>
+
+  <!-- Circle Outline -->
+  <circle cx="200" cy="70" r="55" fill="none" stroke="#FFFFFF" stroke-width="6" />
+
+  <!-- Inner Content -->
+  <g clip-path="url(#circleClip)">
+    <!-- Red House -->
+    <path d="M 145 65 L 200 20 L 255 65 L 255 125 L 145 125 Z" fill="#ED1C24" />
+    
+    <!-- Chimney -->
+    <rect x="220" y="25" width="10" height="20" fill="#ED1C24" />
+    
+    <!-- White Bottom Right Area (was black) -->
+    <path d="M 195 95 C 210 95, 220 80, 240 80 L 255 80 L 255 125 L 145 125 C 160 125, 175 110, 195 110 Z" fill="#FFFFFF" />
+
+    <!-- Transparent/Dark Winding Path (was white) -->
+    <path d="M 145 100 C 165 100, 175 85, 195 85 C 215 85, 225 65, 255 65 L 255 80 C 225 80, 215 100, 195 100 C 175 100, 165 120, 145 120 Z" fill="#002045" />
+  </g>
+
+  <!-- Text: WESTROM GROUP -->
+  <g transform="translate(200, 155)">
+    <text x="0" y="0" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="32" letter-spacing="2" fill="#FFFFFF">
+      W<tspan fill="transparent"> E </tspan>STROM GROUP
+    </text>
+    
+    <!-- Custom E -->
+    <g transform="translate(-108, -22)">
+      <rect x="0" y="0" width="18" height="5" fill="#ED1C24" />
+      <rect x="0" y="9" width="18" height="5" fill="#ED1C24" />
+      <rect x="0" y="18" width="18" height="5" fill="#ED1C24" />
+    </g>
+  </g>
+
+  <!-- Text: REAL ESTATE & PROPERTY MANAGEMENT -->
+  <text x="200" y="180" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="12" letter-spacing="1.5" fill="#FFFFFF">
+    REAL ESTATE &amp; PROPERTY MANAGEMENT
+  </text>
+</svg>
