@@ -4,11 +4,11 @@ export function PublicFooter() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           <div>
-            <div className="mb-4 inline-block">
+            <div className="mb-4 inline-block rounded-xl bg-white px-3 py-2 shadow-sm">
               <img 
-                src="/logo-white.svg" 
+                src="/client-logo.png" 
                 alt="Westrom Group Logo" 
-                className="h-20 w-auto"
+                className="h-14 w-auto md:h-16"
                 referrerPolicy="no-referrer"
               />
             </div>
