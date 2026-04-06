@@ -18,7 +18,7 @@ export function PublicHeader() {
           <img 
             src="/logo.svg" 
             alt="Westrom Group Logo" 
-            className="h-16 w-auto"
+            className="h-20 w-auto"
             referrerPolicy="no-referrer"
           />
         </a>
