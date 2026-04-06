@@ -4,11 +4,13 @@ export function PublicFooter() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-white rounded-md flex items-center justify-center">
-                <span className="text-primary font-heading font-bold text-xl leading-none">W</span>
-              </div>
-              <span className="font-heading font-bold text-xl tracking-tight">Westrom Group</span>
+            <div className="mb-4 bg-white p-3 rounded-lg inline-block">
+              <img 
+                src="/logo.png" 
+                alt="Westrom Group Logo" 
+                className="h-10 w-auto"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <p className="text-gray-300 text-sm max-w-xs">
               Professional property management serving Texas real estate investors.

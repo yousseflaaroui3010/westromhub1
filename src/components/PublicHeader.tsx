@@ -15,10 +15,12 @@ export function PublicHeader() {
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         {/* Logo */}
         <a href="#" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
-            <span className="text-white font-heading font-bold text-xl leading-none">W</span>
-          </div>
-          <span className="font-heading font-bold text-xl text-primary tracking-tight">Westrom Group</span>
+          <img 
+            src="/logo.png" 
+            alt="Westrom Group Logo" 
+            className="h-12 w-auto"
+            referrerPolicy="no-referrer"
+          />
         </a>
 
         {/* Desktop Nav */}
