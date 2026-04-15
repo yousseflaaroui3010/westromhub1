@@ -22,6 +22,9 @@ RUN chown -R nginx:nginx /usr/share/nginx/html && chmod -R 755 /usr/share/nginx/
 # Local Docker Compose: API_UPSTREAM=http://api:3001  (set in docker-compose.yml)
 # Railway:              API_UPSTREAM=http://api.railway.internal:3001  (set in Railway env vars)
 ENV API_UPSTREAM=http://api:3001
+# Railway injects PORT at runtime and overrides this default.
+# Docker Compose (no PORT set): falls back to 80.
+ENV PORT=80
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
