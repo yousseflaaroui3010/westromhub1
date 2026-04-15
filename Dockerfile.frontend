@@ -1,0 +1,27 @@
+# --- Build stage ---
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# --- Runtime stage ---
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+
+# SEC-6: nginx:alpine ships with a built-in nginx user (uid 101).
+# nginx master process must start as root to bind port 80 then drops to nginx user.
+# We explicitly set ownership so the worker can read the static files.
+RUN chown -R nginx:nginx /usr/share/nginx/html && chmod -R 755 /usr/share/nginx/html
+
+# API_UPSTREAM is injected at container start via nginx:alpine's built-in template processor.
+# The entrypoint script substitutes only actual env vars — nginx variables ($uri, $host, etc.)
+# are NOT env vars and are left intact.
+# Local Docker Compose: API_UPSTREAM=http://api:3001  (set in docker-compose.yml)
+# Railway:              API_UPSTREAM=http://api.railway.internal:3001  (set in Railway env vars)
+ENV API_UPSTREAM=http://api:3001
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

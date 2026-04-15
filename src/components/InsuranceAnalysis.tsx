@@ -1,84 +1,40 @@
-import { useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, ShieldAlert, ShieldCheck } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { runInsuranceRuleEngine, type InsuranceAnalysisResult, type InsuranceData } from '../lib/ruleEngine';
 import { extractInsuranceData, generateInsuranceRecommendation } from '../lib/ai';
-
-async function readFileAsBase64(file: File): Promise<{ base64: string; mimeType: string }> {
-  if (file.type === 'application/pdf') {
-    const { pdfPageToBase64 } = await import('../lib/pdfToImage');
-    const base64 = await pdfPageToBase64(file);
-    return { base64, mimeType: 'image/png' };
-  }
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('Unexpected FileReader result type'));
-        return;
-      }
-      resolve({ base64: result.split(',')[1], mimeType: file.type });
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('FileReader error'));
-    reader.readAsDataURL(file);
-  });
-}
+import { useDocumentUpload } from '../hooks/useDocumentUpload';
 
 export function InsuranceAnalysis() {
   const [insuranceData, setInsuranceData] = useState<InsuranceData | null>(null);
-  const [isExtracting, setIsExtracting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [insResult, setInsResult] = useState<InsuranceAnalysisResult | null>(null);
   const [recommendationHtml, setRecommendationHtml] = useState('');
   const [error, setError] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const processFile = async (file: File) => {
-    setIsExtracting(true);
+  const onFileProcessed = useCallback(async (base64: string, mimeType: string) => {
     setError('');
-    try {
-      const { base64, mimeType } = await readFileAsBase64(file);
-      const extracted = await extractInsuranceData(base64, mimeType);
-
-      if (!extracted) {
-        setError('Could not extract data from the document.');
-        setInsuranceData(null);
-        return;
-      }
-      if (extracted.error) {
-        setError(extracted.error);
-        setInsuranceData(null);
-        return;
-      }
-      if (!extracted.policyType && !extracted.annualPremium) {
-        setError('Could not find policy details. Please verify it is a complete declaration page.');
-        setInsuranceData(null);
-        return;
-      }
-
-      setInsuranceData(extracted);
-    } catch {
-      setError('An error occurred while processing the file.');
+    const extracted = await extractInsuranceData(base64, mimeType);
+    if (!extracted) {
+      setError('Could not extract data from the document.');
       setInsuranceData(null);
-    } finally {
-      setIsExtracting(false);
+      return;
     }
-  };
+    if (extracted.error) {
+      setError(extracted.error);
+      setInsuranceData(null);
+      return;
+    }
+    if (!extracted.policyType && !extracted.annualPremium) {
+      setError('Could not find policy details. Please verify it is a complete declaration page.');
+      setInsuranceData(null);
+      return;
+    }
+    setInsuranceData(extracted);
+  }, []);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) await processFile(file);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) await processFile(file);
-  };
+  const { isExtracting, isDragging, setIsDragging, fileInputRef, handleFileChange, handleDrop } =
+    useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,13 +99,15 @@ export function InsuranceAnalysis() {
             <div
               className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-300 cursor-pointer ${
                 isDragging
-                  ? 'border-tertiary bg-tertiary/5 scale-[1.02]'
-                  : 'border-gray-300 hover:border-tertiary hover:bg-gray-50'
+                  ? 'border-secondary bg-secondary/5 scale-[1.02]'
+                  : 'border-gray-300 hover:border-primary hover:bg-gray-50'
               }`}
               onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
               onDrop={e => { void handleDrop(e); }}
               onClick={() => fileInputRef.current?.click()}
+              role="button"
+              aria-label="Upload insurance policy"
             >
               <input
                 type="file"
@@ -159,7 +117,7 @@ export function InsuranceAnalysis() {
                 onChange={e => { void handleFileChange(e); }}
               />
               <div className="flex flex-col items-center justify-center gap-4">
-                <div className="w-16 h-16 bg-tertiary/10 rounded-full flex items-center justify-center text-tertiary mb-2">
+                <div className="w-16 h-16 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-2" aria-live="polite">
                   {isExtracting ? (
                     <Loader2 className="w-8 h-8 animate-spin" />
                   ) : (
@@ -182,8 +140,8 @@ export function InsuranceAnalysis() {
           </div>
 
           {error && (
-            <div className="mb-8 p-5 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 text-red-800">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-500" />
+            <div className="bg-red-50 text-red-900 p-4 rounded-xl mb-8 flex items-start gap-3 border border-red-100" aria-live="assertive">
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
               <p className="text-sm font-medium">{error}</p>
             </div>
           )}
@@ -206,20 +164,25 @@ export function InsuranceAnalysis() {
           )}
 
           <form onSubmit={e => { void handleSubmit(e); }}>
-            <button
-              type="submit"
-              disabled={isAnalyzing || !insuranceData}
-              className="w-full py-4 bg-primary hover:bg-primary-container text-white font-bold text-lg rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 disabled:opacity-70"
-            >
-              {isAnalyzing ? (
-                <><Loader2 className="w-6 h-6 animate-spin" /> Analyzing Policy…</>
-              ) : (
-                'Get Free Analysis'
-              )}
-            </button>
-            <p className="text-xs text-center text-gray-400 mt-6 max-w-md mx-auto">
-              Informational only — not professional legal or insurance advice.
-            </p>
+            <div className="flex gap-4 pt-4">
+              <button
+                type="submit"
+                disabled={isAnalyzing || isExtracting}
+                className="flex-1 bg-primary text-white font-semibold py-3.5 px-6 rounded-xl hover:bg-primary-container transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                aria-live="polite"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-6 h-6 animate-spin" /> Analyzing Policy…
+                  </>
+                ) : (
+                  'Get Free Analysis'
+                )}
+              </button>
+              <p className="text-xs text-center text-gray-400 mt-6 max-w-md mx-auto">
+                Informational only — not professional legal or insurance advice.
+              </p>
+            </div>
           </form>
         </div>
 

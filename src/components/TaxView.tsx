@@ -2,15 +2,7 @@ import { VideoEmbed } from './VideoEmbed';
 import { ResourceCard } from './ResourceCard';
 import { TaxAnalysis } from './TaxAnalysis';
 import { ArrowRight, FileText, Users, AlertTriangle } from 'lucide-react';
-
-const COUNTIES = [
-  { name: 'Tarrant County', url: 'https://www.tad.org', description: 'Tarrant Appraisal District' },
-  { name: 'Dallas County', url: 'https://www.dallascad.org', description: 'Dallas Central Appraisal District' },
-  { name: 'Johnson County', url: 'https://www.johnsoncad.com', description: 'Johnson County Appraisal District' },
-  { name: 'Denton County', url: 'https://www.dentoncad.com', description: 'Denton Central Appraisal District' },
-  { name: 'Parker County', url: 'https://www.parkercad.org', description: 'Parker County Appraisal District' },
-  { name: 'Ellis County', url: 'https://www.elliscad.com', description: 'Ellis Appraisal District' },
-];
+import { COUNTIES } from '../lib/constants';
 
 const AI_TOOLS = [
   { name: 'Zillow Property Value', url: 'https://www.zillow.com', description: 'Check estimated market value (Zestimate)' },
@@ -18,9 +10,9 @@ const AI_TOOLS = [
 ];
 
 const PROTEST_COMPANIES = [
-  { name: 'Texas Tax Protest', phone: '800-555-0101', website: 'https://www.texastaxprotest.com/' },
-  { name: 'Ownwell', phone: '800-555-0102', website: 'https://www.ownwell.com/' },
-  { name: 'O\'Connor & Associates', phone: '800-555-0103', website: 'https://www.poconnor.com/' },
+  { name: 'Texas Tax Protest', website: 'https://www.texastaxprotest.com/' },
+  { name: 'Ownwell', website: 'https://www.ownwell.com/' },
+  { name: 'O\'Connor & Associates', website: 'https://www.poconnor.com/' },
 ];
 
 export function TaxView() {
@@ -107,8 +99,7 @@ export function TaxView() {
                   <div key={company.name} className="bg-gray-50 p-5 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
                     <div className="font-bold text-primary mb-2">{company.name}</div>
                     <div className="flex items-center justify-between text-sm">
-                      <a href={`tel:${company.phone}`} className="text-secondary font-semibold hover:text-secondary-container">{company.phone}</a>
-                      <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-primary font-medium">Visit Website</a>
+                      <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-secondary hover:text-primary font-medium">Visit Website</a>
                     </div>
                   </div>
                 ))}

@@ -1,17 +1,10 @@
-import { useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { runRuleEngine, type AnalysisResult, type PropertyData } from '../lib/ruleEngine';
 import { generateTaxRecommendation, extractDataFromDocument } from '../lib/ai';
-
-const COUNTIES = [
-  { name: 'Tarrant County', url: 'https://www.tad.org' },
-  { name: 'Dallas County', url: 'https://www.dallascad.org' },
-  { name: 'Johnson County', url: 'https://www.johnsoncad.com' },
-  { name: 'Denton County', url: 'https://www.dentoncad.com' },
-  { name: 'Parker County', url: 'https://www.parkercad.org' },
-  { name: 'Ellis County', url: 'https://www.elliscad.com' },
-] as const;
+import { COUNTIES } from '../lib/constants';
+import { useDocumentUpload } from '../hooks/useDocumentUpload';
 
 const DEFAULT_FORM: PropertyData = {
   address: '',
@@ -23,37 +16,38 @@ const DEFAULT_FORM: PropertyData = {
   county: COUNTIES[0].name,
 };
 
-async function readFileAsBase64(file: File): Promise<{ base64: string; mimeType: string }> {
-  if (file.type === 'application/pdf') {
-    const { pdfPageToBase64 } = await import('../lib/pdfToImage');
-    const base64 = await pdfPageToBase64(file);
-    return { base64, mimeType: 'image/png' };
-  }
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('Unexpected FileReader result type'));
-        return;
-      }
-      resolve({ base64: result.split(',')[1], mimeType: file.type });
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('FileReader error'));
-    reader.readAsDataURL(file);
-  });
-}
-
 export function TaxAnalysis() {
   const [formData, setFormData] = useState<PropertyData>(DEFAULT_FORM);
-  const [isExtracting, setIsExtracting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [taxResult, setTaxResult] = useState<AnalysisResult | null>(null);
   const [recommendationHtml, setRecommendationHtml] = useState('');
   const [error, setError] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const onFileProcessed = useCallback(async (base64: string, mimeType: string) => {
+    setError('');
+    const extracted = await extractDataFromDocument(base64, mimeType);
+    if (!extracted) {
+      setError('Could not extract data from the document. Please enter values manually.');
+      return;
+    }
+    if (extracted.error) {
+      setError(extracted.error);
+      return;
+    }
+    if (!extracted.currentValue && !extracted.priorValue) {
+      setError('Could not find appraised values. Please verify the document or enter manually.');
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      address: extracted.address ?? prev.address,
+      currentValue: extracted.currentValue ?? prev.currentValue,
+      priorValue: extracted.priorValue ?? prev.priorValue,
+    }));
+  }, []);
+
+  const { isExtracting, isDragging, setIsDragging, fileInputRef, handleFileChange, handleDrop } =
+    useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -63,51 +57,6 @@ export function TaxAnalysis() {
       const parsed = value ? parseInt(value.replace(/\D/g, ''), 10) : undefined;
       setFormData(prev => ({ ...prev, [name]: parsed }));
     }
-  };
-
-  const processFile = async (file: File) => {
-    setIsExtracting(true);
-    setError('');
-    try {
-      const { base64, mimeType } = await readFileAsBase64(file);
-      const extracted = await extractDataFromDocument(base64, mimeType);
-
-      if (!extracted) {
-        setError('Could not extract data from the document. Please enter values manually.');
-        return;
-      }
-      if (extracted.error) {
-        setError(extracted.error);
-        return;
-      }
-      if (!extracted.currentValue && !extracted.priorValue) {
-        setError('Could not find appraised values. Please verify the document or enter manually.');
-        return;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        address: extracted.address ?? prev.address,
-        currentValue: extracted.currentValue ?? prev.currentValue,
-        priorValue: extracted.priorValue ?? prev.priorValue,
-      }));
-    } catch {
-      setError('An error occurred while processing the file.');
-    } finally {
-      setIsExtracting(false);
-    }
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) await processFile(file);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) await processFile(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -184,6 +133,8 @@ export function TaxAnalysis() {
               onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
               onDrop={e => { void handleDrop(e); }}
               onClick={() => fileInputRef.current?.click()}
+              role="button"
+              aria-label="Upload property tax notice"
             >
               <input
                 type="file"
@@ -193,7 +144,7 @@ export function TaxAnalysis() {
                 onChange={e => { void handleFileChange(e); }}
               />
               <div className="flex flex-col items-center justify-center gap-4">
-                <div className="w-16 h-16 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-2">
+                <div className="w-16 h-16 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-2" aria-live="polite">
                   {isExtracting ? (
                     <Loader2 className="w-8 h-8 animate-spin" />
                   ) : (
@@ -222,8 +173,8 @@ export function TaxAnalysis() {
           </div>
 
           {error && (
-            <div className="mb-8 p-5 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 text-red-800">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-500" />
+            <div className="bg-red-50 text-red-900 p-4 rounded-xl mb-8 flex items-start gap-3 border border-red-100" aria-live="assertive">
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
               <p className="text-sm font-medium">{error}</p>
             </div>
           )}
@@ -342,20 +293,24 @@ export function TaxAnalysis() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isAnalyzing}
-              className="w-full py-4 mt-4 bg-primary hover:bg-primary-container text-white font-bold text-lg rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 disabled:opacity-70"
-            >
-              {isAnalyzing ? (
-                <><Loader2 className="w-6 h-6 animate-spin" /> Analyzing Property…</>
-              ) : (
-                'Get Free Analysis'
-              )}
-            </button>
-            <p className="text-xs text-center text-gray-400 mt-6 max-w-md mx-auto">
-              Informational only — not professional tax or legal advice.
-            </p>
+            <div className="flex gap-4 pt-4">
+              <button
+                type="submit"
+                disabled={isAnalyzing || isExtracting}
+                className="flex-1 bg-primary text-white font-semibold py-3.5 px-6 rounded-xl hover:bg-primary-container transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                aria-live="polite"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-6 h-6 animate-spin" /> Analyzing Property…</>
+                ) : (
+                  'Get Free Analysis'
+                )}
+              </button>
+              <p className="text-xs text-center text-gray-400 mt-6 max-w-md mx-auto">
+                Informational only — not professional tax or legal advice.
+              </p>
+            </div>
           </form>
         </div>
 

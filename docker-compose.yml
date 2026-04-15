@@ -1,0 +1,79 @@
+# Docker Compose v2+ — no 'version' key needed (deprecated in Compose v2)
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "80:80"
+    environment:
+      - API_UPSTREAM=http://api:3001
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # nginx:alpine ships with wget
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    environment:
+      - PORT=3001
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_ENABLED=true
+      - VISION_MODEL=qwen2-vl:7b
+      - TEXT_MODEL=qwen2.5:7b
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      # node:20-alpine ships with wget
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # Model pull can take a while on first boot; give the api extra start time
+      start_period: 30s
+
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    # DOCKER-2: Replace fragile 'sleep 5' with a proper readiness loop before pulling models.
+    # $$ escapes $ in docker-compose so the shell sees $! and $OLLAMA_PID correctly.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        ollama serve &
+        OLLAMA_PID=$$!
+        echo "Waiting for Ollama to be ready..."
+        until curl -sf http://localhost:11434/ > /dev/null 2>&1; do
+          sleep 2
+        done
+        echo "Ollama ready. Pulling models..."
+        ollama pull qwen2-vl:7b
+        ollama pull qwen2.5:7b
+        echo "Models ready."
+        wait $$OLLAMA_PID
+    # Port not exposed to host — only the internal docker network needs it
+    expose:
+      - "11434"
+    healthcheck:
+      # DOCKER-3: Healthcheck on /api/tags confirms serve is up AND models are loaded.
+      # start_period covers initial model pull time (can be several minutes on first boot).
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 300s
+
+volumes:
+  ollama_data:

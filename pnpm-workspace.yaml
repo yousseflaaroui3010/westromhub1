@@ -1,0 +1,3 @@
+packages:
+  - '.'     # apps/web (Vite + React, currently at root)
+  - 'api'   # apps/api (Hono backend)

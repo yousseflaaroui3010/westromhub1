@@ -1,24 +1,35 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ServerOff } from 'lucide-react';
 
-const OLLAMA_BASE_URL = import.meta.env.VITE_OLLAMA_BASE_URL ?? 'http://localhost:11434';
-const VISION_MODEL = import.meta.env.VITE_OLLAMA_VISION_MODEL ?? 'qwen2-vl:7b';
-const TEXT_MODEL = import.meta.env.VITE_OLLAMA_TEXT_MODEL ?? 'qwen2.5:7b';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const VISION_MODEL = 'qwen2-vl:7b';
+const TEXT_MODEL = 'qwen2.5:7b';
 
-type Status = 'checking' | 'ready' | 'offline';
+type Status = 'checking' | 'ready' | 'offline' | 'missing_models';
 
 export function OllamaStatus({ onReady }: { onReady: () => void }) {
   const [status, setStatus] = useState<Status>('checking');
+  const [missingModels, setMissingModels] = useState<string[]>([]);
 
   const check = useCallback(async () => {
     setStatus('checking');
     try {
-      const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+      const res = await fetch(API_BASE_URL + '/tags', {
         signal: AbortSignal.timeout(4000),
       });
       if (res.ok) {
-        setStatus('ready');
-        onReady();
+        const data = (await res.json()) as { models?: Array<{ name: string }> };
+        const models = data.models?.map((m) => m.name) ?? [];
+        const required = [VISION_MODEL, TEXT_MODEL];
+        const missing = required.filter(m => !models.some(name => name.startsWith(m) || name.startsWith(m.split(':')[0])));
+
+        if (missing.length > 0) {
+          setMissingModels(missing);
+          setStatus('missing_models');
+        } else {
+          setStatus('ready');
+          onReady();
+        }
       } else {
         setStatus('offline');
       }
@@ -38,6 +49,27 @@ export function OllamaStatus({ onReady }: { onReady: () => void }) {
           <>
             <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-6" />
             <p className="text-gray-600 font-medium">Connecting to Ollama…</p>
+          </>
+        ) : status === 'missing_models' ? (
+          <>
+            <div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-6 text-yellow-500">
+              <ServerOff className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Models Missing</h2>
+            <p className="text-gray-500 mb-6 text-sm">
+              The required AI models are not downloaded. Please run:
+            </p>
+            <div className="bg-gray-100 rounded-lg p-4 mb-6 text-left">
+              {missingModels.map(m => (
+                <code key={m} className="block text-sm text-gray-800">ollama pull {m}</code>
+              ))}
+            </div>
+            <button
+              onClick={() => void check()}
+              className="w-full bg-primary text-white py-3 px-6 rounded-xl font-semibold hover:bg-primary-container transition-colors"
+            >
+              Check Again
+            </button>
           </>
         ) : (
           <>
@@ -62,7 +94,7 @@ export function OllamaStatus({ onReady }: { onReady: () => void }) {
             </div>
 
             <p className="text-xs text-gray-400 mb-6">
-              Connecting to: <span className="font-mono text-gray-600">{OLLAMA_BASE_URL}</span>
+              Connecting to: <span className="font-mono text-gray-600">{API_BASE_URL}</span>
             </p>
 
             <button

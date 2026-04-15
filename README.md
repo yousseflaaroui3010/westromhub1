@@ -1,20 +1,53 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Westrom Hub
 
-# Run and deploy your AI Studio app
+Westrom Hub is a property tax and insurance analysis tool powered by AI.
 
-This contains everything you need to run your app locally.
+## Architecture
 
-View your app in AI Studio: https://ai.studio/apps/7bf2e593-28c7-4f76-84e3-8d724a340d1e
+The project runs using Docker Compose:
+- **Frontend**: Vite + React
+- **Backend**: Express + Node.js (proxies AI requests, rate limits, size checks)
+- **AI**: Ollama running locally
 
-## Run Locally
+## Run Locally (Docker - Recommended)
 
-**Prerequisites:**  Node.js
+1. Ensure Docker and Docker Compose are installed.
+2. Run the application:
+   ```bash
+   docker-compose up --build
+   ```
+   This will automatically:
+   - Start the frontend on port 80
+   - Start the backend on port 3001
+   - Start Ollama and pull the required models (`qwen2-vl:7b`, `qwen2.5:7b`). *Note: Model pulling may take several minutes on the first run.*
 
+3. Open your browser and navigate to `http://localhost`.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Run Locally (Manual)
+
+**Prerequisites:** Node.js, Ollama
+
+1. Start Ollama and pull models:
+   ```bash
+   ollama pull qwen2-vl:7b
+   ollama pull qwen2.5:7b
+   ```
+2. Start the API:
+   ```bash
+   cd api
+   npm install
+   npm run dev
+   ```
+3. Start the Frontend:
+   ```bash
+   npm install
+   npm run dev
+   ```
+   The frontend will be available at `http://localhost:3000`.
+
+## Testing
+
+Run tests with:
+```bash
+npm run test
+```
