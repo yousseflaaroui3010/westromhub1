@@ -64,12 +64,20 @@ export function AnalysisSection() {
         const extractedData = await extractDataFromDocument(base64String, file.type);
         
         if (extractedData) {
-          setFormData(prev => ({
-            ...prev,
-            address: extractedData.address || prev.address,
-            currentValue: extractedData.currentValue || prev.currentValue,
-            priorValue: extractedData.priorValue || prev.priorValue,
-          }));
+          if (extractedData.error) {
+            setError(extractedData.error);
+          } else if (!extractedData.currentValue && !extractedData.priorValue) {
+            setError('Could not find current or prior values in this document. Please verify it is a complete tax notice or enter manually.');
+          } else {
+            setFormData(prev => ({
+              ...prev,
+              address: extractedData.address || prev.address,
+              currentValue: extractedData.currentValue || prev.currentValue,
+              priorValue: extractedData.priorValue || prev.priorValue,
+            }));
+            // Clear any previous errors if successful
+            setError('');
+          }
         } else {
           setError('Could not extract data from the tax document. Please enter it manually.');
         }
@@ -97,9 +105,19 @@ export function AnalysisSection() {
         const extractedData = await extractInsuranceData(base64String, file.type);
         
         if (extractedData) {
-          setInsuranceData(extractedData);
+          if (extractedData.error) {
+            setError(extractedData.error);
+            setInsuranceData(null);
+          } else if (!extractedData.policyType && !extractedData.annualPremium) {
+            setError('Could not find policy details in this document. Please verify it is a complete insurance declaration page.');
+            setInsuranceData(null);
+          } else {
+            setInsuranceData(extractedData);
+            setError('');
+          }
         } else {
           setError('Could not extract data from the insurance document.');
+          setInsuranceData(null);
         }
         setIsExtractingIns(false);
       };
@@ -131,14 +149,14 @@ export function AnalysisSection() {
       setTaxResult(tResult);
       const countyUrl = COUNTIES.find(c => c.name === formData.county)?.url || 'https://comptroller.texas.gov/taxes/property-tax/';
       const tRec = await generateTaxRecommendation(tResult, countyUrl);
-      setTaxRecommendationHtml(DOMPurify.sanitize(tRec.replace(/\n/g, '<br/>')));
+      setTaxRecommendationHtml(DOMPurify.sanitize(tRec));
 
       // --- INSURANCE ANALYSIS ---
       if (insuranceData) {
         const iResult = runInsuranceRuleEngine(insuranceData);
         setInsResult(iResult);
         const iRec = await generateInsuranceRecommendation(iResult);
-        setInsRecommendationHtml(DOMPurify.sanitize(iRec.replace(/\n/g, '<br/>')));
+        setInsRecommendationHtml(DOMPurify.sanitize(iRec));
       }
       
     } catch (err) {

@@ -37,9 +37,9 @@ export function runRuleEngine(data: PropertyData): AnalysisResult {
 
     if (marketValue) {
       marketGapPct = (data.currentValue - marketValue) / marketValue;
-      if (marketGapPct > 0.10) {
+      if (marketGapPct > 0.05) {
         status = 'PROTEST_RECOMMENDED';
-      } else if (marketGapPct >= 0.08 && marketGapPct <= 0.12) {
+      } else if (marketGapPct > 0) {
         status = 'CONTACT_WESTROM';
       } else {
         status = 'NO_ACTION';
@@ -48,7 +48,7 @@ export function runRuleEngine(data: PropertyData): AnalysisResult {
       // Fallback if no market data
       if (yoyIncreasePct > 0.10) {
         status = 'PROTEST_RECOMMENDED';
-      } else if (yoyIncreasePct >= 0.08 && yoyIncreasePct <= 0.12) {
+      } else if (yoyIncreasePct > 0.05) {
         status = 'CONTACT_WESTROM';
       }
     }
@@ -59,9 +59,9 @@ export function runRuleEngine(data: PropertyData): AnalysisResult {
 
 export function getStatusExplanation(status: AnalysisStatus): string {
   switch (status) {
-    case 'AUTOMATIC_REDUCTION': return 'The appraised value increased by more than 20% year-over-year. Under Texas law, the owner is entitled to an automatic reduction.';
-    case 'PROTEST_RECOMMENDED': return 'The appraised value is significantly higher than estimated market values or prior year values. A protest is highly recommended to lower the tax burden.';
-    case 'CONTACT_WESTROM': return 'The numbers are borderline. The owner should contact Westrom Property Management for a professional human review.';
+    case 'AUTOMATIC_REDUCTION': return 'The appraised value increased by more than 20% year-over-year. Under Texas law, non-homestead properties are capped at a 20% increase. The owner is entitled to an automatic reduction.';
+    case 'PROTEST_RECOMMENDED': return 'The county appraised value is higher than estimated market values (like Zillow/Realtor) or has a significant year-over-year increase. A protest is highly recommended to lower the tax burden.';
+    case 'CONTACT_WESTROM': return 'The county appraised value is slightly higher than market estimates or prior year values. The owner should contact Westrom Property Management for a professional human review.';
     case 'NO_ACTION': return 'The appraised value appears to be in line with or below market estimates. A protest is unlikely to be successful or worth the effort at this time.';
   }
 }

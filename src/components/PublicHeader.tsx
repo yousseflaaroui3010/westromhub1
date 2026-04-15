@@ -1,51 +1,66 @@
-import { Menu, X, Phone } from 'lucide-react';
+import { Menu, X, Phone, ArrowLeft, Mail } from 'lucide-react';
 import { useState } from 'react';
+import { ViewState } from '../App';
 
-export function PublicHeader() {
+interface PublicHeaderProps {
+  onNavigateHome?: () => void;
+  currentView?: ViewState;
+  onNavigate?: (view: ViewState) => void;
+}
+
+export function PublicHeader({ onNavigateHome, currentView, onNavigate }: PublicHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { name: 'Taxes', href: '#taxes' },
-    { name: 'Insurance', href: '#insurance' },
-    { name: 'Analysis', href: '#analysis' },
+    { name: 'Taxes', id: 'taxes' as ViewState },
+    { name: 'Insurance', id: 'insurance' as ViewState },
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         {/* Logo */}
-        <a href="#" className="flex items-center gap-2">
+        <button onClick={onNavigateHome} className="flex items-center gap-2 cursor-pointer transition-transform hover:scale-105 group">
           <img 
-            src="/logo.svg" 
+            src="/client-logo.png" 
             alt="Westrom Group Logo" 
-            className="h-20 w-auto"
+            className="h-16 w-auto bg-white p-1.5 rounded-xl border border-gray-100 shadow-sm group-hover:shadow-md transition-shadow"
             referrerPolicy="no-referrer"
           />
-        </a>
+        </button>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <a
-              key={link.name}
-              href={link.href}
-              className="text-on-surface-variant hover:text-primary font-medium transition-colors"
-            >
-              {link.name}
-            </a>
-          ))}
+        <nav className="hidden md:flex items-center gap-4">
+          {currentView && currentView !== 'home' && onNavigate && (
+            <div className="flex items-center bg-gray-100/80 p-1 rounded-full mr-4">
+              {navLinks.map((link) => (
+                <button
+                  key={link.name}
+                  onClick={() => onNavigate(link.id)}
+                  className={`px-5 py-2 rounded-full font-semibold text-sm transition-all duration-200 ${
+                    currentView === link.id 
+                      ? 'bg-white text-primary shadow-sm' 
+                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                  }`}
+                >
+                  {link.name}
+                </button>
+              ))}
+            </div>
+          )}
           <a
-            href="tel:817-445-1108"
-            className="flex items-center gap-2 text-primary font-semibold hover:text-primary-container transition-colors"
+            href="mailto:info@westromgroup.com"
+            className="flex items-center gap-2 text-primary font-bold hover:text-primary-container transition-colors bg-primary/5 hover:bg-primary/10 px-4 py-2 rounded-full"
           >
-            <Phone className="w-4 h-4" />
-            <span>(817) 445-1108</span>
+            <Mail className="w-4 h-4" />
+            <span className="hidden sm:inline">info@westromgroup.com</span>
+            <span className="sm:hidden">Email Us</span>
           </a>
         </nav>
 
         {/* Mobile Menu Toggle */}
         <button
-          className="md:hidden p-2 text-on-surface-variant hover:text-primary"
+          className="md:hidden p-2 text-gray-500 hover:text-primary bg-gray-50 rounded-full"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           aria-label="Toggle menu"
         >
@@ -55,24 +70,36 @@ export function PublicHeader() {
 
       {/* Mobile Nav Drawer */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-20 left-0 w-full bg-white border-b border-gray-200 shadow-lg">
-          <nav className="flex flex-col px-6 py-4 gap-4">
-            {navLinks.map((link) => (
-              <a
-                key={link.name}
-                href={link.href}
-                className="text-on-surface hover:text-primary font-medium text-lg py-2 border-b border-gray-100 last:border-0"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {link.name}
-              </a>
-            ))}
+        <div className="md:hidden absolute top-20 left-0 w-full bg-white border-b border-gray-200 shadow-xl animate-in slide-in-from-top-2">
+          <nav className="flex flex-col px-6 py-6 gap-2">
+            {currentView && currentView !== 'home' && onNavigate && (
+              <div className="flex flex-col gap-2 mb-4">
+                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Workspaces</div>
+                {navLinks.map((link) => (
+                  <button
+                    key={link.name}
+                    className={`text-left font-semibold text-lg py-3 px-4 rounded-xl transition-colors ${
+                      currentView === link.id 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                    onClick={() => {
+                      onNavigate(link.id);
+                      setIsMobileMenuOpen(false);
+                    }}
+                  >
+                    {link.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="h-px bg-gray-100 my-2"></div>
             <a
-              href="tel:817-445-1108"
-              className="flex items-center gap-2 text-primary font-semibold text-lg py-2"
+              href="mailto:info@westromgroup.com"
+              className="flex items-center justify-center gap-2 bg-primary text-white font-bold text-lg py-4 rounded-xl mt-2"
             >
-              <Phone className="w-5 h-5" />
-              <span>(817) 445-1108</span>
+              <Mail className="w-5 h-5" />
+              <span>Email Us</span>
             </a>
           </nav>
         </div>
