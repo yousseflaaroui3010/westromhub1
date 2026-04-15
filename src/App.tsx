@@ -1,6 +1,4 @@
-import { useCallback, useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { OllamaStatus } from './components/OllamaStatus';
 import { PublicHeader } from './components/PublicHeader';
 import { PublicFooter } from './components/PublicFooter';
 import { HomeView } from './components/HomeView';
@@ -11,8 +9,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 export type ViewState = 'home' | 'taxes' | 'insurance';
 
 export default function App() {
-  const [isReady, setIsReady] = useState(false);
-  const handleReady = useCallback(() => setIsReady(true), []);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -27,8 +23,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {!isReady && <OllamaStatus onReady={handleReady} />}
-
       <PublicHeader
         onNavigateHome={() => navigate('/')}
         currentView={currentView}
