@@ -20,9 +20,11 @@ const providerConfig = {
   ollamaBaseUrl: OLLAMA_BASE_URL,
   textModel: TEXT_MODEL,
   visionModel: VISION_MODEL,
+  geminiApiKey: process.env.GEMINI_API_KEY,
+  geminiModel: process.env.GEMINI_MODEL,
   groqApiKey: process.env.GROQ_API_KEY,
-  openRouterApiKey: process.env.OPENROUTER_API_KEY,
   groqModel: process.env.GROQ_MODEL,
+  openRouterApiKey: process.env.OPENROUTER_API_KEY,
   openRouterModel: process.env.OPENROUTER_MODEL,
   ollamaEnabled,
 };

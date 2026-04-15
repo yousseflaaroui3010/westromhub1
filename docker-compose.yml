@@ -28,8 +28,10 @@ services:
       - PORT=3001
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_ENABLED=true
-      - VISION_MODEL=qwen2-vl:7b
-      - TEXT_MODEL=qwen2.5:7b
+      # gemma4:e4b is natively multimodal — one model handles both text and vision.
+      # Upgrade to gemma4:e12b on machines with 16GB+ RAM for higher quality output.
+      - VISION_MODEL=gemma4:e4b
+      - TEXT_MODEL=gemma4:e4b
     depends_on:
       ollama:
         condition: service_healthy
@@ -58,10 +60,9 @@ services:
         until curl -sf http://localhost:11434/ > /dev/null 2>&1; do
           sleep 2
         done
-        echo "Ollama ready. Pulling models..."
-        ollama pull qwen2-vl:7b
-        ollama pull qwen2.5:7b
-        echo "Models ready."
+        echo "Ollama ready. Pulling model..."
+        ollama pull gemma4:e4b
+        echo "Model ready."
         wait $$OLLAMA_PID
     # Port not exposed to host — only the internal docker network needs it
     expose:
