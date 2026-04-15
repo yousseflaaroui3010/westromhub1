@@ -1,4 +1,4 @@
-import { Menu, X, Phone, ArrowLeft, Mail } from 'lucide-react';
+import { Menu, X, Mail } from 'lucide-react';
 import { useState } from 'react';
 import { ViewState } from '../App';
 

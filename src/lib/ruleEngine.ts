@@ -26,7 +26,7 @@ export function runRuleEngine(data: PropertyData): AnalysisResult {
   if (yoyIncreasePct > 0.20) {
     status = 'AUTOMATIC_REDUCTION';
   } else {
-    let marketValue = null;
+    let marketValue: number | null = null;
     if (data.zillowValue && data.realtorValue) {
       marketValue = Math.min(data.zillowValue, data.realtorValue);
     } else if (data.zillowValue) {

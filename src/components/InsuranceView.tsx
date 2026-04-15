@@ -1,4 +1,3 @@
-import React from 'react';
 import { InsuranceAnalysis } from './InsuranceAnalysis';
 import { Shield, FileWarning, TrendingDown } from 'lucide-react';
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { VideoEmbed } from './VideoEmbed';
 import { ResourceCard } from './ResourceCard';
 import { TaxAnalysis } from './TaxAnalysis';
