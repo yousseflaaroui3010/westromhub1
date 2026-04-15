@@ -3,6 +3,7 @@ import { makeOllamaTextProvider, makeOllamaVisionProvider } from './ollama';
 import { makeGroqTextProvider } from './groq';
 import { makeOpenRouterVisionProvider } from './openrouter';
 import { makeGeminiTextProvider, makeGeminiVisionProvider } from './gemini';
+import { makeMoonShotTextProvider } from './moonshot';
 
 export type { TextProvider, VisionProvider };
 
@@ -38,6 +39,8 @@ export interface ProviderConfig {
   groqModel?: string;
   openRouterApiKey?: string;
   openRouterModel?: string;
+  moonShotApiKey?: string;
+  moonShotModel?: string;
   // Local provider — set OLLAMA_ENABLED=true to include in the chain.
   // Enabled automatically by docker-compose for local development.
   ollamaEnabled?: boolean;
@@ -47,7 +50,8 @@ export interface ProviderConfig {
  * Provider priority (text):
  *   1. Gemini 2.5 Flash  — primary (multimodal, fast, generous free tier)
  *   2. Groq              — text fallback (llama-3.3-70b-versatile)
- *   3. Ollama/Gemma 4    — local fallback (OLLAMA_ENABLED=true only)
+ *   3. MoonShot (Kimi)   — text fallback (moonshot-v1-8k)
+ *   4. Ollama/Gemma 4    — local fallback (OLLAMA_ENABLED=true only)
  */
 export function buildTextProviders(cfg: ProviderConfig): TextProvider[] {
   const providers: TextProvider[] = [];
@@ -56,6 +60,9 @@ export function buildTextProviders(cfg: ProviderConfig): TextProvider[] {
   }
   if (cfg.groqApiKey) {
     providers.push(makeGroqTextProvider(cfg.groqApiKey, cfg.groqModel));
+  }
+  if (cfg.moonShotApiKey) {
+    providers.push(makeMoonShotTextProvider(cfg.moonShotApiKey, cfg.moonShotModel));
   }
   if (cfg.ollamaEnabled) {
     providers.push(makeOllamaTextProvider(cfg.ollamaBaseUrl, cfg.textModel));

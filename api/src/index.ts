@@ -26,6 +26,8 @@ const providerConfig = {
   groqModel: process.env.GROQ_MODEL,
   openRouterApiKey: process.env.OPENROUTER_API_KEY,
   openRouterModel: process.env.OPENROUTER_MODEL,
+  moonShotApiKey: process.env.MOONSHOT_API_KEY,
+  moonShotModel: process.env.MOONSHOT_MODEL,
   ollamaEnabled,
 };
 
@@ -34,7 +36,7 @@ const visionProviders = buildVisionProviders(providerConfig);
 
 if (textProviders.length === 0 || visionProviders.length === 0) {
   console.error(
-    'FATAL: No AI providers configured. Set GROQ_API_KEY + OPENROUTER_API_KEY, or set OLLAMA_ENABLED=true.',
+    'FATAL: No AI providers configured. Set at least GEMINI_API_KEY (handles both text + vision), or GROQ_API_KEY + OPENROUTER_API_KEY, or OLLAMA_ENABLED=true.',
   );
   process.exit(1);
 }

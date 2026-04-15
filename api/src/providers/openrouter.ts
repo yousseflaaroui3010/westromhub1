@@ -44,7 +44,10 @@ export function makeOpenRouterVisionProvider(
         signal: AbortSignal.timeout(30_000),
       });
 
-      if (!res.ok) throw new Error(`OpenRouter ${model} error: ${res.statusText}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`OpenRouter ${model} HTTP ${res.status}: ${body}`);
+      }
       const data = (await res.json()) as OpenRouterResponse;
       const content = data.choices[0]?.message.content;
       if (!content) throw new Error('OpenRouter returned empty response');

@@ -1,19 +1,20 @@
 import type { TextProvider } from './types';
 
-interface GroqResponse {
+interface MoonShotResponse {
   choices: Array<{ message: { content: string } }>;
 }
 
 /**
- * Groq text provider — OpenAI-compatible API.
- * Used as fallback when Ollama is unavailable for text generation.
- * Default model: llama-3.3-70b-versatile (fast, free tier available).
+ * MoonShot (Kimi) text provider — OpenAI-compatible API.
+ * Docs: https://platform.moonshot.cn/docs
+ * Default model: moonshot-v1-8k (fast, 8k context).
+ * Upgrade to moonshot-v1-32k or moonshot-v1-128k for longer documents.
  */
-export function makeGroqTextProvider(apiKey: string, model = 'llama-3.3-70b-versatile'): TextProvider {
+export function makeMoonShotTextProvider(apiKey: string, model = 'moonshot-v1-8k'): TextProvider {
   return {
-    name: `groq:${model}`,
+    name: `moonshot:${model}`,
     async generate(systemPrompt, userPrompt) {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const res = await fetch('https://api.moonshot.cn/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -32,11 +33,11 @@ export function makeGroqTextProvider(apiKey: string, model = 'llama-3.3-70b-vers
 
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        throw new Error(`Groq ${model} HTTP ${res.status}: ${body}`);
+        throw new Error(`MoonShot ${model} HTTP ${res.status}: ${body}`);
       }
-      const data = (await res.json()) as GroqResponse;
+      const data = (await res.json()) as MoonShotResponse;
       const content = data.choices[0]?.message.content;
-      if (!content) throw new Error('Groq returned empty response');
+      if (!content) throw new Error('MoonShot returned empty response');
       return content;
     },
   };
