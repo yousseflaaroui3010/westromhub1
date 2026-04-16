@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { runRuleEngine, type AnalysisResult, type PropertyData } from '../lib/ruleEngine';
@@ -23,6 +23,31 @@ export function TaxAnalysis() {
   const [recommendationHtml, setRecommendationHtml] = useState('');
   const [error, setError] = useState('');
 
+  // Keep a ref so onFileProcessed can read current formData without a stale closure
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
+
+  const runAnalysis = useCallback(async (data: PropertyData) => {
+    if (!data.currentValue || !data.priorValue) return;
+    setIsAnalyzing(true);
+    setError('');
+    setTaxResult(null);
+    setRecommendationHtml('');
+    try {
+      const result = runRuleEngine(data);
+      setTaxResult(result);
+      const countyUrl =
+        COUNTIES.find(c => c.name === data.county)?.url ??
+        'https://comptroller.texas.gov/taxes/property-tax/';
+      const rec = await generateTaxRecommendation(result, countyUrl);
+      setRecommendationHtml(DOMPurify.sanitize(rec));
+    } catch {
+      setError('An error occurred during analysis. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, []);
+
   const onFileProcessed = useCallback(async (base64: string, mimeType: string) => {
     setError('');
     const extracted = await extractDataFromDocument(base64, mimeType);
@@ -38,13 +63,15 @@ export function TaxAnalysis() {
       setError('Could not find appraised values. Please verify the document or enter manually.');
       return;
     }
-    setFormData(prev => ({
-      ...prev,
-      address: extracted.address ?? prev.address,
-      currentValue: extracted.currentValue ?? prev.currentValue,
-      priorValue: extracted.priorValue ?? prev.priorValue,
-    }));
-  }, []);
+    const newData: PropertyData = {
+      ...formDataRef.current,
+      address: extracted.address ?? formDataRef.current.address,
+      currentValue: extracted.currentValue ?? formDataRef.current.currentValue,
+      priorValue: extracted.priorValue ?? formDataRef.current.priorValue,
+    };
+    setFormData(newData);
+    void runAnalysis(newData);
+  }, [runAnalysis]);
 
   const { isExtracting, isDragging, setIsDragging, fileInputRef, handleFileChange, handleDrop } =
     useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
@@ -65,25 +92,7 @@ export function TaxAnalysis() {
       setError('Current and Prior values are required for tax analysis.');
       return;
     }
-
-    setIsAnalyzing(true);
-    setError('');
-    setTaxResult(null);
-    setRecommendationHtml('');
-
-    try {
-      const result = runRuleEngine(formData);
-      setTaxResult(result);
-      const countyUrl =
-        COUNTIES.find(c => c.name === formData.county)?.url ??
-        'https://comptroller.texas.gov/taxes/property-tax/';
-      const rec = await generateTaxRecommendation(result, countyUrl);
-      setRecommendationHtml(DOMPurify.sanitize(rec));
-    } catch {
-      setError('An error occurred during analysis. Please try again.');
-    } finally {
-      setIsAnalyzing(false);
-    }
+    void runAnalysis(formData);
   };
 
   const statusBorderColor = {

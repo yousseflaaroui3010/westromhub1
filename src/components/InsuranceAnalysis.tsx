@@ -12,6 +12,23 @@ export function InsuranceAnalysis() {
   const [recommendationHtml, setRecommendationHtml] = useState('');
   const [error, setError] = useState('');
 
+  const runAnalysis = useCallback(async (data: InsuranceData) => {
+    setIsAnalyzing(true);
+    setError('');
+    setInsResult(null);
+    setRecommendationHtml('');
+    try {
+      const result = runInsuranceRuleEngine(data);
+      setInsResult(result);
+      const rec = await generateInsuranceRecommendation(result);
+      setRecommendationHtml(DOMPurify.sanitize(rec));
+    } catch {
+      setError('An error occurred during analysis. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, []);
+
   const onFileProcessed = useCallback(async (base64: string, mimeType: string) => {
     setError('');
     const extracted = await extractInsuranceData(base64, mimeType);
@@ -31,7 +48,8 @@ export function InsuranceAnalysis() {
       return;
     }
     setInsuranceData(extracted);
-  }, []);
+    void runAnalysis(extracted);
+  }, [runAnalysis]);
 
   const { isExtracting, isDragging, setIsDragging, fileInputRef, handleFileChange, handleDrop } =
     useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
@@ -42,22 +60,7 @@ export function InsuranceAnalysis() {
       setError('Please upload an insurance declaration page first.');
       return;
     }
-
-    setIsAnalyzing(true);
-    setError('');
-    setInsResult(null);
-    setRecommendationHtml('');
-
-    try {
-      const result = runInsuranceRuleEngine(insuranceData);
-      setInsResult(result);
-      const rec = await generateInsuranceRecommendation(result);
-      setRecommendationHtml(DOMPurify.sanitize(rec));
-    } catch {
-      setError('An error occurred during analysis. Please try again.');
-    } finally {
-      setIsAnalyzing(false);
-    }
+    void runAnalysis(insuranceData);
   };
 
   const statusBorderColor = {
