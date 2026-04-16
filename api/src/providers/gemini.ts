@@ -5,7 +5,7 @@ import type { TextProvider, VisionProvider } from './types';
  * Gemini text provider — handles recommendation generation.
  * Default model: gemini-2.5-flash (fast, generous free tier, strong reasoning).
  */
-export function makeGeminiTextProvider(apiKey: string, model = 'gemini-2.5-pro'): TextProvider {
+export function makeGeminiTextProvider(apiKey: string, model = 'gemini-2.5-flash'): TextProvider {
   const ai = new GoogleGenAI({ apiKey });
   return {
     name: `gemini:${model}`,
@@ -30,7 +30,7 @@ export function makeGeminiTextProvider(apiKey: string, model = 'gemini-2.5-pro')
  * Same model as text (Gemini 2.5 Flash is natively multimodal).
  * Uses JSON response mode so no markdown fence cleanup is needed.
  */
-export function makeGeminiVisionProvider(apiKey: string, model = 'gemini-2.5-pro'): VisionProvider {
+export function makeGeminiVisionProvider(apiKey: string, model = 'gemini-2.5-flash'): VisionProvider {
   const ai = new GoogleGenAI({ apiKey });
   return {
     name: `gemini:${model}`,
