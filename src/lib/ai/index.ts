@@ -89,14 +89,14 @@ export type PropertyLookupResult =
 export async function lookupProperty(
   address: string,
   county: string,
-): Promise<{ priorValue: number; taxYear: number | null } | null> {
+): Promise<{ assessedValue: number; taxYear: number | null } | null> {
   try {
     const params = new URLSearchParams({ address, county });
     const res = await fetch(`${API_BASE_URL}/property-lookup?${params.toString()}`);
     if (!res.ok) return null;
     const data = await res.json() as PropertyLookupResult;
     if (data.priorValue === null) return null;
-    return { priorValue: data.priorValue, taxYear: data.taxYear };
+    return { assessedValue: data.priorValue, taxYear: data.taxYear };
   } catch {
     return null;
   }

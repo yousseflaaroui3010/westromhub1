@@ -37,10 +37,12 @@ export function TaxAnalysis() {
   const [recommendationHtml, setRecommendationHtml] = useState('');
   const [error, setError] = useState('');
 
-  // Prior-year auto-fill state: 'idle' → 'searching' → 'found' | 'stale' | 'unavailable'
-  // 'stale' = ATTOM returned data but for the wrong year (e.g. 2024 when we need 2025)
-  type LookupState = 'idle' | 'searching' | 'found' | 'stale' | 'unavailable';
-  const [lookupState, setLookupState] = useState<LookupState>('idle');
+  // Auto-fill state for both value fields — driven by a single ATTOM lookup.
+  // ATTOM returns one assessed value for one year; we route it to the right field.
+  // 'stale' = ATTOM has data but not the year this field needs.
+  type FieldLookupState = 'idle' | 'searching' | 'found' | 'stale' | 'unavailable';
+  const [lookupState, setLookupState] = useState<FieldLookupState>('idle');        // priorValue field
+  const [currentLookupState, setCurrentLookupState] = useState<FieldLookupState>('idle'); // currentValue field
   const [lookupTaxYear, setLookupTaxYear] = useState<number | null>(null);
   const lookupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -58,29 +60,42 @@ export function TaxAnalysis() {
 
     if (addr.length < 15 || !/\d/.test(addr) || !formData.county) {
       setLookupState('idle');
+      setCurrentLookupState('idle');
       return;
     }
 
     let cancelled = false;
     setLookupState('searching');
+    setCurrentLookupState('searching');
 
     lookupTimeoutRef.current = setTimeout(() => {
       void lookupProperty(addr, formData.county).then(result => {
         if (cancelled) return;
         if (result !== null) {
-          const expectedYear = new Date().getFullYear() - 1;
-          const isStale = result.taxYear !== null && result.taxYear < expectedYear;
+          const currentYear = new Date().getFullYear();
+          const priorYear = currentYear - 1;
           setLookupTaxYear(result.taxYear);
-          if (isStale) {
-            // Data is too old — don't auto-fill, wrong year would skew analysis
-            setLookupState('stale');
-          } else {
-            setFormData(prev => ({ ...prev, priorValue: result.priorValue }));
+
+          // Route the ATTOM value to whichever field its year matches.
+          // Using the same value for both fields is wrong (they'd be identical),
+          // so only one field can be auto-filled per lookup.
+          if (result.taxYear === currentYear) {
+            setFormData(prev => ({ ...prev, currentValue: result.assessedValue }));
+            setCurrentLookupState('found');
+            setLookupState('stale'); // priorValue still needs manual entry
+          } else if (result.taxYear === priorYear) {
+            setFormData(prev => ({ ...prev, priorValue: result.assessedValue }));
             setLookupState('found');
+            setCurrentLookupState('stale'); // currentValue still needs manual entry
+          } else {
+            // Too old for both fields
+            setLookupState('stale');
+            setCurrentLookupState('stale');
           }
         } else {
           setLookupTaxYear(null);
           setLookupState('unavailable');
+          setCurrentLookupState('unavailable');
         }
       });
     }, 800);
@@ -307,8 +322,24 @@ export function TaxAnalysis() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
                   Current Appraised Value *
+                  {currentLookupState === 'searching' && (
+                    <span className="flex items-center gap-1 text-gray-400 normal-case font-normal">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Looking up…
+                    </span>
+                  )}
+                  {currentLookupState === 'found' && (
+                    <span className="flex items-center gap-1 text-green-600 normal-case font-normal">
+                      <CheckCircle className="w-3 h-3" />
+                      {lookupTaxYear ? `${lookupTaxYear} value found — verify with your notice` : 'Auto-filled — verify with your notice'}
+                    </span>
+                  )}
+                  {currentLookupState === 'stale' && (
+                    <span className="normal-case font-normal text-amber-500">
+                      Only {lookupTaxYear} data available — enter {new Date().getFullYear()} value from your notice
+                    </span>
+                  )}
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
@@ -318,7 +349,11 @@ export function TaxAnalysis() {
                     value={formData.currentValue ?? ''}
                     onChange={handleInputChange}
                     placeholder="From your 2026 notice"
-                    className="w-full p-4 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none font-medium"
+                    className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none font-medium border ${
+                      currentLookupState === 'found'
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
                     required
                   />
                 </div>
