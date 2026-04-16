@@ -6,6 +6,20 @@ import { generateTaxRecommendation, extractDataFromDocument } from '../lib/ai';
 import { COUNTIES, resolveCounty } from '../lib/constants';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
 
+function RecommendationSkeleton() {
+  return (
+    <div className="space-y-3 animate-pulse mb-8" aria-label="Generating recommendation…" role="status">
+      <div className="h-4 bg-gray-200 rounded-full w-full" />
+      <div className="h-4 bg-gray-200 rounded-full w-11/12" />
+      <div className="h-4 bg-gray-200 rounded-full w-10/12" />
+      <div className="h-4 bg-gray-200 rounded-full w-full" />
+      <div className="h-4 bg-gray-200 rounded-full w-8/12" />
+      <div className="h-4 bg-gray-200 rounded-full w-9/12 mt-4" />
+      <div className="h-4 bg-gray-200 rounded-full w-11/12" />
+    </div>
+  );
+}
+
 const DEFAULT_FORM: PropertyData = {
   address: '',
   zillowLink: '',
@@ -367,15 +381,19 @@ export function TaxAnalysis() {
                   )}
                 </div>
 
-                {/* AI recommendation — explicit child selectors instead of broken prose plugin */}
-                <div
-                  className="text-gray-600 mb-8 text-base leading-relaxed
-                    [&_strong]:font-semibold [&_strong]:text-gray-900
-                    [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ul]:my-3
-                    [&_li]:text-gray-700
-                    [&_a]:text-secondary [&_a]:underline [&_a:hover]:text-secondary-container"
-                  dangerouslySetInnerHTML={{ __html: recommendationHtml }}
-                />
+                {/* AI recommendation — skeleton while generating, content once ready */}
+                {isAnalyzing ? (
+                  <RecommendationSkeleton />
+                ) : (
+                  <div
+                    className="text-gray-600 mb-8 text-base leading-relaxed
+                      [&_strong]:font-semibold [&_strong]:text-gray-900
+                      [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ul]:my-3
+                      [&_li]:text-gray-700
+                      [&_a]:text-secondary [&_a]:underline [&_a:hover]:text-secondary-container"
+                    dangerouslySetInnerHTML={{ __html: recommendationHtml }}
+                  />
+                )}
 
                 <div className="pt-8 border-t border-gray-100">
                   <a

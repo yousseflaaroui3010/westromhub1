@@ -5,6 +5,20 @@ import { runInsuranceRuleEngine, type InsuranceAnalysisResult, type InsuranceDat
 import { extractInsuranceData, generateInsuranceRecommendation } from '../lib/ai';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
 
+function RecommendationSkeleton() {
+  return (
+    <div className="space-y-3 animate-pulse mb-8" aria-label="Generating recommendation…" role="status">
+      <div className="h-4 bg-gray-200 rounded-full w-full" />
+      <div className="h-4 bg-gray-200 rounded-full w-11/12" />
+      <div className="h-4 bg-gray-200 rounded-full w-10/12" />
+      <div className="h-4 bg-gray-200 rounded-full w-full" />
+      <div className="h-4 bg-gray-200 rounded-full w-8/12" />
+      <div className="h-4 bg-gray-200 rounded-full w-9/12 mt-4" />
+      <div className="h-4 bg-gray-200 rounded-full w-11/12" />
+    </div>
+  );
+}
+
 export function InsuranceAnalysis() {
   const [insuranceData, setInsuranceData] = useState<InsuranceData | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -224,15 +238,19 @@ export function InsuranceAnalysis() {
                   </div>
                 </div>
 
-                {/* AI recommendation — explicit child selectors instead of broken prose plugin */}
-                <div
-                  className="text-gray-600 mb-8 text-base leading-relaxed
-                    [&_strong]:font-semibold [&_strong]:text-gray-900
-                    [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ul]:my-3
-                    [&_li]:text-gray-700
-                    [&_a]:text-tertiary [&_a]:underline [&_a:hover]:text-tertiary/80"
-                  dangerouslySetInnerHTML={{ __html: recommendationHtml }}
-                />
+                {/* AI recommendation — skeleton while generating, content once ready */}
+                {isAnalyzing ? (
+                  <RecommendationSkeleton />
+                ) : (
+                  <div
+                    className="text-gray-600 mb-8 text-base leading-relaxed
+                      [&_strong]:font-semibold [&_strong]:text-gray-900
+                      [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ul]:my-3
+                      [&_li]:text-gray-700
+                      [&_a]:text-tertiary [&_a]:underline [&_a:hover]:text-tertiary/80"
+                    dangerouslySetInnerHTML={{ __html: recommendationHtml }}
+                  />
+                )}
               </div>
             </div>
           </div>
