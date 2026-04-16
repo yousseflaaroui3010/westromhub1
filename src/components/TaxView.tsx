@@ -77,7 +77,7 @@ export function TaxView() {
                 </li>
               </ul>
               <div className="rounded-xl overflow-hidden shadow-md border border-gray-100 mb-8 flex-grow">
-                <VideoEmbed title="Tax Protest Walkthrough" url="https://www.youtube.com/embed/tt21f_mheH8" />
+                <VideoEmbed title="Tax Protest Walkthrough" url="https://www.loom.com/embed/25d8f0f255b4435199f9a2ea61449f03" />
               </div>
               <a href="#counties" className="text-primary font-bold flex items-center gap-2 hover:gap-4 transition-all mt-auto">
                 Find your county link <ArrowRight className="w-5 h-5" />

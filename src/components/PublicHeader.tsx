@@ -21,11 +21,10 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         {/* Logo */}
         <button onClick={onNavigateHome} className="flex items-center gap-2 cursor-pointer transition-transform hover:scale-105 group">
-          <img 
-            src="/client-logo.png" 
-            alt="Westrom Group Logo" 
+          <img
+            src="/westrom-logo.webp"
+            alt="Westrom Group Logo"
             className="h-16 w-auto bg-white p-1.5 rounded-xl border border-gray-100 shadow-sm group-hover:shadow-md transition-shadow"
-            referrerPolicy="no-referrer"
           />
         </button>
 

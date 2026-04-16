@@ -7,11 +7,10 @@ export function PublicFooter() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           <div>
             <div className="mb-4 inline-block">
-              <img 
-                src="/client-logo.png" 
-                alt="Westrom Group Logo" 
+              <img
+                src="/westrom-logo.webp"
+                alt="Westrom Group Logo"
                 className="h-16 w-auto bg-white p-2 rounded-xl border border-gray-200 shadow-md"
-                referrerPolicy="no-referrer"
               />
             </div>
             <p className="text-gray-300 text-sm max-w-xs">

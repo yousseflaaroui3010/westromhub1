@@ -13,6 +13,9 @@ export function InsuranceView() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 pb-24">
+        {/* Insurance Analysis Tool */}
+        <InsuranceAnalysis />
+
         <section className="mb-24">
           <div className="mb-10">
             <h2 className="font-heading font-bold text-3xl text-primary mb-4 tracking-tight">Why Review Your Insurance Now?</h2>
@@ -53,9 +56,6 @@ export function InsuranceView() {
             </div>
           </div>
         </section>
-
-        {/* Insurance Analysis Tool */}
-        <InsuranceAnalysis />
 
         <section id="brokers" className="mb-12">
           <div className="bg-gradient-to-br from-primary to-slate-800 text-white rounded-3xl p-10 md:p-12 shadow-xl relative overflow-hidden">
