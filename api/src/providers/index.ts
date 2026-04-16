@@ -1,5 +1,4 @@
 import type { TextProvider, VisionProvider } from './types';
-import { makeOllamaTextProvider, makeOllamaVisionProvider } from './ollama';
 import { makeGroqTextProvider } from './groq';
 import { makeOpenRouterVisionProvider } from './openrouter';
 import { makeGeminiTextProvider, makeGeminiVisionProvider } from './gemini';
@@ -29,10 +28,6 @@ export async function withFallback<T>(
 }
 
 export interface ProviderConfig {
-  ollamaBaseUrl: string;
-  visionModel: string;
-  textModel: string;
-  // Cloud providers (used on Railway — no GPU required)
   geminiApiKey?: string;
   geminiModel?: string;
   groqApiKey?: string;
@@ -41,17 +36,13 @@ export interface ProviderConfig {
   openRouterModel?: string;
   moonShotApiKey?: string;
   moonShotModel?: string;
-  // Local provider — set OLLAMA_ENABLED=true to include in the chain.
-  // Enabled automatically by docker-compose for local development.
-  ollamaEnabled?: boolean;
 }
 
 /**
- * Provider priority (text):
- *   1. Gemini 3 Flash  — primary (multimodal, fast, generous free tier)
- *   2. Groq              — text fallback (llama-3.3-70b-versatile)
- *   3. MoonShot (Kimi)   — text fallback (moonshot-v1-8k)
- *   4. Ollama/Gemma 4    — local fallback (OLLAMA_ENABLED=true only)
+ * Text provider priority:
+ *   1. Gemini 2.5 Flash  — primary (multimodal, fast, generous free tier)
+ *   2. Groq              — fallback (llama-3.3-70b-versatile, very fast inference)
+ *   3. MoonShot (Kimi)   — fallback (moonshot-v1-8k)
  */
 export function buildTextProviders(cfg: ProviderConfig): TextProvider[] {
   const providers: TextProvider[] = [];
@@ -64,17 +55,13 @@ export function buildTextProviders(cfg: ProviderConfig): TextProvider[] {
   if (cfg.moonShotApiKey) {
     providers.push(makeMoonShotTextProvider(cfg.moonShotApiKey, cfg.moonShotModel));
   }
-  if (cfg.ollamaEnabled) {
-    providers.push(makeOllamaTextProvider(cfg.ollamaBaseUrl, cfg.textModel));
-  }
   return providers;
 }
 
 /**
- * Provider priority (vision):
- *   1. Gemini 3 Flash  — primary (native multimodal, JSON mode)
- *   2. OpenRouter        — vision fallback (configurable model)
- *   3. Ollama/Gemma 4    — local fallback (OLLAMA_ENABLED=true only)
+ * Vision provider priority:
+ *   1. Gemini 2.5 Flash      — primary (native multimodal, JSON mode)
+ *   2. OpenRouter / Pixtral  — fallback (mistralai/pixtral-large-2411, purpose-built document OCR)
  */
 export function buildVisionProviders(cfg: ProviderConfig): VisionProvider[] {
   const providers: VisionProvider[] = [];
@@ -83,9 +70,6 @@ export function buildVisionProviders(cfg: ProviderConfig): VisionProvider[] {
   }
   if (cfg.openRouterApiKey) {
     providers.push(makeOpenRouterVisionProvider(cfg.openRouterApiKey, cfg.openRouterModel));
-  }
-  if (cfg.ollamaEnabled) {
-    providers.push(makeOllamaVisionProvider(cfg.ollamaBaseUrl, cfg.visionModel));
   }
   return providers;
 }

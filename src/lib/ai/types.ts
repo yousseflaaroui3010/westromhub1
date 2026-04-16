@@ -1,5 +1,6 @@
 export interface TaxExtraction {
   address?: string;
+  county?: string;
   currentValue?: number;
   priorValue?: number;
   error?: string;

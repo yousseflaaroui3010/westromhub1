@@ -1,4 +1,6 @@
 # Docker Compose v2+ — no 'version' key needed (deprecated in Compose v2)
+# All AI providers are cloud APIs — no local model services needed.
+# Copy api/.env.example to api/.env and fill in your API keys before running.
 
 services:
   frontend:
@@ -26,55 +28,14 @@ services:
       dockerfile: Dockerfile
     environment:
       - PORT=3001
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_ENABLED=true
-      # gemma4:e4b is natively multimodal — one model handles both text and vision.
-      # Upgrade to gemma4:e12b on machines with 16GB+ RAM for higher quality output.
-      - VISION_MODEL=gemma4:e4b
-      - TEXT_MODEL=gemma4:e4b
-    depends_on:
-      ollama:
-        condition: service_healthy
+      # Cloud AI providers — set these in api/.env (see api/.env.example)
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
     healthcheck:
       # node:20-alpine ships with wget
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3001/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
-      # Model pull can take a while on first boot; give the api extra start time
-      start_period: 30s
-
-  ollama:
-    image: ollama/ollama
-    volumes:
-      - ollama_data:/root/.ollama
-    # DOCKER-2: Replace fragile 'sleep 5' with a proper readiness loop before pulling models.
-    # $$ escapes $ in docker-compose so the shell sees $! and $OLLAMA_PID correctly.
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        ollama serve &
-        OLLAMA_PID=$$!
-        echo "Waiting for Ollama to be ready..."
-        until curl -sf http://localhost:11434/ > /dev/null 2>&1; do
-          sleep 2
-        done
-        echo "Ollama ready. Pulling model..."
-        ollama pull gemma4:e4b
-        echo "Model ready."
-        wait $$OLLAMA_PID
-    # Port not exposed to host — only the internal docker network needs it
-    expose:
-      - "11434"
-    healthcheck:
-      # DOCKER-3: Healthcheck on /api/tags confirms serve is up AND models are loaded.
-      # start_period covers initial model pull time (can be several minutes on first boot).
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
-      interval: 30s
-      timeout: 15s
-      retries: 10
-      start_period: 300s
-
-volumes:
-  ollama_data:
+      start_period: 10s

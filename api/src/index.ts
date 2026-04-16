@@ -7,19 +7,10 @@ import { buildTextProviders, buildVisionProviders } from './providers';
 import { createApp } from './app';
 
 const PORT = Number(process.env.PORT) || 3001;
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-const VISION_MODEL = process.env.VISION_MODEL || 'qwen2-vl:7b';
-const TEXT_MODEL = process.env.TEXT_MODEL || 'qwen2.5:7b';
 
 // AI-1: Build provider chains once at startup.
-// Cloud-first: Groq (text) + OpenRouter (vision) are primary.
-// Set OLLAMA_ENABLED=true to append Ollama as a local fallback.
-const ollamaEnabled = process.env.OLLAMA_ENABLED === 'true';
-
+// All providers are cloud APIs — no local model dependencies.
 const providerConfig = {
-  ollamaBaseUrl: OLLAMA_BASE_URL,
-  textModel: TEXT_MODEL,
-  visionModel: VISION_MODEL,
   geminiApiKey: process.env.GEMINI_API_KEY,
   geminiModel: process.env.GEMINI_MODEL,
   groqApiKey: process.env.GROQ_API_KEY,
@@ -28,7 +19,6 @@ const providerConfig = {
   openRouterModel: process.env.OPENROUTER_MODEL,
   moonShotApiKey: process.env.MOONSHOT_API_KEY,
   moonShotModel: process.env.MOONSHOT_MODEL,
-  ollamaEnabled,
 };
 
 const textProviders = buildTextProviders(providerConfig);
@@ -36,7 +26,10 @@ const visionProviders = buildVisionProviders(providerConfig);
 
 if (textProviders.length === 0 || visionProviders.length === 0) {
   console.error(
-    'FATAL: No AI providers configured. Set at least GEMINI_API_KEY (handles both text + vision), or GROQ_API_KEY + OPENROUTER_API_KEY, or OLLAMA_ENABLED=true.',
+    'FATAL: No AI providers configured. ' +
+    'Set GEMINI_API_KEY (covers both text + vision), or ' +
+    'GROQ_API_KEY (text) + OPENROUTER_API_KEY (vision). ' +
+    'See .env.example for all options.',
   );
   process.exit(1);
 }
@@ -46,7 +39,7 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000,ht
   .map((o) => o.trim())
   .filter(Boolean);
 
-const app = createApp(textProviders, visionProviders, allowedOrigins, OLLAMA_BASE_URL);
+const app = createApp(textProviders, visionProviders, allowedOrigins);
 
 serve({ fetch: app.fetch, port: PORT }, (info: AddressInfo) => {
   console.log(`Server running on port ${info.port}`);

@@ -3,7 +3,7 @@ import { Upload, Loader2, CheckCircle, AlertCircle, FileText } from 'lucide-reac
 import DOMPurify from 'dompurify';
 import { runRuleEngine, type AnalysisResult, type PropertyData } from '../lib/ruleEngine';
 import { generateTaxRecommendation, extractDataFromDocument } from '../lib/ai';
-import { COUNTIES } from '../lib/constants';
+import { COUNTIES, resolveCounty } from '../lib/constants';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
 
 const DEFAULT_FORM: PropertyData = {
@@ -66,6 +66,12 @@ export function TaxAnalysis() {
     const newData: PropertyData = {
       ...formDataRef.current,
       address: extracted.address ?? formDataRef.current.address,
+      // Map the AI-extracted county string to a canonical COUNTIES entry so the
+      // correct portal URL and AI county rule are applied. Falls back to the
+      // user's current selection when the document county is absent or unreadable.
+      county: extracted.county
+        ? resolveCounty(extracted.county)
+        : formDataRef.current.county,
       currentValue: extracted.currentValue ?? formDataRef.current.currentValue,
       priorValue: extracted.priorValue ?? formDataRef.current.priorValue,
     };
@@ -163,6 +169,7 @@ export function TaxAnalysis() {
                 <div>
                   <h3 className="font-heading font-bold text-xl text-gray-900 mb-2">Upload Tax Notice</h3>
                   <p className="text-gray-500">Drag and drop your PDF or image here</p>
+                  <p className="text-xs text-gray-400 mt-1">PDF: page 1 only — ensure appraised values appear on the first page</p>
                 </div>
                 <button
                   type="button"
@@ -377,7 +384,9 @@ export function TaxAnalysis() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center w-full py-4 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-primary font-bold rounded-xl transition-colors"
                   >
-                    Visit {formData.county} Website
+                    {formData.county === 'Other (Texas)'
+                    ? 'Find Your County Appraisal District'
+                    : `Visit ${formData.county} Website`}
                   </a>
                 </div>
               </div>

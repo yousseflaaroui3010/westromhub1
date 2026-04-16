@@ -13,12 +13,21 @@ export async function extractDataFromDocument(
     const res = await fetch(API_BASE_URL + '/extract-tax', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ base64: base64Data, mimeType })
+      body: JSON.stringify({ base64: base64Data, mimeType }),
     });
-    if (!res.ok) throw new Error('API error');
+    if (!res.ok) {
+      // Propagate the API's error message so the component can display it directly.
+      // Falls back to a generic message only when the body cannot be parsed.
+      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+      const message = typeof body.error === 'string'
+        ? body.error
+        : 'Failed to extract document data. Please try again.';
+      return { error: message };
+    }
     return await res.json();
-  } catch (error) {
-    console.error('Tax extraction failed:', error);
+  } catch {
+    // Network-level failure (offline, CORS) — no API body to parse.
+    console.error('Tax extraction: network failure');
     return null;
   }
 }
@@ -31,12 +40,18 @@ export async function extractInsuranceData(
     const res = await fetch(API_BASE_URL + '/extract-insurance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ base64: base64Data, mimeType })
+      body: JSON.stringify({ base64: base64Data, mimeType }),
     });
-    if (!res.ok) throw new Error('API error');
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+      const message = typeof body.error === 'string'
+        ? body.error
+        : 'Failed to extract document data. Please try again.';
+      return { error: message };
+    }
     return await res.json();
-  } catch (error) {
-    console.error('Insurance extraction failed:', error);
+  } catch {
+    console.error('Insurance extraction: network failure');
     return null;
   }
 }

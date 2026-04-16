@@ -19,7 +19,6 @@ const app = createApp(
   [mockTextProvider],
   [mockVisionProvider],
   ['http://localhost:5173'],
-  'http://localhost:11434',
 );
 
 // Helper: make a JSON POST request to the app
@@ -111,6 +110,18 @@ describe('POST /api/extract-tax', () => {
       'dGVzdA==',
       'image/png',
     );
+  });
+
+  it('returns 400 for unsupported mimeType (SEC-3 / Bug-1b regression)', async () => {
+    const res = await post('/api/extract-tax', { base64: 'dGVzdA==', mimeType: 'text/csv' });
+    expect(res.status).toBe(400);
+    // Provider must NOT be called — rejected at the schema layer
+    expect(mockVisionProvider.extract).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for video mimeType', async () => {
+    const res = await post('/api/extract-tax', { base64: 'dGVzdA==', mimeType: 'video/mp4' });
+    expect(res.status).toBe(400);
   });
 });
 

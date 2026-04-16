@@ -12,10 +12,19 @@ import { withFallback } from './providers';
 
 // --- Request schemas (SEC-3) ---
 
+// PDFs are converted to image/png on the client before reaching this API,
+// so application/pdf is intentionally absent from this server-side allowlist.
+const EXTRACT_ALLOWED_MIME_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+] as const;
+
 const ExtractBodySchema = z.object({
   base64: z.string().min(1).max(10_000_000, 'base64 payload exceeds 10 MB limit'),
-  // mimeType forwarded by client — needed by OpenRouter vision fallback provider
-  mimeType: z.string().min(1).max(100).optional().default('image/png'),
+  mimeType: z.enum(EXTRACT_ALLOWED_MIME_TYPES).default('image/png'),
 });
 
 const RecommendTaxBodySchema = z.object({
@@ -47,7 +56,6 @@ export function createApp(
   textProviders: TextProvider[],
   visionProviders: VisionProvider[],
   allowedOriginsList: string[] = ['http://localhost:3000', 'http://localhost:5173'],
-  ollamaBaseUrl: string = 'http://localhost:11434',
 ): Hono {
   const app = new Hono();
 
@@ -230,22 +238,6 @@ export function createApp(
     }
   });
 
-  app.get('/api/tags', async (c: Context) => {
-    try {
-      const response = await fetch(`${ollamaBaseUrl}/api/tags`, {
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch from Ollama');
-      }
-      const data = await response.json();
-      return c.json(data);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Ollama unreachable';
-      return c.json({ error: message }, 503);
-    }
-  });
-
   // Sprint 6b: OpenAPI spec and Swagger UI
   app.get('/api/openapi.json', (c: Context) => {
     const spec = {
@@ -274,7 +266,7 @@ export function createApp(
                     required: ['base64'],
                     properties: {
                       base64: { type: 'string', description: 'Base64-encoded document image' },
-                      mimeType: { type: 'string', default: 'image/png' },
+                      mimeType: { type: 'string', enum: [...EXTRACT_ALLOWED_MIME_TYPES], default: 'image/png' },
                     },
                   },
                 },
@@ -300,7 +292,7 @@ export function createApp(
                     required: ['base64'],
                     properties: {
                       base64: { type: 'string', description: 'Base64-encoded document image' },
-                      mimeType: { type: 'string', default: 'image/png' },
+                      mimeType: { type: 'string', enum: [...EXTRACT_ALLOWED_MIME_TYPES], default: 'image/png' },
                     },
                   },
                 },
@@ -362,15 +354,6 @@ export function createApp(
               '200': { description: '{ recommendation: string }' },
               '400': { description: 'Invalid request body' },
               '503': { description: 'All AI providers unavailable' },
-            },
-          },
-        },
-        '/api/tags': {
-          get: {
-            summary: 'List available Ollama models',
-            responses: {
-              '200': { description: 'Ollama model list' },
-              '503': { description: 'Ollama unreachable' },
             },
           },
         },

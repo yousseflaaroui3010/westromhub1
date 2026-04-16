@@ -6,12 +6,14 @@ interface OpenRouterResponse {
 
 /**
  * OpenRouter vision provider — OpenAI-compatible multimodal API.
- * Used as fallback when Ollama is unavailable for document extraction.
- * Default model: google/gemini-flash-1.5-8b (cheap, fast, accurate OCR).
+ * Used as the vision fallback when Gemini is unavailable.
+ * Default model: mistralai/pixtral-large-2411 — Mistral's flagship vision model,
+ * purpose-built for structured document understanding (forms, tables, OCR).
+ * Override via OPENROUTER_MODEL env var (see .env.example for alternatives).
  */
 export function makeOpenRouterVisionProvider(
   apiKey: string,
-  model = 'google/gemini-flash-1.5-8b',
+  model = 'mistralai/pixtral-large-2411',
 ): VisionProvider {
   return {
     name: `openrouter:${model}`,

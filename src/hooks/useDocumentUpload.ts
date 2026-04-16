@@ -3,6 +3,19 @@ import { readFileAsBase64 } from '../lib/fileUtils';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
+// Allowlist of MIME types the vision pipeline can process.
+// PDFs are converted to image/png client-side (pdfToImage.ts) — keep application/pdf here
+// so drag-and-drop of PDFs passes this check before conversion.
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+]);
+const ALLOWED_TYPES_LABEL = 'PDF, JPEG, PNG, or WebP';
+
 interface UseDocumentUploadOptions {
   /** Whether the parent component is currently running its own async operation. */
   isAnalyzing: boolean;
@@ -37,8 +50,12 @@ export function useDocumentUpload({
 
   const processFile = useCallback(
     async (file: File) => {
+      if (!ALLOWED_MIME_TYPES.has(file.type)) {
+        onError(`Unsupported file type "${file.type || 'unknown'}". Please upload a ${ALLOWED_TYPES_LABEL}.`);
+        return;
+      }
       if (file.size > MAX_FILE_SIZE) {
-        onError('File is too large. Please upload a file smaller than 10MB.');
+        onError('File is too large. Please upload a file smaller than 10 MB.');
         return;
       }
       setIsExtracting(true);
