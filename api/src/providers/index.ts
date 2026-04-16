@@ -48,7 +48,7 @@ export interface ProviderConfig {
 
 /**
  * Provider priority (text):
- *   1. Gemini 2.5 Flash  — primary (multimodal, fast, generous free tier)
+ *   1. Gemini 3 Flash  — primary (multimodal, fast, generous free tier)
  *   2. Groq              — text fallback (llama-3.3-70b-versatile)
  *   3. MoonShot (Kimi)   — text fallback (moonshot-v1-8k)
  *   4. Ollama/Gemma 4    — local fallback (OLLAMA_ENABLED=true only)
@@ -72,7 +72,7 @@ export function buildTextProviders(cfg: ProviderConfig): TextProvider[] {
 
 /**
  * Provider priority (vision):
- *   1. Gemini 2.5 Flash  — primary (native multimodal, JSON mode)
+ *   1. Gemini 3 Flash  — primary (native multimodal, JSON mode)
  *   2. OpenRouter        — vision fallback (configurable model)
  *   3. Ollama/Gemma 4    — local fallback (OLLAMA_ENABLED=true only)
  */
