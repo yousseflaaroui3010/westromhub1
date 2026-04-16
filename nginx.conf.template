@@ -8,7 +8,7 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
     # CSP: restrict to self + data URIs for PDF canvas rendering
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src blob:; frame-src https://www.loom.com;" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src blob: 'self'; frame-src https://www.loom.com;" always;
     # Hide nginx version from responses
     server_tokens off;
 
@@ -16,6 +16,15 @@ server {
         root /usr/share/nginx/html;
         index index.html;
         try_files $uri $uri/ /index.html;
+    }
+
+    # SEC: nginx:alpine's default mime.types does not include .mjs.
+    # Without this, the pdfjs-dist web worker is served as application/octet-stream,
+    # which browsers reject when creating a module worker (strict MIME enforcement).
+    location ~* \.mjs$ {
+        root /usr/share/nginx/html;
+        default_type application/javascript;
+        try_files $uri =404;
     }
 
     location /api/ {
