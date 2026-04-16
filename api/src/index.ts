@@ -39,7 +39,7 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000,ht
   .map((o) => o.trim())
   .filter(Boolean);
 
-const app = createApp(textProviders, visionProviders, allowedOrigins);
+const app = createApp(textProviders, visionProviders, allowedOrigins, process.env.ATTOM_API_KEY);
 
 serve({ fetch: app.fetch, port: PORT }, (info: AddressInfo) => {
   console.log(`Server running on port ${info.port}`);

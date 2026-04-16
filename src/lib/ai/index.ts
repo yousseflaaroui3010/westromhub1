@@ -79,6 +79,29 @@ export async function generateTaxRecommendation(
   }
 }
 
+export type PropertyLookupResult =
+  | { priorValue: number; taxYear: number | null; source: 'attom' }
+  | { priorValue: null; source: 'not_found' | 'unavailable' };
+
+// Looks up the prior-year assessed value for a property address via the backend
+// (ATTOM Data API). Returns null for any failure so callers can fall back to
+// manual entry without surfacing an error.
+export async function lookupProperty(
+  address: string,
+  county: string,
+): Promise<{ priorValue: number; taxYear: number | null } | null> {
+  try {
+    const params = new URLSearchParams({ address, county });
+    const res = await fetch(`${API_BASE_URL}/property-lookup?${params.toString()}`);
+    if (!res.ok) return null;
+    const data = await res.json() as PropertyLookupResult;
+    if (data.priorValue === null) return null;
+    return { priorValue: data.priorValue, taxYear: data.taxYear };
+  } catch {
+    return null;
+  }
+}
+
 export async function generateInsuranceRecommendation(
   result: InsuranceAnalysisResult,
 ): Promise<string> {

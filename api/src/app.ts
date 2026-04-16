@@ -38,6 +38,25 @@ const RecommendInsuranceBodySchema = z.object({
   statusContext: z.string().min(1).max(2_000),
 });
 
+const PropertyLookupQuerySchema = z.object({
+  address: z.string().min(5).max(500),
+  county: z.string().min(1).max(100),
+});
+
+// Minimal shape of the ATTOM assessment/detail response — only the fields we need.
+const AttomResponseSchema = z.object({
+  property: z.array(z.object({
+    assessment: z.object({
+      assessed: z.object({
+        assdttlvalue: z.number().nullable().optional(),
+      }).optional(),
+      tax: z.object({
+        taxyear: z.number().nullable().optional(),
+      }).optional(),
+    }).optional(),
+  })).optional(),
+}).passthrough();
+
 // --- Helpers ---
 
 // BUG-3: Strip markdown code fences Ollama sometimes wraps JSON output in.
@@ -49,6 +68,58 @@ function cleanJsonResponse(raw: string): string {
     .trim();
 }
 
+// Split "123 Main St, Fort Worth, TX 76102" → address1 + address2 for ATTOM.
+function splitAddress(combined: string): { address1: string; address2: string } {
+  const commaIdx = combined.indexOf(',');
+  if (commaIdx === -1) return { address1: combined.trim(), address2: '' };
+  return {
+    address1: combined.substring(0, commaIdx).trim(),
+    address2: combined.substring(commaIdx + 1).trim(),
+  };
+}
+
+// --- ATTOM property lookup helper ---
+// Calls the ATTOM assessment/detail endpoint and returns the most recent assessed
+// total value, or null on any failure. All failure modes (quota exhausted, address
+// not found, network error, bad key) return null so the frontend falls back to
+// manual entry without blocking the user.
+async function fetchAttomPriorValue(
+  address: string,
+  apiKey: string,
+): Promise<{ priorValue: number; taxYear: number | null } | null> {
+  const { address1, address2 } = splitAddress(address);
+  if (!address1) return null;
+
+  const url = new URL('https://api.gateway.attomdata.com/propertyapi/v1.0.0/assessment/detail');
+  url.searchParams.set('address1', address1);
+  if (address2) url.searchParams.set('address2', address2);
+
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      headers: { apikey: apiKey, Accept: 'application/json' },
+      signal: AbortSignal.timeout(8_000),
+    });
+  } catch {
+    return null; // Network error or timeout
+  }
+
+  // 429/402/403 = quota exhausted or bad key — graceful degradation, not an error
+  if (!res.ok) return null;
+
+  let json: unknown;
+  try { json = await res.json(); } catch { return null; }
+
+  const parsed = AttomResponseSchema.safeParse(json);
+  if (!parsed.success) return null;
+
+  const prop = parsed.data.property?.[0];
+  const priorValue = prop?.assessment?.assessed?.assdttlvalue ?? null;
+  const taxYear = prop?.assessment?.tax?.taxyear ?? null;
+  if (priorValue === null) return null;
+  return { priorValue, taxYear };
+}
+
 // --- App factory ---
 // Accepts providers as arguments so tests can inject mocks without env vars.
 
@@ -56,6 +127,7 @@ export function createApp(
   textProviders: TextProvider[],
   visionProviders: VisionProvider[],
   allowedOriginsList: string[] = ['http://localhost:3000', 'http://localhost:5173'],
+  attomApiKey?: string,
 ): Hono {
   const app = new Hono();
 
@@ -109,6 +181,42 @@ export function createApp(
   // --- Endpoints ---
 
   app.get('/health', (c: Context) => c.json({ status: 'ok' }));
+
+  // --- Property lookup: auto-fill prior-year assessed value from ATTOM ---
+  // Returns { priorValue: number, source: 'attom' } on success, or
+  // { priorValue: null, source: 'not_found' | 'unavailable' } on any failure.
+  // 'unavailable' when the API key is not configured — frontend falls back to manual.
+  app.get('/api/property-lookup', async (c: Context) => {
+    const query = {
+      address: c.req.query('address') ?? '',
+      county: c.req.query('county') ?? '',
+    };
+    const parsed = PropertyLookupQuerySchema.safeParse(query);
+    if (!parsed.success) {
+      return c.json({ error: 'address (min 5 chars) and county are required' }, 400);
+    }
+
+    if (!attomApiKey) {
+      console.warn('[property-lookup] ATTOM_API_KEY not set — returning unavailable');
+      return c.json({ priorValue: null, source: 'unavailable' });
+    }
+
+    console.log('[property-lookup] looking up address:', parsed.data.address);
+    let result: { priorValue: number; taxYear: number | null } | null;
+    try {
+      result = await fetchAttomPriorValue(parsed.data.address, attomApiKey);
+    } catch (err) {
+      console.error('[property-lookup] unexpected error:', err);
+      return c.json({ priorValue: null, source: 'not_found' });
+    }
+    console.log('[property-lookup] result:', result);
+
+    if (result === null) {
+      return c.json({ priorValue: null, source: 'not_found' });
+    }
+
+    return c.json({ priorValue: result.priorValue, taxYear: result.taxYear, source: 'attom' });
+  });
 
   app.post('/api/extract-tax', async (c: Context) => {
     let body: unknown;

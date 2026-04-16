@@ -23,13 +23,13 @@ export function HomeView({ onNavigate }: HomeViewProps) {
             <p className="text-base md:text-lg text-gray-100 font-medium leading-relaxed text-center mb-3">
               Access expert resources and AI-driven analysis to optimize your rental property taxes and insurance.
             </p>
-            <div className="inline-flex items-center gap-2 bg-secondary/20 border border-secondary/30 rounded-full px-3 py-1 text-xs md:text-sm">
+            <div className="inline-flex items-center gap-2 bg-amber-300/15 border border-amber-300/30 rounded-full px-3 py-1 text-xs md:text-sm">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-300"></span>
               </span>
               <span className="text-white">
-                This season's focus: <strong className="text-secondary font-bold">proactively protest your tax values and shop your insurance.</strong>
+                This season's focus: <strong className="text-amber-300 font-bold">proactively protest your tax values and shop your insurance.</strong>
               </span>
             </div>
           </div>

@@ -1,8 +1,8 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { runRuleEngine, type AnalysisResult, type PropertyData } from '../lib/ruleEngine';
-import { generateTaxRecommendation, extractDataFromDocument } from '../lib/ai';
+import { generateTaxRecommendation, extractDataFromDocument, lookupProperty } from '../lib/ai';
 import { COUNTIES, resolveCounty } from '../lib/constants';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
 
@@ -23,11 +23,11 @@ function RecommendationSkeleton() {
 const DEFAULT_FORM: PropertyData = {
   address: '',
   zillowLink: '',
-  currentValue: 0,
-  priorValue: 0,
+  currentValue: undefined,
+  priorValue: undefined,
   zillowValue: undefined,
   realtorValue: undefined,
-  county: COUNTIES[0].name,
+  county: '',
 };
 
 export function TaxAnalysis() {
@@ -37,9 +37,51 @@ export function TaxAnalysis() {
   const [recommendationHtml, setRecommendationHtml] = useState('');
   const [error, setError] = useState('');
 
+  // Prior-year auto-fill state: 'idle' → 'searching' → 'found' | 'unavailable'
+  type LookupState = 'idle' | 'searching' | 'found' | 'unavailable';
+  const [lookupState, setLookupState] = useState<LookupState>('idle');
+  const [lookupTaxYear, setLookupTaxYear] = useState<number | null>(null);
+  const lookupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Keep a ref so onFileProcessed can read current formData without a stale closure
   const formDataRef = useRef(formData);
   formDataRef.current = formData;
+
+  // Debounced property lookup — triggers 800ms after address changes.
+  // Only fires when address looks like a real street address (>15 chars, has a digit).
+  // On success: auto-fills priorValue. On any failure: silently shows manual entry.
+  useEffect(() => {
+    const addr = formData.address ?? '';
+
+    if (lookupTimeoutRef.current) clearTimeout(lookupTimeoutRef.current);
+
+    if (addr.length < 15 || !/\d/.test(addr) || !formData.county) {
+      setLookupState('idle');
+      return;
+    }
+
+    let cancelled = false;
+    setLookupState('searching');
+
+    lookupTimeoutRef.current = setTimeout(() => {
+      void lookupProperty(addr, formData.county).then(result => {
+        if (cancelled) return;
+        if (result !== null) {
+          setFormData(prev => ({ ...prev, priorValue: result.priorValue }));
+          setLookupTaxYear(result.taxYear);
+          setLookupState('found');
+        } else {
+          setLookupTaxYear(null);
+          setLookupState('unavailable');
+        }
+      });
+    }, 800);
+
+    return () => {
+      cancelled = true;
+      if (lookupTimeoutRef.current) clearTimeout(lookupTimeoutRef.current);
+    };
+  }, [formData.address, formData.county]);
 
   const runAnalysis = useCallback(async (data: PropertyData) => {
     if (!data.currentValue || !data.priorValue) return;
@@ -108,8 +150,8 @@ export function TaxAnalysis() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.currentValue || !formData.priorValue) {
-      setError('Current and Prior values are required for tax analysis.');
+    if (!formData.currentValue) {
+      setError('Please enter the Current Appraised Value from your appraisal notice.');
       return;
     }
     void runAnalysis(formData);
@@ -226,13 +268,15 @@ export function TaxAnalysis() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">County</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">County *</label>
                 <select
                   name="county"
                   value={formData.county}
                   onChange={handleInputChange}
+                  required
                   className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none appearance-none"
                 >
+                  <option value="" disabled>Select a county…</option>
                   {COUNTIES.map(c => (
                     <option key={c.name} value={c.name}>{c.name}</option>
                   ))}
@@ -263,28 +307,45 @@ export function TaxAnalysis() {
                   <input
                     type="text"
                     name="currentValue"
-                    value={formData.currentValue || ''}
+                    value={formData.currentValue ?? ''}
                     onChange={handleInputChange}
-                    placeholder="e.g. 450000"
+                    placeholder="From your 2026 notice"
                     className="w-full p-4 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none font-medium"
                     required
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  Prior Year Tax Value *
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                  Prior Year Tax Value
+                  {lookupState === 'searching' && (
+                    <span className="flex items-center gap-1 text-gray-400 normal-case font-normal">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Looking up…
+                    </span>
+                  )}
+                  {lookupState === 'found' && (
+                    <span className="flex items-center gap-1 text-green-600 normal-case font-normal">
+                      <CheckCircle className="w-3 h-3" />
+                      {lookupTaxYear ? `${lookupTaxYear} value found — verify with your notice` : 'Auto-filled — verify with your notice'}
+                    </span>
+                  )}
+                  {lookupState === 'unavailable' && (
+                    <span className="normal-case font-normal text-gray-400">Enter manually</span>
+                  )}
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
                   <input
                     type="text"
                     name="priorValue"
-                    value={formData.priorValue || ''}
+                    value={formData.priorValue ?? ''}
                     onChange={handleInputChange}
-                    placeholder="e.g. 350000"
-                    className="w-full p-4 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none font-medium"
-                    required
+                    placeholder={lookupState === 'searching' ? 'Looking up…' : 'e.g. 350000'}
+                    className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none font-medium border ${
+                      lookupState === 'found'
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
                   />
                 </div>
               </div>

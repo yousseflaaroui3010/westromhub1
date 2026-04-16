@@ -3,8 +3,8 @@ export type AnalysisStatus = 'AUTOMATIC_REDUCTION' | 'PROTEST_RECOMMENDED' | 'NO
 export interface PropertyData {
   address?: string;
   zillowLink?: string;
-  currentValue: number;
-  priorValue: number;
+  currentValue?: number;
+  priorValue?: number;
   zillowValue?: number;
   realtorValue?: number;
   county: string;
@@ -18,12 +18,14 @@ export interface AnalysisResult {
 }
 
 export function runRuleEngine(data: PropertyData): AnalysisResult {
-  const yoyIncreasePct = data.priorValue > 0 ? (data.currentValue - data.priorValue) / data.priorValue : 0;
+  const currentVal = data.currentValue ?? 0;
+  const priorVal = data.priorValue ?? 0;
+  const yoyIncreasePct = priorVal > 0 ? (currentVal - priorVal) / priorVal : 0;
 
   let status: AnalysisStatus = 'NO_ACTION';
   let marketGapPct: number | null = null;
 
-  if (yoyIncreasePct > 0.20) {
+  if (priorVal > 0 && yoyIncreasePct > 0.20) {
     status = 'AUTOMATIC_REDUCTION';
   } else {
     let marketValue: number | null = null;
@@ -35,8 +37,8 @@ export function runRuleEngine(data: PropertyData): AnalysisResult {
       marketValue = data.realtorValue;
     }
 
-    if (marketValue) {
-      marketGapPct = (data.currentValue - marketValue) / marketValue;
+    if (marketValue && currentVal > 0) {
+      marketGapPct = (currentVal - marketValue) / marketValue;
       if (marketGapPct > 0.05) {
         status = 'PROTEST_RECOMMENDED';
       } else if (marketGapPct > 0) {
@@ -44,8 +46,8 @@ export function runRuleEngine(data: PropertyData): AnalysisResult {
       } else {
         status = 'NO_ACTION';
       }
-    } else {
-      // Fallback if no market data
+    } else if (priorVal > 0) {
+      // Fallback to YoY change only when no market data
       if (yoyIncreasePct > 0.10) {
         status = 'PROTEST_RECOMMENDED';
       } else if (yoyIncreasePct > 0.05) {

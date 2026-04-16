@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { TextProvider, VisionProvider } from './providers/types';
 import { createApp } from './app';
 
@@ -21,6 +21,14 @@ const app = createApp(
   ['http://localhost:5173'],
 );
 
+// App with ATTOM API key wired in (for property lookup tests)
+const appWithAttom = createApp(
+  [mockTextProvider],
+  [mockVisionProvider],
+  ['http://localhost:5173'],
+  'test-attom-key',
+);
+
 // Helper: make a JSON POST request to the app
 function post(path: string, body: unknown) {
   return app.fetch(
@@ -32,8 +40,17 @@ function post(path: string, body: unknown) {
   );
 }
 
+// Helper: GET request
+function get(appInstance: typeof app, path: string) {
+  return appInstance.fetch(new Request(`http://localhost${path}`));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -250,5 +267,84 @@ describe('CORS middleware', () => {
       }),
     );
     expect(res.status).toBe(204);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('GET /api/property-lookup', () => {
+  it('returns unavailable when ESTATED_API_KEY is not configured', async () => {
+    const res = await get(app, '/api/property-lookup?address=123+Main+St+Fort+Worth+TX&county=Tarrant');
+    expect(res.status).toBe(200);
+    const body = await res.json() as { priorValue: null; source: string };
+    expect(body.priorValue).toBeNull();
+    expect(body.source).toBe('unavailable');
+  });
+
+  it('returns 400 when address param is missing', async () => {
+    const res = await get(appWithAttom, '/api/property-lookup?county=Tarrant');
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when address is too short', async () => {
+    const res = await get(appWithAttom, '/api/property-lookup?address=12&county=Tarrant');
+    expect(res.status).toBe(400);
+  });
+
+  it('returns priorValue and taxYear from ATTOM on success', async () => {
+    const attomPayload = {
+      property: [
+        {
+          assessment: {
+            assessed: { assdttlvalue: 320000 },
+            tax: { taxyear: 2024 },
+          },
+        },
+      ],
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify(attomPayload), { status: 200 }),
+    );
+
+    const res = await get(appWithAttom, '/api/property-lookup?address=123+Main+St+Fort+Worth+TX&county=Tarrant');
+    expect(res.status).toBe(200);
+    const body = await res.json() as { priorValue: number; taxYear: number; source: string };
+    expect(body.priorValue).toBe(320000);
+    expect(body.taxYear).toBe(2024);
+    expect(body.source).toBe('attom');
+  });
+
+  it('returns not_found when ATTOM returns no property data', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ property: [] }), { status: 200 }),
+    );
+
+    const res = await get(appWithAttom, '/api/property-lookup?address=123+Main+St+Fort+Worth+TX&county=Tarrant');
+    expect(res.status).toBe(200);
+    const body = await res.json() as { priorValue: null; source: string };
+    expect(body.priorValue).toBeNull();
+    expect(body.source).toBe('not_found');
+  });
+
+  it('returns not_found gracefully when Estated returns 429 (free tier exhausted)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response('rate limited', { status: 429 }),
+    );
+
+    const res = await get(appWithAttom, '/api/property-lookup?address=123+Main+St+Fort+Worth+TX&county=Tarrant');
+    expect(res.status).toBe(200);
+    const body = await res.json() as { priorValue: null; source: string };
+    expect(body.priorValue).toBeNull();
+    expect(body.source).toBe('not_found');
+  });
+
+  it('returns not_found gracefully when Estated network call fails', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network error'));
+
+    const res = await get(appWithAttom, '/api/property-lookup?address=123+Main+St+Fort+Worth+TX&county=Tarrant');
+    expect(res.status).toBe(200);
+    const body = await res.json() as { priorValue: null; source: string };
+    expect(body.priorValue).toBeNull();
+    expect(body.source).toBe('not_found');
   });
 });

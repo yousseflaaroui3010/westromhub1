@@ -28,16 +28,13 @@ export function TaxView() {
 
       <div className="max-w-7xl mx-auto px-6 pb-24">
         {/* Hot Tip Card */}
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 md:p-8 mb-16 flex flex-col md:flex-row items-start gap-6 shadow-sm">
-          <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 text-amber-600">
-            <AlertTriangle className="w-6 h-6" />
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-10 flex items-start gap-3 shadow-sm">
+          <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 text-amber-600 mt-0.5">
+            <AlertTriangle className="w-4 h-4" />
           </div>
-          <div>
-            <h3 className="font-heading font-bold text-xl text-amber-900 mb-2">Hot Tip: The 20% Rule</h3>
-            <p className="text-amber-800 leading-relaxed">
-              In Texas, non-homestead properties (like rentals) are capped at a <strong>20% increase</strong> in appraised value year-over-year. If your notice shows an increase greater than 20%, you are legally entitled to an automatic reduction.
-            </p>
-          </div>
+          <p className="text-sm text-amber-800 leading-relaxed">
+            <strong className="text-amber-900">Hot Tip: The 20% Rule</strong> — In Texas, non-homestead properties (like rentals) are capped at a <strong>20% increase</strong> in appraised value year-over-year. If your notice shows an increase greater than 20%, you are legally entitled to an automatic reduction.
+          </p>
         </div>
 
         {/* Tax Analysis Tool */}
@@ -50,6 +47,15 @@ export function TaxView() {
             <p className="text-gray-600 text-lg">
               <strong>You have 30 days from receiving your notice</strong> (or until May 15th) to file a protest. Choose the path that works best for you.
             </p>
+          </div>
+
+          {/* Watch This First — shown before the decision grid */}
+          <div className="mb-10 max-w-2xl mx-auto">
+            <p className="text-xs font-bold uppercase tracking-widest text-center text-gray-400 mb-3">Watch This First</p>
+            <div className="rounded-2xl overflow-hidden shadow-md border border-gray-100">
+              <VideoEmbed title="Message from John — Tax Protest Walkthrough" url="https://www.loom.com/embed/25d8f0f255b4435199f9a2ea61449f03" />
+            </div>
+            <p className="text-sm text-gray-500 text-center mt-3">A quick overview before you choose your path.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -76,9 +82,6 @@ export function TaxView() {
                   <span>Submit evidence (comps, photos of repairs needed)</span>
                 </li>
               </ul>
-              <div className="rounded-xl overflow-hidden shadow-md border border-gray-100 mb-8 flex-grow">
-                <VideoEmbed title="Tax Protest Walkthrough" url="https://www.loom.com/embed/25d8f0f255b4435199f9a2ea61449f03" />
-              </div>
               <a href="#counties" className="text-primary font-bold flex items-center gap-2 hover:gap-4 transition-all mt-auto">
                 Find your county link <ArrowRight className="w-5 h-5" />
               </a>
