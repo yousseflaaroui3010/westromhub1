@@ -37,8 +37,9 @@ export function TaxAnalysis() {
   const [recommendationHtml, setRecommendationHtml] = useState('');
   const [error, setError] = useState('');
 
-  // Prior-year auto-fill state: 'idle' → 'searching' → 'found' | 'unavailable'
-  type LookupState = 'idle' | 'searching' | 'found' | 'unavailable';
+  // Prior-year auto-fill state: 'idle' → 'searching' → 'found' | 'stale' | 'unavailable'
+  // 'stale' = ATTOM returned data but for the wrong year (e.g. 2024 when we need 2025)
+  type LookupState = 'idle' | 'searching' | 'found' | 'stale' | 'unavailable';
   const [lookupState, setLookupState] = useState<LookupState>('idle');
   const [lookupTaxYear, setLookupTaxYear] = useState<number | null>(null);
   const lookupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,9 +68,16 @@ export function TaxAnalysis() {
       void lookupProperty(addr, formData.county).then(result => {
         if (cancelled) return;
         if (result !== null) {
-          setFormData(prev => ({ ...prev, priorValue: result.priorValue }));
+          const expectedYear = new Date().getFullYear() - 1;
+          const isStale = result.taxYear !== null && result.taxYear < expectedYear;
           setLookupTaxYear(result.taxYear);
-          setLookupState('found');
+          if (isStale) {
+            // Data is too old — don't auto-fill, wrong year would skew analysis
+            setLookupState('stale');
+          } else {
+            setFormData(prev => ({ ...prev, priorValue: result.priorValue }));
+            setLookupState('found');
+          }
         } else {
           setLookupTaxYear(null);
           setLookupState('unavailable');
@@ -327,6 +335,11 @@ export function TaxAnalysis() {
                     <span className="flex items-center gap-1 text-green-600 normal-case font-normal">
                       <CheckCircle className="w-3 h-3" />
                       {lookupTaxYear ? `${lookupTaxYear} value found — verify with your notice` : 'Auto-filled — verify with your notice'}
+                    </span>
+                  )}
+                  {lookupState === 'stale' && (
+                    <span className="normal-case font-normal text-amber-500">
+                      Only {lookupTaxYear} data available — enter {new Date().getFullYear() - 1} value from your notice
                     </span>
                   )}
                   {lookupState === 'unavailable' && (
