@@ -322,25 +322,26 @@ export function TaxAnalysis() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
                   Current Appraised Value *
-                  {currentLookupState === 'searching' && (
-                    <span className="flex items-center gap-1 text-gray-400 normal-case font-normal">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Looking up…
-                    </span>
-                  )}
-                  {currentLookupState === 'found' && (
-                    <span className="flex items-center gap-1 text-green-600 normal-case font-normal">
-                      <CheckCircle className="w-3 h-3" />
-                      {lookupTaxYear ? `${lookupTaxYear} value found — verify with your notice` : 'Auto-filled — verify with your notice'}
-                    </span>
-                  )}
-                  {currentLookupState === 'stale' && (
-                    <span className="normal-case font-normal text-amber-500">
-                      Only {lookupTaxYear} data available — enter {new Date().getFullYear()} value from your notice
-                    </span>
-                  )}
                 </label>
+                {currentLookupState === 'searching' && (
+                  <p className="flex items-center gap-1 text-xs text-gray-400 mb-2">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Looking up…
+                  </p>
+                )}
+                {currentLookupState === 'found' && (
+                  <p className="flex items-center gap-1 text-xs text-green-600 mb-2">
+                    <CheckCircle className="w-3 h-3 shrink-0" />
+                    {lookupTaxYear ? `${lookupTaxYear} value found — verify with your notice` : 'Auto-filled — verify with your notice'}
+                  </p>
+                )}
+                {currentLookupState === 'stale' && (
+                  <p className="text-xs text-amber-500 mb-2">
+                    {lookupTaxYear ? `Only ${lookupTaxYear} data available` : 'No current data'} — enter your {new Date().getFullYear()} value from your notice
+                  </p>
+                )}
+                {!['searching', 'found', 'stale'].includes(currentLookupState) && <div className="mb-2" />}
                 <div className="relative">
                   <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
                   <input
@@ -359,28 +360,29 @@ export function TaxAnalysis() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
                   Prior Year Tax Value
-                  {lookupState === 'searching' && (
-                    <span className="flex items-center gap-1 text-gray-400 normal-case font-normal">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Looking up…
-                    </span>
-                  )}
-                  {lookupState === 'found' && (
-                    <span className="flex items-center gap-1 text-green-600 normal-case font-normal">
-                      <CheckCircle className="w-3 h-3" />
-                      {lookupTaxYear ? `${lookupTaxYear} value found — verify with your notice` : 'Auto-filled — verify with your notice'}
-                    </span>
-                  )}
-                  {lookupState === 'stale' && (
-                    <span className="normal-case font-normal text-amber-500">
-                      Only {lookupTaxYear} data available — enter {new Date().getFullYear() - 1} value from your notice
-                    </span>
-                  )}
-                  {lookupState === 'unavailable' && (
-                    <span className="normal-case font-normal text-gray-400">Enter manually</span>
-                  )}
                 </label>
+                {lookupState === 'searching' && (
+                  <p className="flex items-center gap-1 text-xs text-gray-400 mb-2">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Looking up…
+                  </p>
+                )}
+                {lookupState === 'found' && (
+                  <p className="flex items-center gap-1 text-xs text-green-600 mb-2">
+                    <CheckCircle className="w-3 h-3 shrink-0" />
+                    {lookupTaxYear ? `${lookupTaxYear} value found — verify with your notice` : 'Auto-filled — verify with your notice'}
+                  </p>
+                )}
+                {lookupState === 'stale' && (
+                  <p className="text-xs text-amber-500 mb-2">
+                    {lookupTaxYear ? `Only ${lookupTaxYear} data available` : 'No current data'} — enter your {new Date().getFullYear() - 1} value from your notice
+                  </p>
+                )}
+                {lookupState === 'unavailable' && (
+                  <p className="text-xs text-gray-400 mb-2">Enter manually</p>
+                )}
+                {!['searching', 'found', 'stale', 'unavailable'].includes(lookupState) && <div className="mb-2" />}
                 <div className="relative">
                   <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
                   <input
