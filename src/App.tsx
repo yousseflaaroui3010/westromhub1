@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { PublicHeader } from './components/PublicHeader';
 import { PublicFooter } from './components/PublicFooter';
@@ -20,6 +21,29 @@ export default function App() {
     else if (view === 'taxes') navigate('/taxes');
     else if (view === 'insurance') navigate('/insurance');
   };
+
+  useEffect(() => {
+    let title = 'Westrom Owner Advisory Hub';
+    let description = 'Self-service resources to help Texas rental property owners optimize property taxes and insurance.';
+    
+    if (location.pathname === '/') {
+      title = 'Westrom Owner Advisory Hub | Property Tax & Insurance Tools';
+      description = 'Self-service resources to help Texas rental property owners optimize property taxes and insurance.';
+    } else if (location.pathname === '/taxes') {
+      title = 'Property Tax Hub | Westrom Owner Advisory Hub';
+      description = 'Analyze your property tax notice to determine if you should protest your Texas property taxes.';
+    } else if (location.pathname === '/insurance') {
+      title = 'Insurance Hub | Westrom Owner Advisory Hub';
+      description = 'Review your property insurance coverage and instantly connect with specialized brokers for better rates.';
+    }
+
+    document.title = title;
+    
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute('content', description);
+    }
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
