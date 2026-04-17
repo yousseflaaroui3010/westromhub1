@@ -47,13 +47,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <a 
+        href="#main-content" 
+        className="absolute -top-9999 left-0 z-[100] bg-primary text-white px-4 py-2 opacity-0 focus:opacity-100 focus:top-0 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-primary transition-opacity"
+      >
+        Skip to main content
+      </a>
+
       <PublicHeader
         onNavigateHome={() => navigate('/')}
         currentView={currentView}
         onNavigate={onNavigate}
       />
 
-      <main className="flex-grow flex flex-col">
+      <main id="main-content" tabIndex={-1} className="flex-grow flex flex-col focus:outline-none">
         <ErrorBoundary>
           <Routes>
             <Route path="/" element={<HomeView onNavigate={onNavigate} />} />

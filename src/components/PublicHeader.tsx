@@ -1,5 +1,5 @@
 import { Menu, X, Mail } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ViewState } from '../App';
 
 interface PublicHeaderProps {
@@ -10,6 +10,57 @@ interface PublicHeaderProps {
 
 export function PublicHeader({ onNavigateHome, currentView, onNavigate }: PublicHeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+      // Focus first element slightly after render
+      setTimeout(() => {
+        const firstFocusable = drawerRef.current?.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') as HTMLElement;
+        if (firstFocusable) firstFocusable.focus();
+      }, 50);
+    } else {
+      document.body.style.overflow = '';
+      if (document.activeElement && drawerRef.current?.contains(document.activeElement)) {
+        toggleButtonRef.current?.focus();
+      }
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isMobileMenuOpen) return;
+      if (e.key === 'Escape') {
+        setIsMobileMenuOpen(false);
+        toggleButtonRef.current?.focus();
+      }
+      if (e.key === 'Tab') {
+        const focusableElements = drawerRef.current?.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') as NodeListOf<HTMLElement>;
+        if (!focusableElements || focusableElements.length === 0) return;
+        
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            lastElement.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            firstElement.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileMenuOpen]);
 
   const navLinks = [
     { name: 'Taxes', id: 'taxes' as ViewState },
@@ -20,7 +71,7 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         {/* Logo */}
-        <button onClick={onNavigateHome} className="flex items-center gap-2 cursor-pointer transition-transform hover:scale-105 group">
+        <button aria-label="Go to homepage" onClick={onNavigateHome} className="flex items-center gap-2 cursor-pointer transition-transform hover:scale-105 group">
           <img
             src="/westrom-logo.webp"
             alt="Westrom Group Logo"
@@ -29,7 +80,7 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
         </button>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-4">
+        <nav aria-label="Main navigation" className="hidden md:flex items-center gap-4">
           {currentView && currentView !== 'home' && onNavigate && (
             <div className="flex items-center bg-gray-100/80 p-1 rounded-full mr-4">
               {navLinks.map((link) => (
@@ -59,9 +110,11 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
 
         {/* Mobile Menu Toggle */}
         <button
-          className="md:hidden p-2 text-gray-500 hover:text-primary bg-gray-50 rounded-full"
+          ref={toggleButtonRef}
+          className="md:hidden flex items-center justify-center text-gray-500 hover:text-primary bg-gray-50 rounded-full min-h-[44px] min-w-[44px]"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label="Toggle menu"
+          aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={isMobileMenuOpen}
         >
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
@@ -69,8 +122,8 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
 
       {/* Mobile Nav Drawer */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-20 left-0 w-full bg-white border-b border-gray-200 shadow-xl animate-in slide-in-from-top-2">
-          <nav className="flex flex-col px-6 py-6 gap-2">
+        <div ref={drawerRef} className="md:hidden absolute top-20 left-0 w-full bg-white border-b border-gray-200 shadow-xl animate-in slide-in-from-top-2">
+          <nav aria-label="Mobile navigation" className="flex flex-col px-6 py-6 gap-2">
             {currentView && currentView !== 'home' && onNavigate && (
               <div className="flex flex-col gap-2 mb-4">
                 <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Workspaces</div>

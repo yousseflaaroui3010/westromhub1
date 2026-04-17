@@ -12,3 +12,4 @@
 | 2026-04-15 | Sprint 6 — Prompts DRY + OpenAPI + E2E | DONE (partial) | Claude | DRY-6: prompts extracted to api/src/prompts.ts. OpenAPI JSON spec at /api/openapi.json + Swagger UI at /api/docs (CDN, no extra dep). SSE streaming + E2E (Playwright) deferred — no client-side streaming code wired. |
 | 2026-04-17 | E001 — Favicon & Brand Identity | DONE | GitHub Copilot | US-001 (assets generated), US-002 (index.html updated), US-003 (manifest.json). |
 | 2026-04-17 | E002 — SEO Foundation | DONE | GitHub Copilot | US-004 (canonical, og), US-005 (per-route titles/meta), US-006 (JSON-LD), US-007 (sitemap, robots.txt). |
+| 2026-04-17 | E003 — Accessibility | DONE | GitHub Copilot | US-008 (skip nav), US-009 (aria mobile menu), US-010 (landmarks), US-011 (aria-describedby), US-012 (focus trap), US-013 (focus ring, noscript). |

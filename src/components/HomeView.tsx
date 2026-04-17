@@ -40,6 +40,8 @@ export function HomeView({ onNavigate }: HomeViewProps) {
             {/* Taxes Pathway */}
             <button 
               onClick={() => onNavigate('taxes')}
+              aria-label="Enter Property Tax Hub"
+              aria-describedby="tax-card-desc"
               className="group bg-white rounded-3xl p-10 text-left transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl border-2 border-transparent hover:border-secondary flex flex-col h-full relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
@@ -47,7 +49,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
                 <Calculator className="w-8 h-8" />
               </div>
               <h3 className="font-heading font-bold text-3xl text-gray-900 mb-4">Property Taxes</h3>
-              <p className="text-gray-600 text-lg flex-grow leading-relaxed">
+              <p id="tax-card-desc" className="text-gray-600 text-lg flex-grow leading-relaxed">
                 Review your appraisal notice, learn how to protest, and use our AI tool to see if you qualify for an automatic reduction.
               </p>
               <div className="mt-8 text-secondary font-bold flex items-center gap-2 group-hover:gap-4 transition-all text-lg">
@@ -58,6 +60,8 @@ export function HomeView({ onNavigate }: HomeViewProps) {
             {/* Insurance Pathway */}
             <button 
               onClick={() => onNavigate('insurance')}
+              aria-label="Enter Insurance Hub"
+              aria-describedby="insurance-card-desc"
               className="group bg-white rounded-3xl p-10 text-left transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl border-2 border-transparent hover:border-tertiary flex flex-col h-full relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-tertiary/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
@@ -65,7 +69,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
                 <ShieldCheck className="w-8 h-8" />
               </div>
               <h3 className="font-heading font-bold text-3xl text-gray-900 mb-4">Insurance</h3>
-              <p className="text-gray-600 text-lg flex-grow leading-relaxed">
+              <p id="insurance-card-desc" className="text-gray-600 text-lg flex-grow leading-relaxed">
                 Analyze your declaration page to find dangerous coverage gaps and optimize your premiums before renewal.
               </p>
               <div className="mt-8 text-tertiary font-bold flex items-center gap-2 group-hover:gap-4 transition-all text-lg">

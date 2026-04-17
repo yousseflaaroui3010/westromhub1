@@ -2,7 +2,7 @@ import { ShieldCheck, Home, Award, Building, Star, Facebook, Twitter, Globe } fr
 
 export function PublicFooter() {
   return (
-    <footer className="bg-primary text-white py-12 mt-20 border-t-4 border-secondary shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+    <footer aria-label="Site footer" className="bg-primary text-white py-12 mt-20 border-t-4 border-secondary shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
       <div className="max-w-7xl mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           <div>

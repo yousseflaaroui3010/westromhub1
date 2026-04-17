@@ -285,7 +285,7 @@ export function TaxAnalysis() {
                 value={formData.address ?? ''}
                 onChange={handleInputChange}
                 placeholder="e.g. 123 Main St, Fort Worth, TX 76102"
-                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none"
+                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all"
               />
             </div>
 
@@ -297,7 +297,7 @@ export function TaxAnalysis() {
                   value={formData.county}
                   onChange={handleInputChange}
                   required
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none appearance-none"
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all appearance-none"
                 >
                   <option value="" disabled>Select a county…</option>
                   {COUNTIES.map(c => (
@@ -315,7 +315,7 @@ export function TaxAnalysis() {
                   value={formData.zillowLink ?? ''}
                   onChange={handleInputChange}
                   placeholder="https://zillow.com/…"
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none"
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all"
                 />
               </div>
             </div>
@@ -350,7 +350,7 @@ export function TaxAnalysis() {
                     value={formData.currentValue ?? ''}
                     onChange={handleInputChange}
                     placeholder="From your 2026 notice"
-                    className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none font-medium border ${
+                    className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium border ${
                       currentLookupState === 'found'
                         ? 'bg-green-50 border-green-200'
                         : 'bg-gray-50 border-gray-200'
@@ -391,7 +391,7 @@ export function TaxAnalysis() {
                     value={formData.priorValue ?? ''}
                     onChange={handleInputChange}
                     placeholder={lookupState === 'searching' ? 'Looking up…' : 'e.g. 350000'}
-                    className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none font-medium border ${
+                    className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium border ${
                       lookupState === 'found'
                         ? 'bg-green-50 border-green-200'
                         : 'bg-gray-50 border-gray-200'
@@ -413,7 +413,7 @@ export function TaxAnalysis() {
                     name="zillowValue"
                     value={formData.zillowValue ?? ''}
                     onChange={handleInputChange}
-                    className="w-full p-4 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none font-medium"
+                    className="w-full p-4 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium"
                   />
                 </div>
               </div>
@@ -428,7 +428,7 @@ export function TaxAnalysis() {
                     name="realtorValue"
                     value={formData.realtorValue ?? ''}
                     onChange={handleInputChange}
-                    className="w-full p-4 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none font-medium"
+                    className="w-full p-4 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium"
                   />
                 </div>
               </div>
