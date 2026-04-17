@@ -6,7 +6,7 @@ import { generateTaxRecommendation, extractDataFromDocument, lookupProperty } fr
 import { COUNTIES, resolveCounty } from '../lib/constants';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
 import { useScrollIntoViewOnFocus } from '../hooks/useScrollIntoViewOnFocus';
-import { useDeviceCapabilities } from '../hooks/useDeviceCapabilities';
+import { getDeviceCapabilities } from '../hooks/useDeviceCapabilities';
 
 function RecommendationSkeleton() {
   return (
@@ -173,7 +173,7 @@ export function TaxAnalysis() {
     useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
 
   const formRef = useScrollIntoViewOnFocus<HTMLFormElement>();
-  const { isTouch, isIOS } = useDeviceCapabilities();
+  const { isTouch, isIOS } = getDeviceCapabilities();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

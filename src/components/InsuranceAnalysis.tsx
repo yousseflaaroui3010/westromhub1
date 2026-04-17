@@ -4,7 +4,7 @@ import DOMPurify from 'dompurify';
 import { runInsuranceRuleEngine, type InsuranceAnalysisResult, type InsuranceData } from '../lib/ruleEngine';
 import { extractInsuranceData, generateInsuranceRecommendation } from '../lib/ai';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
-import { useDeviceCapabilities } from '../hooks/useDeviceCapabilities';
+import { getDeviceCapabilities } from '../hooks/useDeviceCapabilities';
 
 function RecommendationSkeleton() {
   return (
@@ -79,7 +79,7 @@ export function InsuranceAnalysis() {
   const { isExtracting, isDragging, setIsDragging, fileInputRef, handleFileChange, handleDrop } =
     useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
 
-  const { isTouch, isIOS } = useDeviceCapabilities();
+  const { isTouch, isIOS } = getDeviceCapabilities();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

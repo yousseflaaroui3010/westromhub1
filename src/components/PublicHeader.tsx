@@ -71,7 +71,7 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         {/* Logo */}
-        <button aria-label="Go to homepage" onClick={onNavigateHome} className="flex items-center gap-2 cursor-pointer transition-transform hover:scale-105 group">
+        <button aria-label="Go to homepage" onClick={onNavigateHome} className="flex items-center gap-2 cursor-pointer transition-transform hover:scale-105 motion-reduce:hover:scale-100 group">
           <img
             src="/westrom-logo.webp"
             alt="Westrom Group Logo"

@@ -16,7 +16,7 @@ export function ResourceCard({ title, url, description, type = 'county' }: Resou
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-[0_12px_32px_-4px_rgba(0,32,69,0.08)] hover:-translate-y-[1px] transition-all duration-200 group"
+      className="block bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-[0_12px_32px_-4px_rgba(0,32,69,0.08)] hover:-translate-y-[1px] motion-reduce:hover:translate-y-0 transition-all duration-200 group"
     >
       <div className="flex items-start justify-between mb-4">
         <div className="p-2 bg-background rounded-lg text-primary group-hover:bg-primary group-hover:text-white transition-colors">

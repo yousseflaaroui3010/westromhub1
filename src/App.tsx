@@ -62,7 +62,7 @@ export default function App() {
         onNavigate={onNavigate}
       />
 
-      <main id="main-content" tabIndex={-1} className="flex-grow flex flex-col focus:outline-none">
+      <main id="main-content" tabIndex={-1} className="flex-grow flex flex-col">
         <ErrorBoundary resetKey={location.pathname}>
           <Suspense fallback={
             <div className="flex-grow flex items-center justify-center p-12">
