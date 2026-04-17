@@ -72,6 +72,9 @@ export function VideoEmbed({ url, title }: VideoEmbedProps) {
           <img
             src={thumbnail}
             alt={title}
+            width={1280}
+            height={720}
+            loading="lazy"
             className="w-full h-full object-cover"
             onError={() => setThumbnailError(true)}
           />

@@ -75,6 +75,9 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
           <img
             src="/westrom-logo.webp"
             alt="Westrom Group Logo"
+            width={2048}
+            height={1186}
+            fetchPriority="high"
             className="h-16 w-auto bg-white p-1.5 rounded-xl border border-gray-100 shadow-sm group-hover:shadow-md transition-shadow"
           />
         </button>

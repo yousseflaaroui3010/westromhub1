@@ -10,6 +10,9 @@ export function PublicFooter() {
               <img
                 src="/westrom-logo.webp"
                 alt="Westrom Group Logo"
+                width={2048}
+                height={1186}
+                loading="lazy"
                 className="h-16 w-auto bg-white p-2 rounded-xl border border-gray-200 shadow-md"
               />
             </div>

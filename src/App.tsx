@@ -1,12 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { PublicHeader } from './components/PublicHeader';
 import { PublicFooter } from './components/PublicFooter';
 import { HomeView } from './components/HomeView';
-import { TaxView } from './components/TaxView';
-import { InsuranceView } from './components/InsuranceView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { NotFoundView } from './components/NotFoundView';
+
+const TaxView = lazy(() => import('./components/TaxView').then(m => ({ default: m.TaxView })));
+const InsuranceView = lazy(() => import('./components/InsuranceView').then(m => ({ default: m.InsuranceView })));
 
 export type ViewState = 'home' | 'taxes' | 'insurance';
 
@@ -63,12 +64,22 @@ export default function App() {
 
       <main id="main-content" tabIndex={-1} className="flex-grow flex flex-col focus:outline-none">
         <ErrorBoundary resetKey={location.pathname}>
-          <Routes>
-            <Route path="/" element={<HomeView onNavigate={onNavigate} />} />
-            <Route path="/taxes" element={<TaxView />} />
-            <Route path="/insurance" element={<InsuranceView />} />
-            <Route path="*" element={<NotFoundView />} />
-          </Routes>
+          <Suspense fallback={
+            <div className="flex-grow flex items-center justify-center p-12">
+              <div className="w-full max-w-3xl space-y-4 animate-pulse">
+                <div className="h-8 bg-gray-200 rounded w-1/3 mx-auto mb-8"></div>
+                <div className="h-64 bg-gray-100 rounded-2xl w-full"></div>
+                <div className="h-32 bg-gray-100 rounded-2xl w-full"></div>
+              </div>
+            </div>
+          }>
+            <Routes>
+              <Route path="/" element={<HomeView onNavigate={onNavigate} />} />
+              <Route path="/taxes" element={<TaxView />} />
+              <Route path="/insurance" element={<InsuranceView />} />
+              <Route path="*" element={<NotFoundView />} />
+            </Routes>
+          </Suspense>
         </ErrorBoundary>
       </main>
 
