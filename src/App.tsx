@@ -49,9 +49,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <a 
-        href="#main-content" 
-        className="absolute -top-9999 left-0 z-[100] bg-primary text-white px-4 py-2 opacity-0 focus:opacity-100 focus:top-0 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-primary transition-opacity"
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
       >
         Skip to main content
       </a>

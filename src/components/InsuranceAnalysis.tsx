@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { runInsuranceRuleEngine, type InsuranceAnalysisResult, type InsuranceData } from '../lib/ruleEngine';
 import { extractInsuranceData, generateInsuranceRecommendation } from '../lib/ai';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
+import { useDeviceCapabilities } from '../hooks/useDeviceCapabilities';
 
 function RecommendationSkeleton() {
   return (
@@ -78,6 +79,8 @@ export function InsuranceAnalysis() {
   const { isExtracting, isDragging, setIsDragging, fileInputRef, handleFileChange, handleDrop } =
     useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
 
+  const { isTouch, isIOS } = useDeviceCapabilities();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!insuranceData) {
@@ -121,10 +124,10 @@ export function InsuranceAnalysis() {
 
       <div className={`grid gap-8 ${insResult ? 'lg:grid-cols-2' : 'max-w-3xl mx-auto'}`}>
         {/* Input column */}
-        <div className="bg-white p-8 md:p-10 rounded-3xl shadow-lg border border-gray-100">
+        <div className="bg-white p-5 md:p-10 rounded-3xl shadow-lg border border-gray-100">
           <div className="mb-10">
             <div
-              className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-300 cursor-pointer ${
+              className={`border-2 border-dashed rounded-2xl p-10 min-h-[120px] text-center transition-all duration-300 cursor-pointer ${
                 isDragging
                   ? 'border-secondary bg-secondary/5 scale-[1.02]'
                   : 'border-gray-300 hover:border-primary hover:bg-gray-50'
@@ -135,10 +138,11 @@ export function InsuranceAnalysis() {
               onClick={() => fileInputRef.current?.click()}
               role="button"
               aria-label="Upload insurance policy"
+              aria-describedby={isIOS ? "ins-upload-helper" : undefined}
             >
               <input
                 type="file"
-                accept="image/*,application/pdf"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,image/*"
                 className="hidden"
                 ref={fileInputRef}
                 onChange={e => { void handleFileChange(e); }}
@@ -153,15 +157,20 @@ export function InsuranceAnalysis() {
                 </div>
                 <div>
                   <h3 className="font-heading font-bold text-xl text-gray-900 mb-2">Upload Insurance Dec Page</h3>
-                  <p className="text-gray-500">Drag and drop your PDF or image here</p>
+                  <p className="text-gray-500">{isTouch ? "Tap to upload your PDF or image" : "Drag and drop your PDF or image here"}</p>
                 </div>
                 <button
                   type="button"
                   disabled={isExtracting}
-                  className="mt-2 px-6 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold text-tertiary hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm disabled:opacity-50"
+                  className="mt-2 px-6 py-2.5 min-h-[44px] min-w-[44px] bg-white border border-gray-200 rounded-full text-sm font-bold text-tertiary hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm disabled:opacity-50"
                 >
                   {isExtracting ? 'Extracting…' : 'Browse Files'}
                 </button>
+                {isIOS && (
+                  <p id="ins-upload-helper" className="text-sm text-gray-500 mt-2">
+                    On iPhone, tap 'Browse' to find PDFs in your Files app
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -202,11 +211,11 @@ export function InsuranceAnalysis() {
           )}
 
           <form onSubmit={e => { void handleSubmit(e); }}>
-            <div className="flex gap-4 pt-4">
+            <div className="flex flex-col gap-4 pt-4 items-center">
               <button
                 type="submit"
                 disabled={isAnalyzing || isExtracting}
-                className="flex-1 bg-primary text-white font-semibold py-3.5 px-6 rounded-xl hover:bg-primary-container transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-primary text-white font-semibold py-3.5 px-6 min-h-[44px] rounded-xl hover:bg-primary-container transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 aria-live="polite"
               >
                 {isAnalyzing ? (
@@ -217,7 +226,7 @@ export function InsuranceAnalysis() {
                   'Get Free Analysis'
                 )}
               </button>
-              <p className="text-xs text-center text-gray-400 mt-6 max-w-md mx-auto">
+              <p className="text-xs text-center text-gray-400 max-w-md mx-auto">
                 Informational only — not professional legal or insurance advice.
               </p>
             </div>

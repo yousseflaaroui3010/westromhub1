@@ -5,6 +5,8 @@ import { runRuleEngine, type AnalysisResult, type PropertyData } from '../lib/ru
 import { generateTaxRecommendation, extractDataFromDocument, lookupProperty } from '../lib/ai';
 import { COUNTIES, resolveCounty } from '../lib/constants';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
+import { useScrollIntoViewOnFocus } from '../hooks/useScrollIntoViewOnFocus';
+import { useDeviceCapabilities } from '../hooks/useDeviceCapabilities';
 
 function RecommendationSkeleton() {
   return (
@@ -170,6 +172,9 @@ export function TaxAnalysis() {
   const { isExtracting, isDragging, setIsDragging, fileInputRef, handleFileChange, handleDrop } =
     useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
 
+  const formRef = useScrollIntoViewOnFocus<HTMLFormElement>();
+  const { isTouch, isIOS } = useDeviceCapabilities();
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'address' || name === 'zillowLink' || name === 'county') {
@@ -223,11 +228,11 @@ export function TaxAnalysis() {
 
       <div className={`grid gap-8 ${taxResult ? 'lg:grid-cols-2' : 'max-w-3xl mx-auto'}`}>
         {/* Input column */}
-        <div className="bg-white p-8 md:p-10 rounded-3xl shadow-lg border border-gray-100">
+        <div className="bg-white p-5 md:p-10 rounded-3xl shadow-lg border border-gray-100">
           {/* Upload zone */}
           <div className="mb-10">
             <div
-              className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-300 cursor-pointer ${
+              className={`border-2 border-dashed rounded-2xl p-10 min-h-[120px] text-center transition-all duration-300 cursor-pointer ${
                 isDragging
                   ? 'border-secondary bg-secondary/5 scale-[1.02]'
                   : 'border-gray-300 hover:border-primary hover:bg-gray-50'
@@ -238,10 +243,11 @@ export function TaxAnalysis() {
               onClick={() => fileInputRef.current?.click()}
               role="button"
               aria-label="Upload property tax notice"
+              aria-describedby={isIOS ? "upload-helper" : undefined}
             >
               <input
                 type="file"
-                accept="image/*,application/pdf"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,image/*"
                 className="hidden"
                 ref={fileInputRef}
                 onChange={e => { void handleFileChange(e); }}
@@ -256,16 +262,21 @@ export function TaxAnalysis() {
                 </div>
                 <div>
                   <h3 className="font-heading font-bold text-xl text-gray-900 mb-2">Upload Tax Notice</h3>
-                  <p className="text-gray-500">Drag and drop your PDF or image here</p>
+                  <p className="text-gray-500">{isTouch ? "Tap to upload your PDF or image" : "Drag and drop your PDF or image here"}</p>
                   <p className="text-xs text-gray-400 mt-1">PDF: page 1 only — ensure appraised values appear on the first page</p>
                 </div>
                 <button
                   type="button"
                   disabled={isExtracting}
-                  className="mt-2 px-6 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold text-primary hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm disabled:opacity-50"
+                  className="mt-2 px-6 py-2.5 min-h-[44px] min-w-[44px] bg-white border border-gray-200 rounded-full text-sm font-bold text-primary hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm disabled:opacity-50"
                 >
                   {isExtracting ? 'Extracting…' : 'Browse Files'}
                 </button>
+                {isIOS && (
+                  <p id="upload-helper" className="text-sm text-gray-500 mt-2">
+                    On iPhone, tap 'Browse' to find PDFs in your Files app
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -294,12 +305,13 @@ export function TaxAnalysis() {
             </div>
           )}
 
-          <form onSubmit={e => { void handleSubmit(e); }} className="space-y-6">
+          <form ref={formRef} onSubmit={e => { void handleSubmit(e); }} className="space-y-6">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+              <label htmlFor="tax-address" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Property Address
               </label>
               <input
+                id="tax-address"
                 type="text"
                 name="address"
                 value={formData.address ?? ''}
@@ -311,8 +323,9 @@ export function TaxAnalysis() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">County *</label>
+                <label htmlFor="tax-county" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">County *</label>
                 <select
+                  id="tax-county"
                   name="county"
                   value={formData.county}
                   onChange={handleInputChange}
@@ -326,10 +339,11 @@ export function TaxAnalysis() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                <label htmlFor="tax-zillow-link" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                   Zillow Link (Opt)
                 </label>
                 <input
+                  id="tax-zillow-link"
                   type="url"
                   name="zillowLink"
                   value={formData.zillowLink ?? ''}
@@ -342,7 +356,7 @@ export function TaxAnalysis() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                <label htmlFor="tax-current-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
                   Current Appraised Value *
                 </label>
                 {currentLookupState === 'searching' && (
@@ -369,6 +383,7 @@ export function TaxAnalysis() {
                     name="currentValue"
                     value={formData.currentValue ?? ''}
                     onChange={handleInputChange}
+                    id="tax-current-value"
                     placeholder="From your 2026 notice"
                     className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium border ${
                       currentLookupState === 'found'
@@ -380,7 +395,7 @@ export function TaxAnalysis() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                <label htmlFor="tax-prior-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
                   Prior Year Tax Value
                 </label>
                 {lookupState === 'searching' && (
@@ -410,6 +425,7 @@ export function TaxAnalysis() {
                     name="priorValue"
                     value={formData.priorValue ?? ''}
                     onChange={handleInputChange}
+                    id="tax-prior-value"
                     placeholder={lookupState === 'searching' ? 'Looking up…' : 'e.g. 350000'}
                     className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium border ${
                       lookupState === 'found'
@@ -423,12 +439,13 @@ export function TaxAnalysis() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                <label htmlFor="tax-zillow-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                   Zillow Est. (Opt)
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
                   <input
+                    id="tax-zillow-value"
                     type="text"
                     name="zillowValue"
                     value={formData.zillowValue ?? ''}
@@ -438,12 +455,13 @@ export function TaxAnalysis() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                <label htmlFor="tax-realtor-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                   Realtor Est. (Opt)
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
                   <input
+                    id="tax-realtor-value"
                     type="text"
                     name="realtorValue"
                     value={formData.realtorValue ?? ''}
@@ -454,11 +472,11 @@ export function TaxAnalysis() {
               </div>
             </div>
 
-            <div className="flex gap-4 pt-4">
+            <div className="flex flex-col gap-4 pt-4 items-center">
               <button
                 type="submit"
                 disabled={isAnalyzing || isExtracting}
-                className="flex-1 bg-primary text-white font-semibold py-3.5 px-6 rounded-xl hover:bg-primary-container transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-primary text-white font-semibold py-3.5 px-6 min-h-[44px] rounded-xl hover:bg-primary-container transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 aria-live="polite"
               >
                 {isAnalyzing ? (
@@ -468,7 +486,7 @@ export function TaxAnalysis() {
                   'Get Free Analysis'
                 )}
               </button>
-              <p className="text-xs text-center text-gray-400 mt-6 max-w-md mx-auto">
+              <p className="text-xs text-center text-gray-400 max-w-md mx-auto">
                 Informational only — not professional tax or legal advice.
               </p>
             </div>

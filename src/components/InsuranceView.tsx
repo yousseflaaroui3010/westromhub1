@@ -82,7 +82,7 @@ export function InsuranceView() {
                   <div className="space-y-3 text-sm">
                     <div className="flex items-center gap-2 text-gray-200">
                       <Mail className="w-4 h-4 flex-shrink-0 text-amber-300" />
-                      <span>gracie.davis@familyfirstinsurance.agency</span>
+                      <span className="break-all">gracie.davis@familyfirstinsurance.agency</span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-200">
                       <Phone className="w-4 h-4 flex-shrink-0 text-amber-300" />
@@ -105,7 +105,7 @@ export function InsuranceView() {
                   <div className="space-y-3 text-sm">
                     <div className="flex items-center gap-2 text-gray-200">
                       <Mail className="w-4 h-4 flex-shrink-0 text-amber-300" />
-                      <span>gnees@farmersagent.com</span>
+                      <span className="break-all">gnees@farmersagent.com</span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-200">
                       <Phone className="w-4 h-4 flex-shrink-0 text-amber-300" />

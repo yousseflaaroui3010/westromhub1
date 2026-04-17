@@ -75,7 +75,11 @@ export function useDocumentUpload({
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (isExtracting || isAnalyzing) return;
       const file = e.target.files?.[0];
-      if (file) await processFile(file);
+      if (file) {
+        await processFile(file);
+      }
+      // Clear the input value so the same file can be selected again
+      e.target.value = '';
     },
     [isExtracting, isAnalyzing, processFile],
   );

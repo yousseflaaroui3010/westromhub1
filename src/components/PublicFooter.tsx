@@ -32,35 +32,35 @@ export function PublicFooter() {
           <div>
             <h3 className="font-heading font-semibold text-lg mb-4">Affiliations & Social</h3>
             <div className="flex flex-wrap gap-3">
-              <a href="https://www.narpm.org/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
+              <a href="https://www.narpm.org/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
                 <Building className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
                 NARPM
               </a>
-              <a href="https://www.nar.realtor/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
+              <a href="https://www.nar.realtor/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
                 <Award className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
                 REALTOR®
               </a>
-              <a href="https://www.texasrealestate.com/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
+              <a href="https://www.texasrealestate.com/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
                 <Star className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
                 Texas Realtors
               </a>
-              <a href="https://www.hud.gov/program_offices/fair_housing_equal_opp" target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
+              <a href="https://www.hud.gov/program_offices/fair_housing_equal_opp" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
                 <Home className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
                 Equal Housing
               </a>
-              <a href="https://www.bbb.org/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
+              <a href="https://www.bbb.org/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
                 <ShieldCheck className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
                 BBB Accredited
               </a>
-              <a href="https://www.facebook.com/westromgroup" target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
+              <a href="https://www.facebook.com/westromgroup" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
                 <Facebook className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
                 Facebook
               </a>
-              <a href="https://x.com/WestromGroup" target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
+              <a href="https://x.com/WestromGroup" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
                 <Twitter className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
                 X (Twitter)
               </a>
-              <a href="https://www.zillow.com/profile/WestromGroup" target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
+              <a href="https://www.zillow.com/profile/WestromGroup" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
                 <Globe className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
                 Zillow
               </a>

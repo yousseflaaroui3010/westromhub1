@@ -16,11 +16,11 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = 'hidden';
-      // Focus first element slightly after render
-      setTimeout(() => {
+      // rAF ensures the drawer is in the DOM before we query it
+      requestAnimationFrame(() => {
         const firstFocusable = drawerRef.current?.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') as HTMLElement;
         if (firstFocusable) firstFocusable.focus();
-      }, 50);
+      });
     } else {
       document.body.style.overflow = '';
       if (document.activeElement && drawerRef.current?.contains(document.activeElement)) {

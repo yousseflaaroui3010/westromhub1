@@ -42,7 +42,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
               onClick={() => onNavigate('taxes')}
               aria-label="Enter Property Tax Hub"
               aria-describedby="tax-card-desc"
-              className="group bg-white rounded-3xl p-10 text-left transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl border-2 border-transparent hover:border-secondary flex flex-col h-full relative overflow-hidden"
+              className="group bg-white rounded-3xl p-10 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-secondary flex flex-col h-full relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
               <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mb-8 text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-300 shadow-sm">
@@ -62,7 +62,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
               onClick={() => onNavigate('insurance')}
               aria-label="Enter Insurance Hub"
               aria-describedby="insurance-card-desc"
-              className="group bg-white rounded-3xl p-10 text-left transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl border-2 border-transparent hover:border-tertiary flex flex-col h-full relative overflow-hidden"
+              className="group bg-white rounded-3xl p-10 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-tertiary flex flex-col h-full relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-tertiary/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
               <div className="w-16 h-16 bg-tertiary/10 rounded-2xl flex items-center justify-center mb-8 text-tertiary group-hover:bg-tertiary group-hover:text-white transition-colors duration-300 shadow-sm">
