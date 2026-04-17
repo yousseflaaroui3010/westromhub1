@@ -6,6 +6,7 @@ import { HomeView } from './components/HomeView';
 import { TaxView } from './components/TaxView';
 import { InsuranceView } from './components/InsuranceView';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { NotFoundView } from './components/NotFoundView';
 
 export type ViewState = 'home' | 'taxes' | 'insurance';
 
@@ -61,11 +62,12 @@ export default function App() {
       />
 
       <main id="main-content" tabIndex={-1} className="flex-grow flex flex-col focus:outline-none">
-        <ErrorBoundary>
+        <ErrorBoundary resetKey={location.pathname}>
           <Routes>
             <Route path="/" element={<HomeView onNavigate={onNavigate} />} />
             <Route path="/taxes" element={<TaxView />} />
             <Route path="/insurance" element={<InsuranceView />} />
+            <Route path="*" element={<NotFoundView />} />
           </Routes>
         </ErrorBoundary>
       </main>

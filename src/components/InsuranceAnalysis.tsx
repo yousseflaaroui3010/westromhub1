@@ -25,10 +25,12 @@ export function InsuranceAnalysis() {
   const [insResult, setInsResult] = useState<InsuranceAnalysisResult | null>(null);
   const [recommendationHtml, setRecommendationHtml] = useState('');
   const [error, setError] = useState('');
+  const [retryAction, setRetryAction] = useState<(() => void) | null>(null);
 
   const runAnalysis = useCallback(async (data: InsuranceData) => {
     setIsAnalyzing(true);
     setError('');
+    setRetryAction(null);
     setInsResult(null);
     setRecommendationHtml('');
     try {
@@ -37,7 +39,8 @@ export function InsuranceAnalysis() {
       const rec = await generateInsuranceRecommendation(result);
       setRecommendationHtml(DOMPurify.sanitize(rec));
     } catch {
-      setError('An error occurred during analysis. Please try again.');
+      setError('Could not generate recommendation');
+      setRetryAction(() => () => void runAnalysis(data));
     } finally {
       setIsAnalyzing(false);
     }
@@ -45,7 +48,14 @@ export function InsuranceAnalysis() {
 
   const onFileProcessed = useCallback(async (base64: string, mimeType: string) => {
     setError('');
+    setRetryAction(null);
     const extracted = await extractInsuranceData(base64, mimeType);
+    if (extracted === null) {
+      setError('Unable to reach the analysis service. Check your internet connection and try again.');
+      setRetryAction(() => () => void onFileProcessed(base64, mimeType));
+      setInsuranceData(null);
+      return;
+    }
     if (!extracted) {
       setError('Could not extract data from the document.');
       setInsuranceData(null);
@@ -157,9 +167,20 @@ export function InsuranceAnalysis() {
           </div>
 
           {error && (
-            <div className="bg-red-50 text-red-900 p-4 rounded-xl mb-8 flex items-start gap-3 border border-red-100" aria-live="assertive">
-              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-sm font-medium">{error}</p>
+            <div className="bg-red-50 text-red-900 p-4 rounded-xl mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-red-100" aria-live="assertive">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <p className="text-sm font-medium">{error}</p>
+              </div>
+              {retryAction && (
+                <button
+                  onClick={retryAction}
+                  disabled={isAnalyzing || isExtracting}
+                  className="whitespace-nowrap px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                >
+                  Retry Analysis
+                </button>
+              )}
             </div>
           )}
 

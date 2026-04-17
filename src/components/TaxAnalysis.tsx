@@ -36,6 +36,7 @@ export function TaxAnalysis() {
   const [taxResult, setTaxResult] = useState<AnalysisResult | null>(null);
   const [recommendationHtml, setRecommendationHtml] = useState('');
   const [error, setError] = useState('');
+  const [retryAction, setRetryAction] = useState<(() => void) | null>(null);
 
   // Auto-fill state for both value fields — driven by a single ATTOM lookup.
   // ATTOM returns one assessed value for one year; we route it to the right field.
@@ -110,6 +111,7 @@ export function TaxAnalysis() {
     if (!data.currentValue || !data.priorValue) return;
     setIsAnalyzing(true);
     setError('');
+    setRetryAction(null);
     setTaxResult(null);
     setRecommendationHtml('');
     try {
@@ -121,7 +123,8 @@ export function TaxAnalysis() {
       const rec = await generateTaxRecommendation(result, countyUrl);
       setRecommendationHtml(DOMPurify.sanitize(rec));
     } catch {
-      setError('An error occurred during analysis. Please try again.');
+      setError('Could not generate recommendation');
+      setRetryAction(() => () => void runAnalysis(data));
     } finally {
       setIsAnalyzing(false);
     }
@@ -129,7 +132,13 @@ export function TaxAnalysis() {
 
   const onFileProcessed = useCallback(async (base64: string, mimeType: string) => {
     setError('');
+    setRetryAction(null);
     const extracted = await extractDataFromDocument(base64, mimeType);
+    if (extracted === null) {
+      setError('Unable to reach the analysis service. Check your internet connection and try again.');
+      setRetryAction(() => () => void onFileProcessed(base64, mimeType));
+      return;
+    }
     if (!extracted) {
       setError('Could not extract data from the document. Please enter values manually.');
       return;
@@ -268,9 +277,20 @@ export function TaxAnalysis() {
           </div>
 
           {error && (
-            <div className="bg-red-50 text-red-900 p-4 rounded-xl mb-8 flex items-start gap-3 border border-red-100" aria-live="assertive">
-              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-sm font-medium">{error}</p>
+            <div className="bg-red-50 text-red-900 p-4 rounded-xl mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-red-100" aria-live="assertive">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <p className="text-sm font-medium">{error}</p>
+              </div>
+              {retryAction && (
+                <button
+                  onClick={retryAction}
+                  disabled={isAnalyzing || isExtracting}
+                  className="whitespace-nowrap px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                >
+                  Retry Analysis
+                </button>
+              )}
             </div>
           )}
 
