@@ -194,7 +194,7 @@ describe('Tax Rule Engine — edge cases', () => {
     expect(result.status).toBe('CONTACT_WESTROM');
   });
 
-  it('handles priorValue of 0 without crashing (division guard)', () => {
+  it('returns AMBIGUOUS when priorValue is 0 and no market data (cannot make any comparison)', () => {
     const result = runRuleEngine({
       address: '7 Zero Prior Dr',
       zillowLink: '',
@@ -202,9 +202,22 @@ describe('Tax Rule Engine — edge cases', () => {
       priorValue: 0,
       county: 'Bexar County'
     });
-    // yoyIncreasePct = 0 when priorValue === 0, so rule engine falls through safely
+    expect(result.status).toBe('AMBIGUOUS');
     expect(result.yoyIncreasePct).toBe(0);
-    expect(result.status).toBeDefined();
+    expect(result.marketGapPct).toBeNull();
+  });
+
+  it('does NOT return AMBIGUOUS when priorValue is 0 but market data is present', () => {
+    const result = runRuleEngine({
+      address: '8 Zillow Only Ln',
+      zillowLink: '',
+      currentValue: 110000,
+      priorValue: 0,
+      zillowValue: 100000,
+      county: 'Bexar County'
+    });
+    // 10% above Zillow → PROTEST_RECOMMENDED, not AMBIGUOUS
+    expect(result.status).toBe('PROTEST_RECOMMENDED');
   });
 });
 

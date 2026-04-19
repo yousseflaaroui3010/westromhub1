@@ -1,4 +1,3 @@
-import { VideoEmbed } from './VideoEmbed';
 import { ResourceCard } from './ResourceCard';
 import { TaxAnalysis } from './TaxAnalysis';
 import { ArrowRight, FileText, Users, AlertTriangle } from 'lucide-react';
@@ -43,68 +42,49 @@ export function TaxView() {
         {/* Protest Options */}
         <section id="protest-options" className="mb-24">
           <div className="mb-10 text-center max-w-3xl mx-auto">
-            <h2 className="font-heading font-bold text-3xl text-primary mb-4 tracking-tight">Your Protest Options</h2>
-            <p className="text-gray-600 text-lg">
-              <strong>You have 30 days from receiving your notice</strong> (or until May 15th) to file a protest. Choose the path that works best for you.
-            </p>
+            <h2 className="font-heading font-bold text-3xl text-primary mb-0 tracking-tight">Your Protest Options</h2>
           </div>
 
-          {/* Watch This First — shown before the decision grid */}
-          <div className="mb-10 max-w-2xl mx-auto">
-            <p className="text-xs font-bold uppercase tracking-widest text-center text-gray-400 mb-3">Watch This First</p>
-            <div className="rounded-2xl overflow-hidden shadow-md border border-gray-100">
-              <VideoEmbed title="Message from John — Tax Protest Walkthrough" url="https://www.loom.com/embed/25d8f0f255b4435199f9a2ea61449f03" />
-            </div>
-            <p className="text-sm text-gray-500 text-center mt-3">A quick overview before you choose your path.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* DIY Path */}
-            <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 p-8 md:p-10 flex flex-col">
-              <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-8 text-primary">
-                <FileText className="w-7 h-7" />
+            <div className="bg-white rounded-2xl border border-gray-200 p-7 flex flex-col gap-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 text-primary">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <h3 className="font-heading font-bold text-xl text-primary">Do It Yourself</h3>
               </div>
-              <h3 className="font-heading font-bold text-2xl text-primary mb-4">Do It Yourself</h3>
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                File directly through your county's appraisal district website. It's free and can be done entirely online in most counties.
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Free and fully online in most counties. Use the analysis tool above to get a personalized step-by-step guide, then file directly through your county's appraisal district.
               </p>
-              <ul className="space-y-4 mb-8 text-gray-600">
-                <li className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-secondary mt-2 flex-shrink-0" />
-                  <span>Find your property on your county website</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-secondary mt-2 flex-shrink-0" />
-                  <span>Click "File a Protest" or similar option</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-secondary mt-2 flex-shrink-0" />
-                  <span>Submit evidence (comps, photos of repairs needed)</span>
-                </li>
-              </ul>
-              <a href="#counties" className="text-primary font-bold flex items-center gap-2 hover:gap-4 transition-all mt-auto">
-                Find your county link <ArrowRight className="w-5 h-5" />
+              <a href="#counties" className="mt-auto text-primary font-semibold text-sm flex items-center gap-1.5 hover:gap-3 transition-all">
+                Find your county <ArrowRight className="w-4 h-4" />
               </a>
             </div>
 
             {/* Pro Path */}
-            <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 p-8 md:p-10 flex flex-col">
-              <div className="w-14 h-14 bg-secondary/10 rounded-2xl flex items-center justify-center mb-8 text-secondary">
-                <Users className="w-7 h-7" />
+            <div className="bg-white rounded-2xl border border-gray-200 p-7 flex flex-col gap-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 bg-secondary/10 rounded-xl flex items-center justify-center flex-shrink-0 text-secondary">
+                  <Users className="w-5 h-5" />
+                </div>
+                <h3 className="font-heading font-bold text-xl text-primary">Get Professional Help</h3>
               </div>
-              <h3 className="font-heading font-bold text-2xl text-primary mb-4">Get Professional Help</h3>
-              <p className="text-gray-600 mb-8 leading-relaxed">
-                Hire a firm to handle the entire process. They typically charge a percentage of your tax savings (usually 20 to 35%, though some firms charge a flat fee), meaning no upfront cost.
+              <p className="text-gray-600 text-sm leading-relaxed">
+                A firm handles everything for you — typically charging 20–35% of your tax savings only if they win. No upfront cost.
               </p>
-              <div className="space-y-4 mb-8 flex-grow">
-                <h4 className="font-bold text-xs uppercase tracking-widest text-gray-400 mb-4">Recommended Firms</h4>
+              <div className="flex flex-col gap-2 mt-auto">
                 {PROTEST_COMPANIES.map((company) => (
-                  <div key={company.name} className="bg-gray-50 p-5 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
-                    <div className="font-bold text-primary mb-2">{company.name}</div>
-                    <div className="flex items-center justify-between text-sm">
-                      <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-secondary hover:text-primary font-medium">Visit Website</a>
-                    </div>
-                  </div>
+                  <a
+                    key={company.name}
+                    href={company.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-gray-300 transition-colors text-sm"
+                  >
+                    <span className="font-medium text-gray-900">{company.name}</span>
+                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                  </a>
                 ))}
               </div>
             </div>

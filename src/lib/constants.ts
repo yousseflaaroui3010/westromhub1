@@ -1,11 +1,11 @@
 export const COUNTIES = [
-  { name: 'Tarrant County', url: 'https://www.tad.org', description: 'Tarrant Appraisal District' },
-  { name: 'Dallas County', url: 'https://www.dallascad.org', description: 'Dallas Central Appraisal District' },
-  { name: 'Johnson County', url: 'https://www.johnsoncad.com', description: 'Johnson County Appraisal District' },
-  { name: 'Denton County', url: 'https://www.dentoncad.com', description: 'Denton Central Appraisal District' },
-  { name: 'Parker County', url: 'https://www.parkercad.org', description: 'Parker County Appraisal District' },
-  { name: 'Ellis County', url: 'https://www.elliscad.com', description: 'Ellis Appraisal District' },
-  { name: 'Other (Texas)', url: 'https://comptroller.texas.gov/taxes/property-tax/', description: 'Find your county appraisal district' },
+  { name: 'Tarrant County',  url: 'https://www.tad.org',                                    searchUrl: 'https://www.tad.org/search-results',       description: 'Tarrant Appraisal District' },
+  { name: 'Dallas County',   url: 'https://www.dallascad.org',                              searchUrl: 'https://www.dallascad.org',                 description: 'Dallas Central Appraisal District' },
+  { name: 'Johnson County',  url: 'https://www.johnsoncad.com',                             searchUrl: 'https://www.johnsoncad.com',                description: 'Johnson County Appraisal District' },
+  { name: 'Denton County',   url: 'https://www.dentoncad.com',                              searchUrl: 'https://www.dentoncad.com',                 description: 'Denton Central Appraisal District' },
+  { name: 'Parker County',   url: 'https://www.parkercad.org',                              searchUrl: 'https://www.parkercad.org',                 description: 'Parker County Appraisal District' },
+  { name: 'Ellis County',    url: 'https://www.elliscad.com',                               searchUrl: 'https://www.elliscad.com',                  description: 'Ellis Appraisal District' },
+  { name: 'Other (Texas)',   url: 'https://comptroller.texas.gov/taxes/property-tax/',      searchUrl: 'https://comptroller.texas.gov/taxes/property-tax/', description: 'Find your county appraisal district' },
 ] as const;
 
 export type CountyName = (typeof COUNTIES)[number]['name'];

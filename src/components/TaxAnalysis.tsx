@@ -5,7 +5,9 @@ import { runRuleEngine, type AnalysisResult, type PropertyData } from '../lib/ru
 import { generateTaxRecommendation, extractDataFromDocument, lookupProperty } from '../lib/ai';
 import { COUNTIES, resolveCounty } from '../lib/constants';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
+import { ProtestGuide } from './ProtestGuide';
 import { useScrollIntoViewOnFocus } from '../hooks/useScrollIntoViewOnFocus';
+import { useScrollToResult } from '../hooks/useScrollToResult';
 import { getDeviceCapabilities } from '../hooks/useDeviceCapabilities';
 
 function RecommendationSkeleton() {
@@ -32,6 +34,89 @@ const DEFAULT_FORM: PropertyData = {
   county: '',
 };
 
+const DIRECTIONALS = new Set(['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW']);
+
+function CountySteps({ county, searchUrl, countyLabel, houseNumber, streetName, addrHint, year }: {
+  county: string; searchUrl: string; countyLabel: string;
+  houseNumber: string | null; streetName: string | null;
+  addrHint: string | null; year: number;
+}) {
+  const link = (
+    <a href={searchUrl} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-amber-800">
+      {countyLabel}
+    </a>
+  );
+  const hn  = houseNumber ? <strong>{houseNumber}</strong> : <>your house number</>;
+  const sn  = streetName  ? <strong>{streetName.charAt(0).toUpperCase() + streetName.slice(1).toLowerCase()}</strong> : <>street name only</>;
+  const up  = <>— upload it above and the AI will check your values automatically</>;
+
+  if (county === 'Tarrant County') return (
+    <>
+      <li>Go to {link} and click <strong>Property Search</strong></li>
+      <li>Enter your house number and street name: {addrHint ? <strong>{addrHint}</strong> : <em>&ldquo;7612 Dover&rdquo;</em>}</li>
+      <li>Click <strong>Search</strong>, then click your property&apos;s <strong>Account #</strong> in the results</li>
+      <li>Click the <strong>Documents</strong> tab, open the <strong>{year} Value Notice</strong> {up}</li>
+    </>
+  );
+
+  if (county === 'Dallas County') return (
+    <>
+      <li>Go to {link} and open <strong>Property Search</strong></li>
+      <li>In the <strong>House Number</strong> field enter: {hn}</li>
+      <li>In the <strong>Street Name</strong> field enter: {sn} <em>(no Rd, St, Ave, etc.)</em></li>
+      <li>Click <strong>Search</strong>, then click on your property in the results</li>
+      <li>Click the <strong>Appraisal Notice</strong> link {up}</li>
+    </>
+  );
+
+  if (county === 'Johnson County') return (
+    <>
+      <li>Go to {link}</li>
+      <li>In the <strong>Street #</strong> field enter: {hn}</li>
+      <li>In the <strong>Street Name</strong> field enter: {sn} <em>(no Rd, St, Ave, etc.)</em></li>
+      <li>Click <strong>Search</strong>, then click your property&apos;s <strong>Account Number</strong></li>
+      <li>Find the <strong>Appraisal Notice</strong> link {up}</li>
+    </>
+  );
+
+  if (county === 'Denton County') return (
+    <>
+      <li>Go to {link}</li>
+      <li>In the <strong>Property Address</strong> box, enter your full street address{addrHint ? <> (e.g. <em>{addrHint}</em>)</> : null}</li>
+      <li>Click <strong>Search</strong>, then click your <strong>Property ID</strong> in the results</li>
+      <li><strong>Note:</strong> Denton&apos;s portal may require a PIN from your mailed notice. Easiest path: find your mailed <strong>Notice of Appraised Value</strong> and upload it directly above.</li>
+    </>
+  );
+
+  if (county === 'Parker County') return (
+    <>
+      <li>Go to {link} and click <strong>Search Our Data</strong></li>
+      <li>In the <strong>Street No.</strong> field enter: {hn}</li>
+      <li>In the <strong>Street Name</strong> field enter: {sn}</li>
+      <li>Click <strong>Search</strong>, then click your property&apos;s <strong>Account No</strong></li>
+      <li>Find the <strong>Appraisal Notice</strong> under the &ldquo;Notices&rdquo; section {up}</li>
+    </>
+  );
+
+  if (county === 'Ellis County') return (
+    <>
+      <li>Go to {link} and click <strong>Property Search</strong></li>
+      <li>In the <strong>Address</strong> box, enter your full street address{addrHint ? <> (e.g. <em>{addrHint}</em>)</> : null}</li>
+      <li>Click <strong>Search</strong>, then click on your property in the results</li>
+      <li>Find the <strong>Documents</strong> or <strong>Notices</strong> tab and locate your appraisal notice {up}</li>
+    </>
+  );
+
+  // Other (Texas) — generic fallback
+  return (
+    <>
+      <li>Go to {link} to find your county&apos;s appraisal district</li>
+      <li>Search for your property by address</li>
+      <li>Locate your <strong>{year} appraisal notice</strong> and upload it above</li>
+    </>
+  );
+}
+
 export function TaxAnalysis() {
   const [formData, setFormData] = useState<PropertyData>(DEFAULT_FORM);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -40,65 +125,69 @@ export function TaxAnalysis() {
   const [error, setError] = useState('');
   const [retryAction, setRetryAction] = useState<(() => void) | null>(null);
 
-  // Auto-fill state for both value fields — driven by a single ATTOM lookup.
-  // ATTOM returns one assessed value for one year; we route it to the right field.
-  // 'stale' = ATTOM has data but not the year this field needs.
-  type FieldLookupState = 'idle' | 'searching' | 'found' | 'stale' | 'unavailable';
-  const [lookupState, setLookupState] = useState<FieldLookupState>('idle');        // priorValue field
-  const [currentLookupState, setCurrentLookupState] = useState<FieldLookupState>('idle'); // currentValue field
-  const [lookupTaxYear, setLookupTaxYear] = useState<number | null>(null);
+  // Single lookup state drives both value fields.
+  // 'both_found'  = CAD returned current + prior year (ideal)
+  // 'prior_only'  = only prior year available (ATTOM fallback)
+  // 'not_found'   = no data — both fields manual
+  type LookupState = 'idle' | 'searching' | 'both_found' | 'prior_only' | 'not_found';
+  const [lookupState, setLookupState] = useState<LookupState>('idle');
   const lookupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set to true by onFileProcessed so the address-change lookup doesn't
+  // overwrite values that were just extracted from an uploaded document.
+  const suppressLookupRef = useRef(false);
 
   // Keep a ref so onFileProcessed can read current formData without a stale closure
   const formDataRef = useRef(formData);
   formDataRef.current = formData;
 
-  // Debounced property lookup — triggers 800ms after address changes.
-  // Only fires when address looks like a real street address (>15 chars, has a digit).
-  // On success: auto-fills priorValue. On any failure: silently shows manual entry.
+  // Debounced property lookup — fires 800ms after address or county changes.
+  // Requires address ≥15 chars with a digit (filters out partial typing).
   useEffect(() => {
     const addr = formData.address ?? '';
 
     if (lookupTimeoutRef.current) clearTimeout(lookupTimeoutRef.current);
 
+    // PDF upload already provided values — skip this lookup to avoid overwriting them.
+    if (suppressLookupRef.current) {
+      suppressLookupRef.current = false;
+      setLookupState('idle');
+      return;
+    }
+
     if (addr.length < 15 || !/\d/.test(addr) || !formData.county) {
       setLookupState('idle');
-      setCurrentLookupState('idle');
       return;
     }
 
     let cancelled = false;
     setLookupState('searching');
-    setCurrentLookupState('searching');
 
     lookupTimeoutRef.current = setTimeout(() => {
       void lookupProperty(addr, formData.county).then(result => {
         if (cancelled) return;
-        if (result !== null) {
-          const currentYear = new Date().getFullYear();
-          const priorYear = currentYear - 1;
-          setLookupTaxYear(result.taxYear);
 
-          // Route the ATTOM value to whichever field its year matches.
-          // Using the same value for both fields is wrong (they'd be identical),
-          // so only one field can be auto-filled per lookup.
-          if (result.taxYear === currentYear) {
-            setFormData(prev => ({ ...prev, currentValue: result.assessedValue }));
-            setCurrentLookupState('found');
-            setLookupState('stale'); // priorValue still needs manual entry
-          } else if (result.taxYear === priorYear) {
-            setFormData(prev => ({ ...prev, priorValue: result.assessedValue }));
-            setLookupState('found');
-            setCurrentLookupState('stale'); // currentValue still needs manual entry
-          } else {
-            // Too old for both fields
-            setLookupState('stale');
-            setCurrentLookupState('stale');
-          }
+        if (result === null) {
+          setLookupState('not_found');
+          return;
+        }
+
+        const expectedPriorYear = new Date().getFullYear() - 1;
+        const hasCurrent = result.currentValue !== null && result.currentValue > 0;
+        const hasPrior   = result.priorValue  !== null && result.priorValue  > 0
+                           && result.priorYear === expectedPriorYear;
+
+        if (hasCurrent && hasPrior) {
+          setFormData(prev => ({
+            ...prev,
+            currentValue: result.currentValue ?? prev.currentValue,
+            priorValue:   result.priorValue   ?? prev.priorValue,
+          }));
+          setLookupState('both_found');
+        } else if (hasPrior) {
+          setFormData(prev => ({ ...prev, priorValue: result.priorValue ?? prev.priorValue }));
+          setLookupState('prior_only');
         } else {
-          setLookupTaxYear(null);
-          setLookupState('unavailable');
-          setCurrentLookupState('unavailable');
+          setLookupState('not_found');
         }
       });
     }, 800);
@@ -110,7 +199,7 @@ export function TaxAnalysis() {
   }, [formData.address, formData.county]);
 
   const runAnalysis = useCallback(async (data: PropertyData) => {
-    if (!data.currentValue || !data.priorValue) return;
+    if (!data.currentValue) return;
     setIsAnalyzing(true);
     setError('');
     setRetryAction(null);
@@ -165,7 +254,9 @@ export function TaxAnalysis() {
       currentValue: extracted.currentValue ?? formDataRef.current.currentValue,
       priorValue: extracted.priorValue ?? formDataRef.current.priorValue,
     };
+    suppressLookupRef.current = true; // prevent the address-change lookup from overwriting these values
     setFormData(newData);
+    setLookupState('idle');
     void runAnalysis(newData);
   }, [runAnalysis]);
 
@@ -173,6 +264,7 @@ export function TaxAnalysis() {
     useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
 
   const formRef = useScrollIntoViewOnFocus<HTMLFormElement>();
+  const resultRef = useScrollToResult<HTMLDivElement>(taxResult);
   const { isTouch, isIOS } = getDeviceCapabilities();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -199,6 +291,7 @@ export function TaxAnalysis() {
     PROTEST_RECOMMENDED: 'border-amber-500',
     CONTACT_WESTROM: 'border-tertiary',
     NO_ACTION: 'border-teal-500',
+    AMBIGUOUS: 'border-gray-300',
   } as const;
 
   const statusIconBg = {
@@ -206,6 +299,7 @@ export function TaxAnalysis() {
     PROTEST_RECOMMENDED: 'bg-amber-100 text-amber-600',
     CONTACT_WESTROM: 'bg-tertiary/10 text-tertiary',
     NO_ACTION: 'bg-teal-50 text-teal-600',
+    AMBIGUOUS: 'bg-gray-100 text-gray-500',
   } as const;
 
   const statusLabel = {
@@ -213,6 +307,7 @@ export function TaxAnalysis() {
     PROTEST_RECOMMENDED: 'Protest Recommended',
     CONTACT_WESTROM: 'Contact Westrom',
     NO_ACTION: 'No Action Needed',
+    AMBIGUOUS: "We Can't Fully Assess This",
   } as const;
 
   return (
@@ -242,7 +337,7 @@ export function TaxAnalysis() {
               onDrop={e => { void handleDrop(e); }}
               onClick={() => fileInputRef.current?.click()}
               role="button"
-              aria-label="Upload property tax notice"
+              aria-label="Upload Tax Notice"
               aria-describedby={isIOS ? "upload-helper" : undefined}
             >
               <input
@@ -263,7 +358,7 @@ export function TaxAnalysis() {
                 <div>
                   <h3 className="font-heading font-bold text-xl text-gray-900 mb-2">Upload Tax Notice</h3>
                   <p className="text-gray-500">{isTouch ? "Tap to upload your PDF or image" : "Drag and drop your PDF or image here"}</p>
-                  <p className="text-xs text-gray-400 mt-1">PDF: page 1 only — ensure appraised values appear on the first page</p>
+                  <p className="text-xs text-gray-500 mt-1">PDF: page 1 only — ensure appraised values appear on the first page</p>
                 </div>
                 <button
                   type="button"
@@ -283,7 +378,7 @@ export function TaxAnalysis() {
 
           <div className="flex items-center gap-4 mb-10">
             <div className="h-px bg-gray-200 flex-grow" />
-            <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">OR ENTER MANUALLY</span>
+            <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">OR ENTER MANUALLY</span>
             <div className="h-px bg-gray-200 flex-grow" />
           </div>
 
@@ -297,7 +392,7 @@ export function TaxAnalysis() {
                 <button
                   onClick={retryAction}
                   disabled={isAnalyzing || isExtracting}
-                  className="whitespace-nowrap px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="whitespace-nowrap px-4 py-2.5 min-h-[44px] bg-red-100 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-red-700 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                   Retry Analysis
                 </button>
@@ -354,39 +449,79 @@ export function TaxAnalysis() {
               </div>
             </div>
 
+            {/* Lookup status banner — shown while searching or after result */}
+            {lookupState === 'searching' && (
+              <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200">
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                Looking up your appraisal values…
+              </div>
+            )}
+            {lookupState === 'both_found' && (
+              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-4 py-3 rounded-xl border border-green-200">
+                <CheckCircle className="w-4 h-4 shrink-0" />
+                Found your {new Date().getFullYear()} and {new Date().getFullYear() - 1} values — verify with your appraisal notice then click Analyze.
+              </div>
+            )}
+            {lookupState === 'prior_only' && (
+              <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-4 py-3 rounded-xl border border-amber-200">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                Found your {new Date().getFullYear() - 1} value — enter your {new Date().getFullYear()} value from your appraisal notice below.
+              </div>
+            )}
+            {lookupState === 'not_found' && formData.county && (() => {
+              const countyEntry  = COUNTIES.find(c => c.name === formData.county);
+              const searchUrl    = countyEntry?.searchUrl ?? countyEntry?.url ?? '#';
+              const countyLabel  = countyEntry?.description ?? formData.county;
+              const year         = new Date().getFullYear();
+
+              // Address parsing — skip directional prefixes (N/S/E/W etc.) when extracting street name
+              const tokens      = (formData.address ?? '').trim().toUpperCase().replace(/,/g, '').split(/\s+/).filter(Boolean);
+              const hasHouseNum = tokens.length > 0 && /^\d/.test(tokens[0]);
+              const houseNumber = hasHouseNum ? tokens[0] : null;
+              let snIdx = hasHouseNum ? 1 : 0;
+              if (hasHouseNum && tokens[snIdx] && DIRECTIONALS.has(tokens[snIdx])) snIdx++;
+              const streetName  = tokens[snIdx] ?? null;
+              const addrHint    = houseNumber ? `${houseNumber} ${streetName ?? ''}`.trim() : streetName;
+
+              return (
+                <div className="text-sm text-amber-700 bg-amber-50 px-4 py-3 rounded-xl border border-amber-200 space-y-1">
+                  <div className="flex items-center gap-2 font-medium">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    We couldn&apos;t auto-fill your values — find them on the {countyLabel} website:
+                  </div>
+                  <ol className="pl-6 text-amber-600 space-y-1 list-decimal list-inside">
+                    <CountySteps
+                      county={formData.county}
+                      searchUrl={searchUrl}
+                      countyLabel={countyLabel}
+                      houseNumber={houseNumber}
+                      streetName={streetName}
+                      addrHint={addrHint}
+                      year={year}
+                    />
+                  </ol>
+                </div>
+              );
+            })()}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label htmlFor="tax-current-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                  Current Appraised Value *
+                <label htmlFor="tax-current-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                  {new Date().getFullYear()} Appraised Value *
                 </label>
-                {currentLookupState === 'searching' && (
-                  <p className="flex items-center gap-1 text-xs text-gray-400 mb-2">
-                    <Loader2 className="w-3 h-3 animate-spin" /> Looking up…
-                  </p>
-                )}
-                {currentLookupState === 'found' && (
-                  <p className="flex items-center gap-1 text-xs text-green-600 mb-2">
-                    <CheckCircle className="w-3 h-3 shrink-0" />
-                    {lookupTaxYear ? `${lookupTaxYear} value found — verify with your notice` : 'Auto-filled — verify with your notice'}
-                  </p>
-                )}
-                {currentLookupState === 'stale' && (
-                  <p className="text-xs text-amber-500 mb-2">
-                    {lookupTaxYear ? `Only ${lookupTaxYear} data available` : 'No current data'} — enter your {new Date().getFullYear()} value from your notice
-                  </p>
-                )}
-                {!['searching', 'found', 'stale'].includes(currentLookupState) && <div className="mb-2" />}
                 <div className="relative">
                   <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     name="currentValue"
                     value={formData.currentValue ?? ''}
                     onChange={handleInputChange}
                     id="tax-current-value"
-                    placeholder="From your 2026 notice"
+                    placeholder={lookupState === 'searching' ? 'Looking up…' : `From your ${new Date().getFullYear()} notice`}
                     className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium border ${
-                      currentLookupState === 'found'
+                      lookupState === 'both_found'
                         ? 'bg-green-50 border-green-200'
                         : 'bg-gray-50 border-gray-200'
                     }`}
@@ -395,40 +530,22 @@ export function TaxAnalysis() {
                 </div>
               </div>
               <div>
-                <label htmlFor="tax-prior-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                  Prior Year Tax Value
+                <label htmlFor="tax-prior-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                  {new Date().getFullYear() - 1} Appraised Value
                 </label>
-                {lookupState === 'searching' && (
-                  <p className="flex items-center gap-1 text-xs text-gray-400 mb-2">
-                    <Loader2 className="w-3 h-3 animate-spin" /> Looking up…
-                  </p>
-                )}
-                {lookupState === 'found' && (
-                  <p className="flex items-center gap-1 text-xs text-green-600 mb-2">
-                    <CheckCircle className="w-3 h-3 shrink-0" />
-                    {lookupTaxYear ? `${lookupTaxYear} value found — verify with your notice` : 'Auto-filled — verify with your notice'}
-                  </p>
-                )}
-                {lookupState === 'stale' && (
-                  <p className="text-xs text-amber-500 mb-2">
-                    {lookupTaxYear ? `Only ${lookupTaxYear} data available` : 'No current data'} — enter your {new Date().getFullYear() - 1} value from your notice
-                  </p>
-                )}
-                {lookupState === 'unavailable' && (
-                  <p className="text-xs text-gray-400 mb-2">Enter manually</p>
-                )}
-                {!['searching', 'found', 'stale', 'unavailable'].includes(lookupState) && <div className="mb-2" />}
                 <div className="relative">
                   <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     name="priorValue"
                     value={formData.priorValue ?? ''}
                     onChange={handleInputChange}
                     id="tax-prior-value"
                     placeholder={lookupState === 'searching' ? 'Looking up…' : 'e.g. 350000'}
                     className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium border ${
-                      lookupState === 'found'
+                      lookupState === 'both_found' || lookupState === 'prior_only'
                         ? 'bg-green-50 border-green-200'
                         : 'bg-gray-50 border-gray-200'
                     }`}
@@ -447,6 +564,8 @@ export function TaxAnalysis() {
                   <input
                     id="tax-zillow-value"
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     name="zillowValue"
                     value={formData.zillowValue ?? ''}
                     onChange={handleInputChange}
@@ -463,6 +582,8 @@ export function TaxAnalysis() {
                   <input
                     id="tax-realtor-value"
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     name="realtorValue"
                     value={formData.realtorValue ?? ''}
                     onChange={handleInputChange}
@@ -486,7 +607,7 @@ export function TaxAnalysis() {
                   'Get Free Analysis'
                 )}
               </button>
-              <p className="text-xs text-center text-gray-400 max-w-md mx-auto">
+              <p className="text-xs text-center text-gray-500 max-w-md mx-auto">
                 Informational only — not professional tax or legal advice.
               </p>
             </div>
@@ -495,7 +616,7 @@ export function TaxAnalysis() {
 
         {/* Results column */}
         {taxResult && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div ref={resultRef} className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 scroll-mt-24">
             <div className={`bg-white rounded-3xl shadow-xl overflow-hidden border-t-8 ${statusBorderColor[taxResult.status]}`}>
               <div className="p-8 md:p-10">
                 <div className="flex items-center gap-4 mb-8">
@@ -515,14 +636,14 @@ export function TaxAnalysis() {
 
                 <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-6 rounded-2xl border border-gray-100">
                   <div>
-                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">YoY Increase</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">YoY Increase</div>
                     <div className="font-heading font-bold text-3xl text-primary">
                       {(taxResult.yoyIncreasePct * 100).toFixed(1)}%
                     </div>
                   </div>
                   {taxResult.marketGapPct !== null && (
                     <div>
-                      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Market Gap</div>
+                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Market Gap</div>
                       <div className="font-heading font-bold text-3xl text-primary">
                         {(taxResult.marketGapPct * 100).toFixed(1)}%
                       </div>
@@ -558,6 +679,7 @@ export function TaxAnalysis() {
                 </div>
               </div>
             </div>
+            <ProtestGuide status={taxResult.status} county={formData.county} />
           </div>
         )}
       </div>

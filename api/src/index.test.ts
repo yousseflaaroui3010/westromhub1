@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { TextProvider, VisionProvider } from './providers/types';
+import type { CadLookupFn } from './adapters/types';
 import { createApp } from './app';
 
 // --- Mock providers ---
@@ -21,12 +22,22 @@ const app = createApp(
   ['http://localhost:5173'],
 );
 
-// App with ATTOM API key wired in (for property lookup tests)
+// App with ATTOM API key wired in (legacy property lookup tests)
 const appWithAttom = createApp(
   [mockTextProvider],
   [mockVisionProvider],
   ['http://localhost:5173'],
   'test-attom-key',
+);
+
+// App with injected CAD lookup function (new CAD adapter tests)
+const mockCadLookup = vi.fn<CadLookupFn>();
+const appWithCad = createApp(
+  [mockTextProvider],
+  [mockVisionProvider],
+  ['http://localhost:5173'],
+  undefined,
+  mockCadLookup,
 );
 
 // Helper: make a JSON POST request to the app
@@ -273,12 +284,12 @@ describe('CORS middleware', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /api/property-lookup', () => {
-  it('returns unavailable when ESTATED_API_KEY is not configured', async () => {
+  it('returns not_found when no lookup is configured', async () => {
     const res = await get(app, '/api/property-lookup?address=123+Main+St+Fort+Worth+TX&county=Tarrant');
     expect(res.status).toBe(200);
     const body = await res.json() as { priorValue: null; source: string };
     expect(body.priorValue).toBeNull();
-    expect(body.source).toBe('unavailable');
+    expect(body.source).toBe('not_found');
   });
 
   it('returns 400 when address param is missing', async () => {
@@ -291,7 +302,7 @@ describe('GET /api/property-lookup', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns priorValue and taxYear from ATTOM on success', async () => {
+  it('returns priorValue and priorYear from ATTOM on success', async () => {
     const attomPayload = {
       property: [
         {
@@ -308,9 +319,10 @@ describe('GET /api/property-lookup', () => {
 
     const res = await get(appWithAttom, '/api/property-lookup?address=123+Main+St+Fort+Worth+TX&county=Tarrant');
     expect(res.status).toBe(200);
-    const body = await res.json() as { priorValue: number; taxYear: number; source: string };
+    const body = await res.json() as { priorValue: number; priorYear: number; currentValue: null; source: string };
     expect(body.priorValue).toBe(320000);
-    expect(body.taxYear).toBe(2024);
+    expect(body.priorYear).toBe(2024);
+    expect(body.currentValue).toBeNull();
     expect(body.source).toBe('attom');
   });
 
@@ -345,6 +357,59 @@ describe('GET /api/property-lookup', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as { priorValue: null; source: string };
     expect(body.priorValue).toBeNull();
+    expect(body.source).toBe('not_found');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('GET /api/property-lookup — CAD adapter path', () => {
+  beforeEach(() => { mockCadLookup.mockReset(); });
+
+  it('returns both currentValue and priorValue when CAD returns full result', async () => {
+    mockCadLookup.mockResolvedValueOnce({
+      currentYear: 2026, currentValue: 420000,
+      priorYear: 2025, priorValue: 390000,
+    });
+    const res = await get(appWithCad, '/api/property-lookup?address=12517+Lake+Shore+CT+N+FORT+WORTH+TX+76179&county=Tarrant+County');
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.currentValue).toBe(420000);
+    expect(body.currentYear).toBe(2026);
+    expect(body.priorValue).toBe(390000);
+    expect(body.priorYear).toBe(2025);
+    expect(body.source).toBe('tad');
+    expect(body.county).toBe('Tarrant County');
+  });
+
+  it('returns prior-only when CAD returns currentValue 0 (ATTOM sentinel)', async () => {
+    mockCadLookup.mockResolvedValueOnce({
+      currentYear: 2026, currentValue: 0,
+      priorYear: 2025, priorValue: 350000,
+    });
+    const res = await get(appWithCad, '/api/property-lookup?address=123+Main+St&county=Tarrant+County');
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.currentValue).toBeNull();
+    expect(body.currentYear).toBeNull();
+    expect(body.priorValue).toBe(350000);
+    expect(body.source).toBe('attom');
+  });
+
+  it('returns not_found when CAD lookup returns null', async () => {
+    mockCadLookup.mockResolvedValueOnce(null);
+    const res = await get(appWithCad, '/api/property-lookup?address=123+Unknown+Rd&county=Tarrant+County');
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.priorValue).toBeNull();
+    expect(body.source).toBe('not_found');
+  });
+
+  it('returns not_found when CAD lookup throws', async () => {
+    mockCadLookup.mockRejectedValueOnce(new Error('scraper error'));
+    const res = await get(appWithCad, '/api/property-lookup?address=123+Main+St&county=Tarrant+County');
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
     expect(body.source).toBe('not_found');
   });
 });

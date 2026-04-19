@@ -1,4 +1,4 @@
-export type AnalysisStatus = 'AUTOMATIC_REDUCTION' | 'PROTEST_RECOMMENDED' | 'NO_ACTION' | 'CONTACT_WESTROM';
+export type AnalysisStatus = 'AUTOMATIC_REDUCTION' | 'PROTEST_RECOMMENDED' | 'NO_ACTION' | 'CONTACT_WESTROM' | 'AMBIGUOUS';
 
 export interface PropertyData {
   address?: string;
@@ -21,6 +21,12 @@ export function runRuleEngine(data: PropertyData): AnalysisResult {
   const currentVal = data.currentValue ?? 0;
   const priorVal = data.priorValue ?? 0;
   const yoyIncreasePct = priorVal > 0 ? (currentVal - priorVal) / priorVal : 0;
+
+  // Not enough data to make any comparison — tell the owner to seek help rather than
+  // silently returning NO_ACTION (which would imply the value is fine when we simply don't know).
+  if (priorVal === 0 && !data.zillowValue && !data.realtorValue) {
+    return { status: 'AMBIGUOUS', yoyIncreasePct: 0, marketGapPct: null, data };
+  }
 
   let status: AnalysisStatus = 'NO_ACTION';
   let marketGapPct: number | null = null;
@@ -67,6 +73,7 @@ export function getStatusExplanation(status: AnalysisStatus): string {
     case 'PROTEST_RECOMMENDED': return 'The county appraised value is higher than estimated market values (like Zillow/Realtor) or has a significant year-over-year increase. A protest is highly recommended to lower the tax burden.';
     case 'CONTACT_WESTROM': return 'The county appraised value is slightly higher than market estimates or prior year values. The owner should contact Westrom Property Management for a professional human review.';
     case 'NO_ACTION': return 'The appraised value appears to be in line with or below market estimates. A protest is unlikely to be successful or worth the effort at this time.';
+    case 'AMBIGUOUS': return 'Not enough data to make a recommendation. The prior year value and market estimates are both missing, so no comparison can be made.';
   }
 }
 

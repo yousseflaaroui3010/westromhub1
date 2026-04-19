@@ -13,7 +13,7 @@ export function PublicFooter() {
                 width={2048}
                 height={1186}
                 loading="lazy"
-                className="h-16 w-auto bg-white p-2 rounded-xl border border-gray-200 shadow-md"
+                className="h-16 w-[110px] bg-white p-2 rounded-xl border border-gray-200 shadow-md"
               />
             </div>
             <p className="text-gray-300 text-sm max-w-xs">

@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { runInsuranceRuleEngine, type InsuranceAnalysisResult, type InsuranceData } from '../lib/ruleEngine';
 import { extractInsuranceData, generateInsuranceRecommendation } from '../lib/ai';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
+import { useScrollToResult } from '../hooks/useScrollToResult';
 import { getDeviceCapabilities } from '../hooks/useDeviceCapabilities';
 
 function RecommendationSkeleton() {
@@ -79,6 +80,7 @@ export function InsuranceAnalysis() {
   const { isExtracting, isDragging, setIsDragging, fileInputRef, handleFileChange, handleDrop } =
     useDocumentUpload({ isAnalyzing, onFileProcessed, onError: setError });
 
+  const resultRef = useScrollToResult<HTMLDivElement>(insResult);
   const { isTouch, isIOS } = getDeviceCapabilities();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -185,7 +187,7 @@ export function InsuranceAnalysis() {
                 <button
                   onClick={retryAction}
                   disabled={isAnalyzing || isExtracting}
-                  className="whitespace-nowrap px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="whitespace-nowrap px-4 py-2.5 min-h-[44px] bg-red-100 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-red-700 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                   Retry Analysis
                 </button>
@@ -226,7 +228,7 @@ export function InsuranceAnalysis() {
                   'Get Free Analysis'
                 )}
               </button>
-              <p className="text-xs text-center text-gray-400 max-w-md mx-auto">
+              <p className="text-xs text-center text-gray-500 max-w-md mx-auto">
                 Informational only — not professional legal or insurance advice.
               </p>
             </div>
@@ -235,7 +237,7 @@ export function InsuranceAnalysis() {
 
         {/* Results column */}
         {insResult && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div ref={resultRef} className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 scroll-mt-24">
             <div className={`bg-white rounded-3xl shadow-xl overflow-hidden border-t-8 ${statusBorderColor[insResult.status]}`}>
               <div className="p-8 md:p-10">
                 <div className="flex items-center gap-4 mb-8">
@@ -255,13 +257,13 @@ export function InsuranceAnalysis() {
 
                 <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-6 rounded-2xl border border-gray-100">
                   <div>
-                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Policy Type</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Policy Type</div>
                     <div className="font-heading font-bold text-xl text-primary">
                       {insResult.data.policyType ?? 'Unknown'}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Wind/Hail Deductible</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Wind/Hail Deductible</div>
                     <div className="font-heading font-bold text-xl text-primary">
                       {insResult.data.windHailDeductible ?? 'Unknown'}
                     </div>

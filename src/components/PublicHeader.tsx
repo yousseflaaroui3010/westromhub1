@@ -1,5 +1,5 @@
-import { Menu, X, Mail } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { Mail, Check } from 'lucide-react';
+import { useState } from 'react';
 import { ViewState } from '../App';
 
 interface PublicHeaderProps {
@@ -8,157 +8,106 @@ interface PublicHeaderProps {
   onNavigate?: (view: ViewState) => void;
 }
 
+const EMAIL = 'info@westromgroup.com';
+
+const NAV_LINKS: { name: string; id: ViewState }[] = [
+  { name: 'Taxes', id: 'taxes' },
+  { name: 'Insurance', id: 'insurance' },
+];
+
 export function PublicHeader({ onNavigateHome, currentView, onNavigate }: PublicHeaderProps) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const toggleButtonRef = useRef<HTMLButtonElement>(null);
-  const drawerRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (isMobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-      // rAF ensures the drawer is in the DOM before we query it
-      requestAnimationFrame(() => {
-        const firstFocusable = drawerRef.current?.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') as HTMLElement;
-        if (firstFocusable) firstFocusable.focus();
-      });
-    } else {
-      document.body.style.overflow = '';
-      if (document.activeElement && drawerRef.current?.contains(document.activeElement)) {
-        toggleButtonRef.current?.focus();
-      }
+  const copyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(EMAIL);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard blocked (older browser / non-HTTPS / permissions) — the
+      // address is still visible as button text so users can long-press to copy.
     }
-    return () => { document.body.style.overflow = ''; };
-  }, [isMobileMenuOpen]);
+  };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isMobileMenuOpen) return;
-      if (e.key === 'Escape') {
-        setIsMobileMenuOpen(false);
-        toggleButtonRef.current?.focus();
-      }
-      if (e.key === 'Tab') {
-        const focusableElements = drawerRef.current?.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') as NodeListOf<HTMLElement>;
-        if (!focusableElements || focusableElements.length === 0) return;
-        
-        const firstElement = focusableElements[0];
-        const lastElement = focusableElements[focusableElements.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === firstElement) {
-            lastElement.focus();
-            e.preventDefault();
-          }
-        } else {
-          if (document.activeElement === lastElement) {
-            firstElement.focus();
-            e.preventDefault();
-          }
-        }
-      }
-    };
-    
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isMobileMenuOpen]);
-
-  const navLinks = [
-    { name: 'Taxes', id: 'taxes' as ViewState },
-    { name: 'Insurance', id: 'insurance' as ViewState },
-  ];
+  const showToggle = Boolean(currentView && currentView !== 'home' && onNavigate);
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-        {/* Logo */}
-        <button aria-label="Go to homepage" onClick={onNavigateHome} className="flex items-center gap-2 cursor-pointer transition-transform hover:scale-105 motion-reduce:hover:scale-100 group">
-          <img
-            src="/westrom-logo.webp"
-            alt="Westrom Group Logo"
-            width={2048}
-            height={1186}
-            fetchPriority="high"
-            className="h-16 w-auto bg-white p-1.5 rounded-xl border border-gray-100 shadow-sm group-hover:shadow-md transition-shadow"
-          />
-        </button>
+      <div className="max-w-7xl mx-auto px-3 sm:px-6">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 h-16 sm:h-20">
+          <button
+            aria-label="Go to homepage"
+            onClick={onNavigateHome}
+            className="flex-shrink-0 cursor-pointer transition-transform hover:scale-105 motion-reduce:hover:scale-100 group"
+          >
+            <img
+              src="/westrom-logo.webp"
+              alt="Westrom Group Logo"
+              width={2048}
+              height={1186}
+              fetchPriority="high"
+              className="h-11 sm:h-16 w-[74px] sm:w-[110px] bg-white p-1 sm:p-1.5 rounded-xl border border-gray-100 shadow-sm group-hover:shadow-md transition-shadow"
+            />
+          </button>
 
-        {/* Desktop Nav */}
-        <nav aria-label="Main navigation" className="hidden md:flex items-center gap-4">
-          {currentView && currentView !== 'home' && onNavigate && (
-            <div className="flex items-center bg-gray-100/80 p-1 rounded-full mr-4">
-              {navLinks.map((link) => (
+          {showToggle && (
+            <nav aria-label="Main navigation" className="hidden sm:flex items-center bg-gray-100/80 p-1 rounded-full">
+              {NAV_LINKS.map((link) => (
                 <button
                   key={link.name}
-                  onClick={() => onNavigate(link.id)}
+                  onClick={() => onNavigate!(link.id)}
                   className={`px-5 py-2 rounded-full font-semibold text-sm transition-all duration-200 ${
-                    currentView === link.id 
-                      ? 'bg-white text-primary shadow-sm' 
+                    currentView === link.id
+                      ? 'bg-white text-primary shadow-sm'
                       : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
                   }`}
+                  aria-current={currentView === link.id ? 'page' : undefined}
+                >
+                  {link.name}
+                </button>
+              ))}
+            </nav>
+          )}
+
+          <button
+            type="button"
+            onClick={copyEmail}
+            aria-label={copied ? 'Email copied to clipboard' : `Copy email address ${EMAIL}`}
+            title="Click to copy"
+            className="flex-shrink-0 min-h-[44px] flex items-center gap-1.5 sm:gap-2 text-primary font-bold text-[11px] sm:text-sm bg-primary/5 hover:bg-primary/10 px-2.5 sm:px-4 py-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            {copied ? (
+              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-teal-600" aria-hidden="true" />
+            ) : (
+              <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" aria-hidden="true" />
+            )}
+            <span className={`whitespace-nowrap ${copied ? 'text-teal-600' : ''}`}>
+              {copied ? 'Copied!' : EMAIL}
+            </span>
+          </button>
+        </div>
+
+        {showToggle && (
+          <nav aria-label="Main navigation" className="sm:hidden pb-2 -mt-1">
+            <div className="flex items-center bg-gray-100/80 p-1 rounded-full">
+              {NAV_LINKS.map((link) => (
+                <button
+                  key={link.name}
+                  onClick={() => onNavigate!(link.id)}
+                  className={`flex-1 min-h-[40px] px-4 py-1.5 rounded-full font-semibold text-sm transition-all ${
+                    currentView === link.id
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  aria-current={currentView === link.id ? 'page' : undefined}
                 >
                   {link.name}
                 </button>
               ))}
             </div>
-          )}
-          <a
-            href="mailto:info@westromgroup.com"
-            className="flex items-center gap-2 text-primary font-bold hover:text-primary-container transition-colors bg-primary/5 hover:bg-primary/10 px-4 py-2 rounded-full"
-          >
-            <Mail className="w-4 h-4" />
-            <span className="hidden sm:inline">info@westromgroup.com</span>
-            <span className="sm:hidden">Email Us</span>
-          </a>
-        </nav>
-
-        {/* Mobile Menu Toggle */}
-        <button
-          ref={toggleButtonRef}
-          className="md:hidden flex items-center justify-center text-gray-500 hover:text-primary bg-gray-50 rounded-full min-h-[44px] min-w-[44px]"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={isMobileMenuOpen}
-        >
-          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-      </div>
-
-      {/* Mobile Nav Drawer */}
-      {isMobileMenuOpen && (
-        <div ref={drawerRef} className="md:hidden absolute top-20 left-0 w-full bg-white border-b border-gray-200 shadow-xl animate-in slide-in-from-top-2">
-          <nav aria-label="Mobile navigation" className="flex flex-col px-6 py-6 gap-2">
-            {currentView && currentView !== 'home' && onNavigate && (
-              <div className="flex flex-col gap-2 mb-4">
-                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Workspaces</div>
-                {navLinks.map((link) => (
-                  <button
-                    key={link.name}
-                    className={`text-left font-semibold text-lg py-3 px-4 rounded-xl transition-colors ${
-                      currentView === link.id 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                    onClick={() => {
-                      onNavigate(link.id);
-                      setIsMobileMenuOpen(false);
-                    }}
-                  >
-                    {link.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="h-px bg-gray-100 my-2"></div>
-            <a
-              href="mailto:info@westromgroup.com"
-              className="flex items-center justify-center gap-2 bg-primary text-white font-bold text-lg py-4 rounded-xl mt-2"
-            >
-              <Mail className="w-5 h-5" />
-              <span>Email Us</span>
-            </a>
           </nav>
-        </div>
-      )}
+        )}
+      </div>
     </header>
   );
 }

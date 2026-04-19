@@ -5,6 +5,7 @@ import { serve } from '@hono/node-server';
 import type { AddressInfo } from 'net';
 import { buildTextProviders, buildVisionProviders } from './providers';
 import { createApp } from './app';
+import { createLookupFn } from './adapters/index';
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -39,7 +40,13 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000,ht
   .map((o) => o.trim())
   .filter(Boolean);
 
-const app = createApp(textProviders, visionProviders, allowedOrigins, process.env.ATTOM_API_KEY);
+const app = createApp(
+  textProviders,
+  visionProviders,
+  allowedOrigins,
+  undefined,                                      // attomApiKey: managed inside cadLookupFn
+  createLookupFn(process.env.ATTOM_API_KEY),      // full CAD → ATTOM dispatcher
+);
 
 serve({ fetch: app.fetch, port: PORT }, (info: AddressInfo) => {
   console.log(`Server running on port ${info.port}`);

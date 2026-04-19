@@ -9,6 +9,7 @@ import {
   INSURANCE_SYSTEM_INSTRUCTION,
 } from './prompts';
 import { withFallback } from './providers';
+import type { CadLookupFn } from './adapters/types';
 
 // --- Request schemas (SEC-3) ---
 
@@ -122,12 +123,15 @@ async function fetchAttomPriorValue(
 
 // --- App factory ---
 // Accepts providers as arguments so tests can inject mocks without env vars.
+// cadLookupFn: injected in production; leave undefined in tests to use the
+// legacy ATTOM-only path (existing tests continue to work unchanged).
 
 export function createApp(
   textProviders: TextProvider[],
   visionProviders: VisionProvider[],
   allowedOriginsList: string[] = ['http://localhost:3000', 'http://localhost:5173'],
   attomApiKey?: string,
+  cadLookupFn?: CadLookupFn,
 ): Hono {
   const app = new Hono();
 
@@ -182,10 +186,14 @@ export function createApp(
 
   app.get('/health', (c: Context) => c.json({ status: 'ok' }));
 
-  // --- Property lookup: auto-fill prior-year assessed value from ATTOM ---
-  // Returns { priorValue: number, source: 'attom' } on success, or
-  // { priorValue: null, source: 'not_found' | 'unavailable' } on any failure.
-  // 'unavailable' when the API key is not configured — frontend falls back to manual.
+  // --- Property lookup ---
+  // Returns both current-year and prior-year assessed values for a property.
+  //
+  // Response shape (all fields always present):
+  //   { currentYear, currentValue, priorYear, priorValue, source, county }
+  //   currentValue / currentYear are null when only ATTOM data is available.
+  //
+  // Priority: CAD scraper (via cadLookupFn) → ATTOM legacy path → not_found.
   app.get('/api/property-lookup', async (c: Context) => {
     const query = {
       address: c.req.query('address') ?? '',
@@ -196,27 +204,72 @@ export function createApp(
       return c.json({ error: 'address (min 5 chars) and county are required' }, 400);
     }
 
+    const { address, county } = parsed.data;
+    const notFound = {
+      currentYear: null, currentValue: null,
+      priorYear: null, priorValue: null,
+      source: 'not_found', county,
+    };
+
+    // Production path: full CAD → ATTOM dispatcher
+    if (cadLookupFn) {
+      let cadResult;
+      try {
+        cadResult = await cadLookupFn(address, county);
+      } catch (err) {
+        console.error('[property-lookup] cadLookupFn threw:', err);
+        cadResult = null;
+      }
+
+      if (cadResult === null) {
+        return c.json(notFound);
+      }
+
+      // currentValue === 0 is the sentinel from attom.ts meaning "prior year only"
+      const isAttomPartial = cadResult.currentValue === 0;
+      return c.json({
+        currentYear: isAttomPartial ? null : cadResult.currentYear,
+        currentValue: isAttomPartial ? null : cadResult.currentValue,
+        priorYear: cadResult.priorYear,
+        priorValue: cadResult.priorValue,
+        source: isAttomPartial ? 'attom' : detectSource(county),
+        county,
+      });
+    }
+
+    // Legacy test path: ATTOM only (cadLookupFn not injected)
     if (!attomApiKey) {
-      console.warn('[property-lookup] ATTOM_API_KEY not set — returning unavailable');
-      return c.json({ priorValue: null, source: 'unavailable' });
+      return c.json(notFound);
     }
 
-    console.log('[property-lookup] looking up address:', parsed.data.address);
-    let result: { priorValue: number; taxYear: number | null } | null;
+    let attomResult: { priorValue: number; taxYear: number | null } | null;
     try {
-      result = await fetchAttomPriorValue(parsed.data.address, attomApiKey);
+      attomResult = await fetchAttomPriorValue(address, attomApiKey);
     } catch (err) {
-      console.error('[property-lookup] unexpected error:', err);
-      return c.json({ priorValue: null, source: 'not_found' });
-    }
-    console.log('[property-lookup] result:', result);
-
-    if (result === null) {
-      return c.json({ priorValue: null, source: 'not_found' });
+      console.error('[property-lookup] ATTOM error:', err);
+      return c.json(notFound);
     }
 
-    return c.json({ priorValue: result.priorValue, taxYear: result.taxYear, source: 'attom' });
+    if (attomResult === null) {
+      return c.json(notFound);
+    }
+
+    return c.json({
+      currentYear: null,
+      currentValue: null,
+      priorYear: attomResult.taxYear,
+      priorValue: attomResult.priorValue,
+      source: 'attom',
+      county,
+    });
   });
+
+  function detectSource(county: string): string {
+    const lower = county.toLowerCase();
+    if (lower.includes('tarrant')) return 'tad';
+    if (lower.includes('dallas')) return 'dcad';
+    return 'cad';
+  }
 
   app.post('/api/extract-tax', async (c: Context) => {
     let body: unknown;

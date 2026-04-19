@@ -22,7 +22,15 @@ body {
 }
 
 html {
-  scroll-padding-top: 5rem;
+  /* Mobile header is logo-row + toggle-row on /taxes and /insurance (~7rem).
+     Desktop collapses to a single 5rem row. */
+  scroll-padding-top: 7.5rem;
+}
+
+@media (min-width: 640px) {
+  html {
+    scroll-padding-top: 5.5rem;
+  }
 }
 
 h1, h2, h3, h4, h5, h6 {
