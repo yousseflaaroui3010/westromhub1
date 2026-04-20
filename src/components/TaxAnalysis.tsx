@@ -326,6 +326,12 @@ export function TaxAnalysis() {
         <div className="bg-white p-5 md:p-10 rounded-3xl shadow-lg border border-gray-100">
           {/* Upload zone */}
           <div className="mb-10">
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
+              <span className="text-red-500 text-lg leading-none mt-0.5">★</span>
+              <p className="text-sm text-red-700 leading-relaxed font-medium">
+                Upload your official County Appraisal Notice here. This eliminates manual entry errors and ensures our AI can provide the most precise and reliable protest recommendation.
+              </p>
+            </div>
             <div
               className={`border-2 border-dashed rounded-2xl p-10 min-h-[120px] text-center transition-all duration-300 cursor-pointer ${
                 isDragging
