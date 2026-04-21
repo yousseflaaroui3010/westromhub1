@@ -20,4 +20,4 @@ RUN addgroup -S app && adduser -S app -G app
 USER app
 
 EXPOSE 3001
-CMD ["node", "dist/index.js"]
+CMD ["node", "--dns-result-order=ipv4first", "dist/index.js"]
