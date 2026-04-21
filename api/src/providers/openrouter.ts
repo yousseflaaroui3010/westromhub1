@@ -35,7 +35,7 @@ async function callOpenRouterVision(
       response_format: { type: 'json_object' },
       temperature: 0,
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!res.ok) {
