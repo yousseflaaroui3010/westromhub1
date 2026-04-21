@@ -4,7 +4,9 @@ import { z } from 'zod';
 import type { TextProvider, VisionProvider } from './providers/types';
 import {
   TAX_EXTRACTION_PROMPT,
+  TAX_VERIFICATION_PROMPT,
   INSURANCE_EXTRACTION_PROMPT,
+  INSURANCE_VERIFICATION_PROMPT,
   TAX_SYSTEM_INSTRUCTION,
   INSURANCE_SYSTEM_INSTRUCTION,
 } from './prompts';
@@ -291,14 +293,43 @@ export function createApp(
         'extract-tax',
       );
 
-      let ollamaData: unknown;
+      let extractedData: Record<string, unknown>;
       try {
-        ollamaData = JSON.parse(cleanJsonResponse(content));
+        extractedData = JSON.parse(cleanJsonResponse(content));
       } catch {
         return c.json({ error: 'AI returned an unreadable response. Please try again.' }, 422);
       }
 
-      return c.json(ollamaData);
+      if (extractedData.error) {
+        return c.json(extractedData);
+      }
+
+      try {
+        const verificationPrompt = TAX_VERIFICATION_PROMPT.replace(
+          '{extractedJson}',
+          JSON.stringify(extractedData, null, 2),
+        );
+        const verifiedContent = await withFallback(
+          visionProviders.map((p) => () => p.extract(verificationPrompt, base64, mimeType)),
+          'verify-tax',
+        );
+
+        let verifiedData: unknown;
+        try {
+          verifiedData = JSON.parse(cleanJsonResponse(verifiedContent));
+        } catch {
+          return c.json(extractedData);
+        }
+
+        const verified = verifiedData as Record<string, unknown>;
+        if (verified.error) {
+          return c.json(verified);
+        }
+
+        return c.json(verified);
+      } catch {
+        return c.json(extractedData);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Extraction failed';
       return c.json({ error: message }, 503);
@@ -325,14 +356,43 @@ export function createApp(
         'extract-insurance',
       );
 
-      let ollamaData: unknown;
+      let extractedData: Record<string, unknown>;
       try {
-        ollamaData = JSON.parse(cleanJsonResponse(content));
+        extractedData = JSON.parse(cleanJsonResponse(content));
       } catch {
         return c.json({ error: 'AI returned an unreadable response. Please try again.' }, 422);
       }
 
-      return c.json(ollamaData);
+      if (extractedData.error) {
+        return c.json(extractedData);
+      }
+
+      try {
+        const verificationPrompt = INSURANCE_VERIFICATION_PROMPT.replace(
+          '{extractedJson}',
+          JSON.stringify(extractedData, null, 2),
+        );
+        const verifiedContent = await withFallback(
+          visionProviders.map((p) => () => p.extract(verificationPrompt, base64, mimeType)),
+          'verify-insurance',
+        );
+
+        let verifiedData: unknown;
+        try {
+          verifiedData = JSON.parse(cleanJsonResponse(verifiedContent));
+        } catch {
+          return c.json(extractedData);
+        }
+
+        const verified = verifiedData as Record<string, unknown>;
+        if (verified.error) {
+          return c.json(verified);
+        }
+
+        return c.json(verified);
+      } catch {
+        return c.json(extractedData);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Extraction failed';
       return c.json({ error: message }, 503);

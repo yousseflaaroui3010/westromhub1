@@ -18,6 +18,7 @@ const providerConfig = {
   groqModel: process.env.GROQ_MODEL,
   openRouterApiKey: process.env.OPENROUTER_API_KEY,
   openRouterModel: process.env.OPENROUTER_MODEL,
+  openRouterPremiumModel: process.env.OPENROUTER_PREMIUM_MODEL,
   moonShotApiKey: process.env.MOONSHOT_API_KEY,
   moonShotModel: process.env.MOONSHOT_MODEL,
 };
@@ -25,14 +26,19 @@ const providerConfig = {
 const textProviders = buildTextProviders(providerConfig);
 const visionProviders = buildVisionProviders(providerConfig);
 
-if (textProviders.length === 0 || visionProviders.length === 0) {
+if (visionProviders.length === 0) {
   console.error(
-    'FATAL: No AI providers configured. ' +
-    'Set GEMINI_API_KEY (covers both text + vision), or ' +
-    'GROQ_API_KEY (text) + OPENROUTER_API_KEY (vision). ' +
+    'FATAL: No vision AI providers configured. ' +
+    'Set GEMINI_API_KEY or OPENROUTER_API_KEY. ' +
     'See .env.example for all options.',
   );
   process.exit(1);
+}
+if (textProviders.length === 0) {
+  console.warn(
+    'WARNING: No text AI providers configured. ' +
+    'Recommendation endpoints will fail. Set GEMINI_API_KEY or GROQ_API_KEY.',
+  );
 }
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000,http://localhost:5173')

@@ -1,6 +1,6 @@
 import type { TextProvider, VisionProvider } from './types';
 import { makeGroqTextProvider } from './groq';
-import { makeOpenRouterVisionProvider } from './openrouter';
+import { makeOpenRouterVisionProvider, makeOpenRouterPremiumVisionProvider } from './openrouter';
 import { makeGeminiTextProvider, makeGeminiVisionProvider } from './gemini';
 import { makeMoonShotTextProvider } from './moonshot';
 
@@ -34,6 +34,7 @@ export interface ProviderConfig {
   groqModel?: string;
   openRouterApiKey?: string;
   openRouterModel?: string;
+  openRouterPremiumModel?: string;
   moonShotApiKey?: string;
   moonShotModel?: string;
 }
@@ -60,8 +61,9 @@ export function buildTextProviders(cfg: ProviderConfig): TextProvider[] {
 
 /**
  * Vision provider priority:
- *   1. Gemini 2.5 Flash      — primary (native multimodal, JSON mode)
- *   2. OpenRouter / Pixtral  — fallback (mistralai/pixtral-large-2411, purpose-built document OCR)
+ *   1. Gemini 2.5 Flash (direct API)           — primary (native multimodal, JSON mode)
+ *   2. OpenRouter / Gemini 2.5 Flash (premium)  — fallback (same model via OpenRouter, $0.15/M)
+ *   3. OpenRouter / Gemma 4 31B (free)          — last resort (free but smaller model)
  */
 export function buildVisionProviders(cfg: ProviderConfig): VisionProvider[] {
   const providers: VisionProvider[] = [];
@@ -69,6 +71,7 @@ export function buildVisionProviders(cfg: ProviderConfig): VisionProvider[] {
     providers.push(makeGeminiVisionProvider(cfg.geminiApiKey, cfg.geminiModel));
   }
   if (cfg.openRouterApiKey) {
+    providers.push(makeOpenRouterPremiumVisionProvider(cfg.openRouterApiKey, cfg.openRouterPremiumModel));
     providers.push(makeOpenRouterVisionProvider(cfg.openRouterApiKey, cfg.openRouterModel));
   }
   return providers;
