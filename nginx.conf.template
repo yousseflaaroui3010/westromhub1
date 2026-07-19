@@ -7,10 +7,20 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-    # CSP: restrict to self + data URIs for PDF canvas rendering
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://static.cloudflareinsights.com; worker-src blob: 'self'; frame-src https://www.loom.com;" always;
+    # CSP: restrict to self + data URIs for PDF canvas rendering.
+    # connect-src also allows the WGC lead-pipeline n8n endpoint (the
+    # /analysis widget posts leads there; without it the browser blocks the
+    # fetch silently).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://static.cloudflareinsights.com https://main-production-bf72.up.railway.app; worker-src blob: 'self'; frame-src https://www.loom.com;" always;
     # Hide nginx version from responses
     server_tokens off;
+
+    # WGC lead-pipeline form page: /analysis serves the static analysis.html
+    # (must come before the SPA fallback, which would swallow it).
+    location = /analysis {
+        root /usr/share/nginx/html;
+        try_files /analysis.html =404;
+    }
 
     location / {
         root /usr/share/nginx/html;

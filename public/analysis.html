@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Free Rental Analysis | Westrom Group</title>
+  <meta name="description" content="Request a free, human-prepared rental analysis for your DFW property from the Westrom Group team.">
+  <style>
+    body {
+      margin: 0;
+      padding: 24px 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f4f5f7;
+      color: #1a1a1a;
+      display: flex;
+      justify-content: center;
+    }
+    main { width: 100%; max-width: 480px; }
+    .nojs {
+      padding: 16px;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      background: #fff;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- FR-9 target: this page IS the no-JS fallback destination for embeds.
+         If JS is blocked here too, show a direct contact path instead of a
+         dead form. Contact details are placeholders until Jon designates
+         them (routed via gapslog). -->
+    <noscript>
+      <div class="nojs">
+        <h1>Free Rental Analysis</h1>
+        <p>This form needs JavaScript, which your browser has disabled.
+        You can still get your free analysis &mdash; contact the Westrom Group
+        team directly through
+        <a href="https://westromgroup.com/contact-us/">westromgroup.com</a>
+        and mention "free rental analysis".</p>
+      </div>
+    </noscript>
+    <div id="wgc-analysis"></div>
+    <!-- PRODUCTION copy (deployed on wgcassetguide.com). No data-endpoint:
+         embed.js falls back to DEFAULT_API_BASE (the live Railway n8n
+         webhook base). Source of truth for this file lives in the
+         wgc-lead-pipeline repo (page/analysis.html, dev variant). -->
+    <script src="/embed.js" async
+      data-widget="rental-analysis"
+      data-source="Website - wgcassetguide"></script>
+  </main>
+</body>
+</html>
