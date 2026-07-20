@@ -1,4 +1,4 @@
-import { Calculator, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Calculator, ShieldCheck, ArrowRight, KeyRound } from 'lucide-react';
 
 interface HomeViewProps {
   onNavigate: (view: 'taxes' | 'insurance') => void;
@@ -36,15 +36,15 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 
           <h2 className="text-xl font-bold mb-4 text-white/90 tracking-wide uppercase text-sm">Choose your path to get started</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto">
             {/* Taxes Pathway */}
-            <button 
+            <button
               onClick={() => onNavigate('taxes')}
               aria-label="Enter Property Tax Hub"
               aria-describedby="tax-card-desc"
-              className="group bg-white rounded-3xl p-10 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-secondary flex flex-col h-full relative overflow-hidden"
+              className="group bg-white rounded-3xl p-8 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-secondary flex flex-col h-full relative overflow-hidden"
             >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110 motion-reduce:group-hover:scale-100"></div>
+              <div className="absolute top-0 end-0 w-32 h-32 bg-secondary/5 rounded-bl-full -me-8 -mt-8 transition-transform group-hover:scale-110 motion-reduce:group-hover:scale-100"></div>
               <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mb-8 text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-300 shadow-sm">
                 <Calculator className="w-8 h-8" />
               </div>
@@ -58,13 +58,13 @@ export function HomeView({ onNavigate }: HomeViewProps) {
             </button>
 
             {/* Insurance Pathway */}
-            <button 
+            <button
               onClick={() => onNavigate('insurance')}
               aria-label="Enter Insurance Hub"
               aria-describedby="insurance-card-desc"
-              className="group bg-white rounded-3xl p-10 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-tertiary flex flex-col h-full relative overflow-hidden"
+              className="group bg-white rounded-3xl p-8 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-tertiary flex flex-col h-full relative overflow-hidden"
             >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-tertiary/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110 motion-reduce:group-hover:scale-100"></div>
+              <div className="absolute top-0 end-0 w-32 h-32 bg-tertiary/5 rounded-bl-full -me-8 -mt-8 transition-transform group-hover:scale-110 motion-reduce:group-hover:scale-100"></div>
               <div className="w-16 h-16 bg-tertiary/10 rounded-2xl flex items-center justify-center mb-8 text-tertiary group-hover:bg-tertiary group-hover:text-white transition-colors duration-300 shadow-sm">
                 <ShieldCheck className="w-8 h-8" />
               </div>
@@ -76,6 +76,27 @@ export function HomeView({ onNavigate }: HomeViewProps) {
                 Enter Insurance Hub <ArrowRight className="w-5 h-5" />
               </div>
             </button>
+
+            {/* Rental Analysis Pathway — leaves the SPA on purpose: /analysis is a
+                static page served by nginx (see nginx.conf.template), not a react-router route. */}
+            <a
+              href="/analysis"
+              aria-label="Get your free rental analysis"
+              aria-describedby="rental-card-desc"
+              className="group bg-white rounded-3xl p-8 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-secondary flex flex-col h-full relative overflow-hidden sm:col-span-2 lg:col-span-1"
+            >
+              <div className="absolute top-0 end-0 w-32 h-32 bg-secondary/5 rounded-bl-full -me-8 -mt-8 transition-transform group-hover:scale-110 motion-reduce:group-hover:scale-100"></div>
+              <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-8 text-secondary group-hover:bg-secondary group-hover:text-white transition-colors duration-300 shadow-sm">
+                <KeyRound className="w-8 h-8" />
+              </div>
+              <h3 className="font-heading font-bold text-3xl text-gray-900 mb-4">Rental Analysis</h3>
+              <p id="rental-card-desc" className="text-gray-600 text-lg flex-grow leading-relaxed">
+                See what your property could rent for and get a human-prepared analysis — free.
+              </p>
+              <div className="mt-8 text-secondary font-bold flex items-center gap-2 group-hover:gap-4 transition-all text-lg">
+                Get My Analysis <ArrowRight className="w-5 h-5" />
+              </div>
+            </a>
           </div>
         </div>
       </section>
