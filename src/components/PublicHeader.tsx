@@ -29,7 +29,10 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
     }
   };
 
-  const showToggle = Boolean(currentView && currentView !== 'home' && onNavigate);
+  // Resource nav is persistent on every page (home included) so Taxes,
+  // Insurance, and Rental Analysis are always reachable. The current route
+  // gets the active pill; on home none is active, they read as plain nav.
+  const showNav = Boolean(onNavigate);
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
@@ -51,7 +54,7 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
           </button>
 
           <nav aria-label="Main navigation" className="hidden sm:flex items-center gap-2">
-            {showToggle && (
+            {showNav && (
               <div className="flex items-center bg-gray-100/80 p-1 rounded-full">
                 {NAV_LINKS.map((link) => (
                   <button
@@ -96,7 +99,7 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
         </div>
 
         <nav aria-label="Main navigation" className="sm:hidden pb-2 -mt-1 flex items-center gap-2">
-          {showToggle && (
+          {showNav && (
             <div className="flex-1 flex items-center bg-gray-100/80 p-1 rounded-full">
               {NAV_LINKS.map((link) => (
                 <button
@@ -117,7 +120,7 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
           <a
             href="/analysis"
             className={`min-h-[40px] px-4 py-1.5 rounded-full font-semibold text-sm text-secondary bg-secondary/10 flex items-center justify-center ${
-              showToggle ? '' : 'flex-1'
+              showNav ? '' : 'flex-1'
             }`}
           >
             Rental Analysis
