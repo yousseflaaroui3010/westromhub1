@@ -476,7 +476,7 @@ export function TaxAnalysis() {
             )}
             {lookupState === 'not_found' && formData.county && (() => {
               const countyEntry  = COUNTIES.find(c => c.name === formData.county);
-              const searchUrl    = countyEntry?.searchUrl ?? countyEntry?.url ?? '#';
+              const searchUrl    = countyEntry?.searchUrl ?? '#';
               const countyLabel  = countyEntry?.description ?? formData.county;
               const year         = new Date().getFullYear();
 
