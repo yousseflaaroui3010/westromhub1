@@ -50,24 +50,32 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
             />
           </button>
 
-          {showToggle && (
-            <nav aria-label="Main navigation" className="hidden sm:flex items-center bg-gray-100/80 p-1 rounded-full">
-              {NAV_LINKS.map((link) => (
-                <button
-                  key={link.name}
-                  onClick={() => onNavigate!(link.id)}
-                  className={`px-5 py-2 rounded-full font-semibold text-sm transition-all duration-200 ${
-                    currentView === link.id
-                      ? 'bg-white text-primary shadow-sm'
-                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
-                  }`}
-                  aria-current={currentView === link.id ? 'page' : undefined}
-                >
-                  {link.name}
-                </button>
-              ))}
-            </nav>
-          )}
+          <nav aria-label="Main navigation" className="hidden sm:flex items-center gap-2">
+            {showToggle && (
+              <div className="flex items-center bg-gray-100/80 p-1 rounded-full">
+                {NAV_LINKS.map((link) => (
+                  <button
+                    key={link.name}
+                    onClick={() => onNavigate!(link.id)}
+                    className={`px-5 py-2 rounded-full font-semibold text-sm transition-all duration-200 ${
+                      currentView === link.id
+                        ? 'bg-white text-primary shadow-sm'
+                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                    }`}
+                    aria-current={currentView === link.id ? 'page' : undefined}
+                  >
+                    {link.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <a
+              href="/analysis"
+              className="px-5 py-2 rounded-full font-semibold text-sm text-secondary bg-secondary/10 hover:bg-secondary hover:text-white transition-colors duration-200"
+            >
+              Rental Analysis
+            </a>
+          </nav>
 
           <button
             type="button"
@@ -87,9 +95,9 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
           </button>
         </div>
 
-        {showToggle && (
-          <nav aria-label="Main navigation" className="sm:hidden pb-2 -mt-1">
-            <div className="flex items-center bg-gray-100/80 p-1 rounded-full">
+        <nav aria-label="Main navigation" className="sm:hidden pb-2 -mt-1 flex items-center gap-2">
+          {showToggle && (
+            <div className="flex-1 flex items-center bg-gray-100/80 p-1 rounded-full">
               {NAV_LINKS.map((link) => (
                 <button
                   key={link.name}
@@ -105,8 +113,16 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
                 </button>
               ))}
             </div>
-          </nav>
-        )}
+          )}
+          <a
+            href="/analysis"
+            className={`min-h-[40px] px-4 py-1.5 rounded-full font-semibold text-sm text-secondary bg-secondary/10 flex items-center justify-center ${
+              showToggle ? '' : 'flex-1'
+            }`}
+          >
+            Rental Analysis
+          </a>
+        </nav>
       </div>
     </header>
   );

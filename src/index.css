@@ -22,8 +22,9 @@ body {
 }
 
 html {
-  /* Mobile header is logo-row + toggle-row on /taxes and /insurance (~7rem).
-     Desktop collapses to a single 5rem row. */
+  /* Mobile header is always logo-row + nav-row now (nav row always shows the
+     Rental Analysis link, plus the Taxes/Insurance toggle on those views)
+     (~7rem). Desktop collapses to a single 5rem row. */
   scroll-padding-top: 7.5rem;
 }
 

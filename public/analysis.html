@@ -6,16 +6,129 @@
   <title>Free Rental Analysis | Westrom Group</title>
   <meta name="description" content="Request a free, human-prepared rental analysis for your DFW property from the Westrom Group team.">
   <style>
+    :root {
+      --color-primary: #002045;
+      --color-secondary: #b61710;
+      --color-tertiary: #06242e;
+      --color-background: #fbf9f8;
+      --color-on-surface: #1b1c1c;
+      --color-on-surface-variant: #43474e;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      padding: 24px 16px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #f4f5f7;
-      color: #1a1a1a;
-      display: flex;
-      justify-content: center;
+      font-family: var(--font-sans);
+      background: var(--color-background);
+      color: var(--color-on-surface);
+      line-height: 1.5;
     }
-    main { width: 100%; max-width: 480px; }
+
+    h1, h2, h3 { font-family: var(--font-heading); }
+
+    a { color: var(--color-secondary); }
+
+    /* Keyboard users: revealed on focus, skips the header. */
+    .skip-link {
+      position: absolute;
+      inset-inline-start: 1rem;
+      top: -3rem;
+      background: #fff;
+      color: var(--color-primary);
+      padding-block: 0.5rem;
+      padding-inline: 1rem;
+      border-radius: 0.5rem;
+      z-index: 100;
+      transition: top 0.15s ease;
+      font-weight: 600;
+    }
+    .skip-link:focus {
+      top: 0.5rem;
+    }
+
+    .site-header {
+      background: var(--color-primary);
+      color: #fff;
+      padding-block: 0.75rem;
+    }
+    .site-header .wrap {
+      max-width: 72rem;
+      margin-inline: auto;
+      padding-inline: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .site-header a.brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1.05rem;
+    }
+    .site-header img {
+      block-size: 2.5rem;
+      inline-size: auto;
+      background: #fff;
+      padding: 0.2rem;
+      border-radius: 0.5rem;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #0f2f52 0%, var(--color-primary) 55%, var(--color-tertiary) 100%);
+      color: #fff;
+      padding-block: 3rem 3.5rem;
+      text-align: center;
+    }
+    .hero .wrap {
+      max-width: 44rem;
+      margin-inline: auto;
+      padding-inline: 1.25rem;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(182, 23, 16, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 999px;
+      padding-block: 0.3rem;
+      padding-inline: 0.9rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      margin-block-end: 1.1rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 800;
+      margin-block: 0 0.9rem;
+      letter-spacing: -0.01em;
+    }
+    .hero p {
+      font-size: 1.05rem;
+      color: rgba(255, 255, 255, 0.88);
+      margin: 0;
+    }
+
+    main { display: block; }
+
+    .widget-section {
+      background: var(--color-background);
+      padding-block: 2.5rem;
+    }
+    .widget-section .wrap {
+      max-width: 34rem;
+      margin-inline: auto;
+      padding-inline: 1.25rem;
+    }
+
     .nojs {
       padding: 16px;
       border: 1px solid #d9d9d9;
@@ -24,32 +137,202 @@
       font-size: 15px;
       line-height: 1.5;
     }
+
+    .content-section {
+      max-width: 40rem;
+      margin-inline: auto;
+      padding-inline: 1.25rem;
+      padding-block: 1rem 2.5rem;
+      color: var(--color-on-surface-variant);
+    }
+    .content-section p { font-size: 1rem; }
+
+    .faq h2 {
+      color: var(--color-on-surface);
+      font-size: 1.4rem;
+      margin-block-end: 1rem;
+    }
+    .faq details {
+      border: 1px solid #e2e2e2;
+      border-radius: 0.6rem;
+      padding: 0.9rem 1rem;
+      margin-block-end: 0.75rem;
+      background: #fff;
+    }
+    .faq summary {
+      font-weight: 700;
+      color: var(--color-on-surface);
+      cursor: pointer;
+    }
+    .faq summary:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+    .faq p {
+      margin-block: 0.6rem 0 0;
+    }
+
+    .site-footer {
+      background: var(--color-tertiary);
+      color: rgba(255, 255, 255, 0.75);
+      text-align: center;
+      padding-block: 1.5rem;
+      font-size: 0.85rem;
+    }
+    .site-footer a { color: #fff; }
+
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+    .hero a:focus-visible { outline-color: #fff; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition-duration: 0.01ms !important; }
+    }
   </style>
 </head>
 <body>
-  <main>
-    <!-- FR-9 target: this page IS the no-JS fallback destination for embeds.
-         If JS is blocked here too, show a direct contact path instead of a
-         dead form. Contact details are placeholders until Jon designates
-         them (routed via gapslog). -->
-    <noscript>
-      <div class="nojs">
-        <h1>Free Rental Analysis</h1>
-        <p>This form needs JavaScript, which your browser has disabled.
-        You can still get your free analysis &mdash; contact the Westrom Group
-        team directly through
-        <a href="https://westromgroup.com/contact-us/">westromgroup.com</a>
-        and mention "free rental analysis".</p>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/">
+        <img src="/westrom-logo.webp" alt="Westrom Group logo" width="2048" height="1186">
+        <span>Westrom Group</span>
+      </a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="wrap">
+        <span class="eyebrow">Free &middot; Human-prepared</span>
+        <h1>What could your property rent for?</h1>
+        <p>A no-cost rental analysis from the Westrom Group team, serving DFW investors.</p>
       </div>
-    </noscript>
-    <div id="wgc-analysis"></div>
-    <!-- PRODUCTION copy (deployed on wgcassetguide.com). No data-endpoint:
-         embed.js falls back to DEFAULT_API_BASE (the live Railway n8n
-         webhook base). Source of truth for this file lives in the
-         wgc-lead-pipeline repo (page/analysis.html, dev variant). -->
-    <script src="/embed.js" async
-      data-widget="rental-analysis"
-      data-source="Website - wgcassetguide"></script>
+    </section>
+
+    <section class="widget-section" aria-label="Rental analysis request form">
+      <div class="wrap">
+        <!-- FR-9 target: this page IS the no-JS fallback destination for embeds.
+             If JS is blocked here too, show a direct contact path instead of a
+             dead form. Contact details are placeholders until Jon designates
+             them (routed via gapslog). -->
+        <noscript>
+          <div class="nojs">
+            <h2>Free Rental Analysis</h2>
+            <p>This form needs JavaScript, which your browser has disabled.
+            You can still get your free analysis &mdash; contact the Westrom Group
+            team directly through
+            <a href="https://westromgroup.com/contact-us/">westromgroup.com</a>
+            and mention "free rental analysis".</p>
+          </div>
+        </noscript>
+        <div id="wgc-analysis"></div>
+        <!-- PRODUCTION copy (deployed on wgcassetguide.com). No data-endpoint:
+             embed.js falls back to DEFAULT_API_BASE (the live Railway n8n
+             webhook base). Source of truth for this file lives in the
+             wgc-lead-pipeline repo (page/analysis.html, dev variant) -- that
+             copy has drifted from this one and needs a manual sync. -->
+        <script src="/embed.js" async
+          data-widget="rental-analysis"
+          data-source="Website - wgcassetguide"></script>
+      </div>
+    </section>
+
+    <section class="content-section">
+      <p>Westrom Group has helped Dallas&ndash;Fort Worth investors buy, lease, and manage
+      single-family rentals for over a decade. This free rental analysis pulls comparable
+      local leases and current market data, then a member of our team reviews the numbers
+      by hand before sending you a straightforward rent range for your property &mdash;
+      no bots, no spam, no obligation.</p>
+    </section>
+
+    <section class="content-section faq" aria-labelledby="faq-heading">
+      <h2 id="faq-heading">Frequently asked questions</h2>
+
+      <details>
+        <summary>How long until I hear back?</summary>
+        <p>Most owners hear back within a few business days. We review each property
+        individually, so complex or unique properties may take slightly longer.</p>
+      </details>
+
+      <details>
+        <summary>Is it really free?</summary>
+        <p>Yes. There's no cost and no obligation to sign up for management services.
+        We provide the analysis because it's useful, and it's how many owners first
+        get to know our team.</p>
+      </details>
+
+      <details>
+        <summary>What do I need to provide?</summary>
+        <p>Just a few basic details about your property &mdash; your ZIP, approximate
+        size, and number of bedrooms &mdash; in the form above. If we need anything else,
+        such as photos or lease history, we'll follow up directly.</p>
+      </details>
+    </section>
   </main>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Westrom Group. Serving Dallas&ndash;Fort Worth investors.
+    <a href="/">Back to the Investor Hub</a></p>
+  </footer>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Service",
+        "name": "Free Rental Analysis",
+        "serviceType": "Rental market analysis",
+        "provider": {
+          "@type": "Organization",
+          "name": "Westrom Group"
+        },
+        "areaServed": {
+          "@type": "Place",
+          "name": "Dallas-Fort Worth, Texas"
+        },
+        "description": "A free, human-prepared rental analysis estimating what a Dallas-Fort Worth investment property could rent for.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How long until I hear back?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Most owners hear back within a few business days. We review each property individually, so complex or unique properties may take slightly longer."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is it really free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. There's no cost and no obligation to sign up for management services. We provide the analysis because it's useful, and it's how many owners first get to know our team."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What do I need to provide?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Just a few basic details about your property — your ZIP, approximate size, and number of bedrooms — in the form above. If we need anything else, such as photos or lease history, we'll follow up directly."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
 </body>
 </html>
