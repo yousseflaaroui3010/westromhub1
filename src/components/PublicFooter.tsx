@@ -1,10 +1,21 @@
 import { ShieldCheck, Home, Award, Building, Star, Facebook, Twitter, Globe } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+// Resource links. SPA routes use <Link> (client-side nav); the static nginx-served
+// pages (/analysis, /guarantees) use a plain <a> so they do a real navigation.
+const RESOURCE_LINKS: { name: string; to: string; external: boolean }[] = [
+  { name: 'Home', to: '/', external: false },
+  { name: 'Property Taxes', to: '/taxes', external: false },
+  { name: 'Insurance', to: '/insurance', external: false },
+  { name: 'Rental Analysis', to: '/analysis', external: true },
+  { name: 'Guarantees', to: '/guarantees', external: true },
+];
 
 export function PublicFooter() {
   return (
     <footer aria-label="Site footer" className="bg-primary text-white py-12 mt-20 border-t-4 border-secondary shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           <div>
             <div className="mb-4 inline-block">
               <img
@@ -20,7 +31,26 @@ export function PublicFooter() {
               Professional property management serving Texas real estate investors.
             </p>
           </div>
-          
+
+          <nav aria-label="Footer resources">
+            <h3 className="font-heading font-semibold text-lg mb-4">Resources</h3>
+            <ul className="space-y-2 text-gray-300 text-sm">
+              {RESOURCE_LINKS.map((link) => (
+                <li key={link.name}>
+                  {link.external ? (
+                    <a href={link.to} className="hover:text-white transition-colors">
+                      {link.name}
+                    </a>
+                  ) : (
+                    <Link to={link.to} className="hover:text-white transition-colors">
+                      {link.name}
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </nav>
+
           <div>
             <h3 className="font-heading font-semibold text-lg mb-4">Contact</h3>
             <ul className="space-y-2 text-gray-300 text-sm">
