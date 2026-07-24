@@ -98,6 +98,37 @@ export function HomeView({ onNavigate }: HomeViewProps) {
               </div>
             </a>
           </div>
+
+          {/* Guarantees trust strip — reassurance, not a 4th "path" card. Links to
+              the static /guarantees page (leaves the SPA, like the Rental Analysis card). */}
+          <div className="mt-10 md:mt-12 w-full max-w-4xl mx-auto text-center">
+            <p className="text-xs md:text-sm uppercase tracking-wide text-white/70 mb-3">
+              Every Westrom owner is backed by 6 guarantees
+            </p>
+            <ul className="flex flex-wrap justify-center gap-2 mb-5">
+              {[
+                '12-Month Placement',
+                'Eviction Protection',
+                '$3,000 Pet',
+                'Happiness',
+                '90-Day Money-Back',
+                'No-Markup Maintenance',
+              ].map((label) => (
+                <li
+                  key={label}
+                  className="text-xs md:text-sm text-white/90 bg-white/10 border border-white/15 rounded-full px-3 py-1"
+                >
+                  {label}
+                </li>
+              ))}
+            </ul>
+            <a
+              href="/guarantees"
+              className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary-container text-white font-bold text-sm px-5 py-2.5 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+            >
+              See our guarantees <ArrowRight className="w-4 h-4" />
+            </a>
+          </div>
         </div>
       </section>
     </div>
