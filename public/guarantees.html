@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Our Guarantees | Westrom Group</title>
+  <meta name="description" content="The Westrom Group guarantees: 12-month tenant placement, eviction protection, $3,000 pet assurance, happiness, 90-day money-back, and no-markup maintenance.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://wgcassetguide.com/guarantees">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <style>
+    :root {
+      --color-primary: #002045;
+      --color-canvas: #f3f4f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--color-canvas);
+      color: #1b1c1c;
+      line-height: 1.5;
+    }
+    .skip-link {
+      position: absolute;
+      inset-inline-start: 1rem;
+      top: -3rem;
+      background: #fff;
+      color: var(--color-primary);
+      padding-block: 0.5rem;
+      padding-inline: 1rem;
+      border-radius: 0.5rem;
+      z-index: 100;
+      transition: top 0.15s ease;
+      font-weight: 600;
+    }
+    .skip-link:focus { top: 0.5rem; }
+
+    .site-header { background: var(--color-primary); color: #fff; padding-block: 0.75rem; }
+    .site-header .wrap {
+      max-width: 72rem;
+      margin-inline: auto;
+      padding-inline: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .site-header a.brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1.05rem;
+    }
+    .site-header img {
+      block-size: 2.5rem;
+      inline-size: auto;
+      background: #fff;
+      padding: 0.2rem;
+      border-radius: 0.5rem;
+    }
+
+    main { display: block; padding-block: 1.5rem 3rem; padding-inline: 1rem; }
+
+    .nojs {
+      max-width: 44rem;
+      margin-inline: auto;
+      padding: 1.25rem;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .nojs h1 { margin-block-start: 0; }
+    .nojs li { margin-block-end: 0.75rem; }
+
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/">
+        <img src="/westrom-logo.webp" alt="Westrom Group logo" width="2048" height="1186">
+        <span>Westrom Group</span>
+      </a>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Guarantees poster widget (shadow DOM, self-contained). If JS is
+         disabled the noscript block below still lists every guarantee. -->
+    <noscript>
+      <div class="nojs">
+        <h1>Westrom Group Guarantees</h1>
+        <p>Built on confidence. Backed by protection. Focused on your peace of mind.</p>
+        <ul>
+          <li><strong>12-Month Tenant Placement Guarantee.</strong> If Westrom places a resident on a 12-month lease and that resident breaks the lease early, Westrom would find a replacement resident without charging another leasing fee.</li>
+          <li><strong>Eviction Protection Guarantee.</strong> If a Westrom-screened resident has to be evicted, Westrom helps manage the eviction process and covers eligible eviction-related costs up to a set amount.</li>
+          <li><strong>$3,000 Pet Assurance Guarantee.</strong> Our best differentiator. Many competitors advertise only $1,000 to $2,000 in pet damage protection; Westrom offers $3,000.</li>
+          <li><strong>Happiness Guarantee.</strong> If you're not happy with our services for any reason, you can terminate. You're not obligated to stay with us.</li>
+          <li><strong>90-Day Money-Back Guarantee.</strong> We can refund monthly management fees collected during the first 90 days if the owner is not satisfied.</li>
+          <li><strong>Maintenance Guarantee.</strong> We never mark up maintenance. What you pay is what it costs, and you receive the actual vendor invoice with every charge.</li>
+        </ul>
+      </div>
+    </noscript>
+
+    <div id="wgc-guarantees"></div>
+    <script src="/guarantees.js" async data-variant="full"></script>
+  </main>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": "Westrom Group Guarantees",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "12-Month Tenant Placement Guarantee" },
+      { "@type": "ListItem", "position": 2, "name": "Eviction Protection Guarantee" },
+      { "@type": "ListItem", "position": 3, "name": "$3,000 Pet Assurance Guarantee" },
+      { "@type": "ListItem", "position": 4, "name": "Happiness Guarantee" },
+      { "@type": "ListItem", "position": 5, "name": "90-Day Money-Back Guarantee" },
+      { "@type": "ListItem", "position": 6, "name": "Maintenance Guarantee" }
+    ]
+  }
+  </script>
+</body>
+</html>

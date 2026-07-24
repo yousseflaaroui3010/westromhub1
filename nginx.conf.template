@@ -22,6 +22,27 @@ server {
         try_files /analysis.html =404;
     }
 
+    # Guarantees page: /guarantees serves the static guarantees.html (must come
+    # before the SPA fallback, which would swallow it). The poster is rendered
+    # by /guarantees.js (a self-hosted file served by the SPA fallback below).
+    location = /guarantees {
+        root /usr/share/nginx/html;
+        try_files /guarantees.html =404;
+    }
+
+    # Self-hosted Montserrat for the guarantees widget. CORS is required so the
+    # same widget embedded on westromgroup.com (Goodjuju, cross-origin) can load
+    # the font; fonts are always fetched in CORS mode. Long cache: the files are
+    # content-stable (immutable weights).
+    location ~* \.woff2$ {
+        root /usr/share/nginx/html;
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        types { font/woff2 woff2; }
+        default_type font/woff2;
+        try_files $uri =404;
+    }
+
     location / {
         root /usr/share/nginx/html;
         index index.html;

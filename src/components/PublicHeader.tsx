@@ -78,6 +78,12 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
             >
               Rental Analysis
             </a>
+            <a
+              href="/guarantees"
+              className="px-5 py-2 rounded-full font-semibold text-sm text-primary bg-primary/10 hover:bg-primary hover:text-white transition-colors duration-200"
+            >
+              Guarantees
+            </a>
           </nav>
 
           <button
@@ -98,9 +104,9 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
           </button>
         </div>
 
-        <nav aria-label="Main navigation" className="sm:hidden pb-2 -mt-1 flex items-center gap-2">
+        <nav aria-label="Main navigation" className="sm:hidden pb-2 -mt-1 flex flex-wrap items-center gap-2">
           {showNav && (
-            <div className="flex-1 flex items-center bg-gray-100/80 p-1 rounded-full">
+            <div className="basis-full flex items-center bg-gray-100/80 p-1 rounded-full">
               {NAV_LINKS.map((link) => (
                 <button
                   key={link.name}
@@ -119,11 +125,15 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
           )}
           <a
             href="/analysis"
-            className={`min-h-[40px] px-4 py-1.5 rounded-full font-semibold text-sm text-secondary bg-secondary/10 flex items-center justify-center ${
-              showNav ? '' : 'flex-1'
-            }`}
+            className="flex-1 min-h-[40px] px-4 py-1.5 rounded-full font-semibold text-sm text-secondary bg-secondary/10 flex items-center justify-center"
           >
             Rental Analysis
+          </a>
+          <a
+            href="/guarantees"
+            className="flex-1 min-h-[40px] px-4 py-1.5 rounded-full font-semibold text-sm text-primary bg-primary/10 flex items-center justify-center"
+          >
+            Guarantees
           </a>
         </nav>
       </div>
