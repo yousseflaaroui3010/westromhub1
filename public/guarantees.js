@@ -170,27 +170,37 @@
       '.wgc-g-tag{margin:0;font-size:1.125rem;font-weight:700;color:#1f2937;max-width:48rem;}',
 
       /* cards */
-      '.wgc-g-list{padding:0 2rem 2.5rem;display:flex;flex-direction:column;gap:1rem;position:relative;z-index:1;}',
-      '.wgc-g-card{position:relative;display:flex;background:#fff;border-radius:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.08);',
+      '.wgc-g-list{padding:0 2rem 2.75rem;display:flex;flex-direction:column;gap:1.25rem;position:relative;z-index:1;}',
+      '.wgc-g-card{position:relative;display:flex;background:#fff;border-radius:1rem;box-shadow:0 6px 20px rgba(0,0,0,0.07);',
       'transition:transform 0.2s ease,box-shadow 0.2s ease;}',
       '.wgc-g-side{position:relative;flex:0 0 auto;width:118px;margin-inline-start:2.75rem;background:#000;color:#fff;',
       'display:flex;align-items:center;justify-content:flex-end;padding-inline-end:18px;border-radius:1rem;}',
       '.wgc-g-num{font-size:2.5rem;font-weight:900;line-height:1;}',
       '.wgc-g-circle{position:absolute;top:50%;inset-inline-start:-38px;transform:translateY(-50%);z-index:2;',
       'width:76px;height:76px;border-radius:50%;border:3px solid ' + RED + ';background:#fff;',
-      'transition:transform 0.2s ease;',
+      'box-shadow:0 6px 16px rgba(227,30,36,0.22);',
+      'transition:transform 0.2s ease,box-shadow 0.2s ease;',
       'display:flex;align-items:center;justify-content:center;color:' + RED + ';}',
       '.wgc-g-circle svg{width:38px;height:38px;}',
-      '.wgc-g-body{flex:1 1 auto;padding:1.25rem 1.75rem 1.25rem 1.25rem;min-width:0;}',
-      '.wgc-g-cardtitle{margin:0 0 0.25rem;font-size:1.125rem;font-weight:800;text-transform:uppercase;color:#000;line-height:1.15;}',
-      '.wgc-g-text{margin:0;font-size:0.875rem;line-height:1.3;color:#374151;}',
-      '.wgc-g-badge{position:absolute;top:0;inset-inline-end:0;background:' + RED + ';color:#fff;',
-      'font-size:10px;font-weight:900;letter-spacing:-0.02em;text-transform:uppercase;padding:0.25rem 0.75rem;}',
+      '.wgc-g-body{flex:1 1 auto;padding:1.4rem 2rem 1.4rem 1.5rem;min-width:0;}',
+      '.wgc-g-cardtitle{margin:0 0 0.5rem;font-size:1.125rem;font-weight:800;text-transform:uppercase;color:#000;line-height:1.2;}',
+      '.wgc-g-text{margin:0;font-size:0.9rem;line-height:1.45;color:#374151;}',
+      /* inline eyebrow badge (sits above the title so it never overlaps it) */
+      '.wgc-g-badge{display:inline-block;margin-block-end:0.6rem;background:' + RED + ';color:#fff;',
+      'font-size:10px;font-weight:900;letter-spacing:0.04em;text-transform:uppercase;padding:0.3rem 0.6rem;border-radius:4px;}',
 
       /* hover: subtle lift + icon pop (minimalist); disabled under reduced motion */
-      '.wgc-g-card:hover{transform:translateY(-4px);box-shadow:0 14px 30px rgba(0,0,0,0.15);}',
-      '.wgc-g-card:hover .wgc-g-circle{transform:translateY(-50%) scale(1.08);}',
+      '.wgc-g-card:hover{transform:translateY(-4px);box-shadow:0 16px 34px rgba(0,0,0,0.13);}',
+      '.wgc-g-card:hover .wgc-g-circle{transform:translateY(-50%) scale(1.08);box-shadow:0 10px 22px rgba(227,30,36,0.3);}',
       '@media(prefers-reduced-motion:reduce){.wgc-g-card,.wgc-g-circle{transition:none;}.wgc-g-card:hover{transform:none;}.wgc-g-card:hover .wgc-g-circle{transform:translateY(-50%);}}',
+
+      /* scroll reveal: cards rise and their icons pop in as they enter view.
+         Applied only when JS adds .wgc-g-animate (skipped under reduced motion or
+         without IntersectionObserver), so the cards are always visible otherwise. */
+      '.wgc-g-animate .wgc-g-card{transition:opacity 0.55s ease,transform 0.55s cubic-bezier(0.16,1,0.3,1),box-shadow 0.2s ease;}',
+      '.wgc-g-animate .wgc-g-card:not(.wgc-g-in){opacity:0;transform:translateY(28px);}',
+      '.wgc-g-animate .wgc-g-card .wgc-g-circle svg{transition:transform 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.14s,opacity 0.4s ease 0.14s;}',
+      '.wgc-g-animate .wgc-g-card:not(.wgc-g-in) .wgc-g-circle svg{opacity:0;transform:scale(0.4);}',
 
       /* footer */
       '.wgc-g-foot{position:relative;overflow:hidden;background:#000;color:#fff;padding:1.75rem 2rem;display:flex;align-items:center;min-height:6.5rem;}',
@@ -272,6 +282,32 @@
     '</section>';
   }
 
+  // ---- scroll reveal ----------------------------------------------------
+  // Cards rise and their icons pop as they scroll into view. Gated behind
+  // reduced-motion + IntersectionObserver support; when it can't run the cards
+  // are simply shown (the hidden state only applies under the .wgc-g-animate
+  // class this adds), so there is never an invisible-content failure mode.
+  function setupReveal(root) {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || typeof IntersectionObserver === 'undefined') return;
+    var main = root.querySelector('.wgc-g-main');
+    var cards = root.querySelectorAll('.wgc-g-card');
+    if (!main || !cards.length) return;
+    main.classList.add('wgc-g-animate');
+    var io = new IntersectionObserver(function (entries) {
+      var i = 0;
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        // Small stagger for cards that enter together (e.g. the first screen).
+        e.target.style.transitionDelay = (i * 70) + 'ms';
+        e.target.classList.add('wgc-g-in');
+        io.unobserve(e.target);
+        i++;
+      });
+    }, { threshold: 0.16, rootMargin: '0px 0px -6% 0px' });
+    Array.prototype.forEach.call(cards, function (c) { io.observe(c); });
+  }
+
   // ---- mount ------------------------------------------------------------
   function mount(cfg) {
     var host = document.getElementById(cfg.mount);
@@ -284,6 +320,7 @@
     wrap.innerHTML = posterHtml(cfg);
     root.appendChild(style);
     root.appendChild(wrap.firstChild);
+    setupReveal(root);
   }
 
   var cfg = readConfig(self);
