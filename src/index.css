@@ -22,10 +22,9 @@ body {
 }
 
 html {
-  /* Mobile header is logo-row + a wrapping nav: the Taxes/Insurance toggle on
-     its own row, then the Rental Analysis + Guarantees links on the next row
-     (~9.5rem total). Desktop collapses to a single 5rem row. */
-  scroll-padding-top: 9.5rem;
+  /* Mobile header is a single row (logo + hamburger, ~4rem); the nav lives in a
+     dropdown menu. Desktop is a single ~5rem row. */
+  scroll-padding-top: 5rem;
 }
 
 @media (min-width: 640px) {

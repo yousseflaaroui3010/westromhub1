@@ -15,8 +15,8 @@ export function PublicFooter() {
   return (
     <footer aria-label="Site footer" className="bg-primary text-white py-12 mt-20 border-t-4 border-secondary shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-          <div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8 mb-8">
+          <div className="col-span-2 lg:col-span-1">
             <div className="mb-4 inline-block">
               <img
                 src="/westrom-logo.webp"
@@ -54,14 +54,14 @@ export function PublicFooter() {
           <div>
             <h3 className="font-heading font-semibold text-lg mb-4">Contact</h3>
             <ul className="space-y-2 text-gray-300 text-sm">
-              <li>Email: <a href="mailto:info@westromgroup.com" className="hover:text-white transition-colors">info@westromgroup.com</a></li>
+              <li>Email: <a href="mailto:info@westromgroup.com" className="hover:text-white transition-colors break-all">info@westromgroup.com</a></li>
               <li>Website: <a href="https://westromgroup.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">westromgroup.com</a></li>
             </ul>
           </div>
 
-          <div>
-            <h3 className="font-heading font-semibold text-lg mb-4">Affiliations & Social</h3>
-            <div className="flex flex-wrap gap-3">
+          <div className="col-span-2 lg:col-span-1">
+            <h3 className="font-heading font-semibold text-lg mb-4">Affiliations &amp; Social</h3>
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
               <a href="https://www.narpm.org/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
                 <Building className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
                 NARPM

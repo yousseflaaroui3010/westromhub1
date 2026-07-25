@@ -95,6 +95,53 @@
 
   // ---- styles (compiled into the shadow root) ---------------------------
   function css(assetBase) {
+    // Wide + narrow rule sets are applied under BOTH a container query (so a
+    // narrow embed on a wide page still reflows) AND a viewport media query (so
+    // phones reflow even where container queries are unavailable). Defined once.
+    var wide = [
+      '.wgc-g-head{padding-inline:2rem;}',
+      '.wgc-g-brand{font-size:2.4rem;}',
+      '.wgc-g-title{font-size:4.75rem;}',
+      '.wgc-g-tag{font-size:1.15rem;}',
+      '.wgc-g-list{padding-inline:3rem;}'
+    ].join('');
+
+    // narrow (phones / narrow embeds): the black number bar moves to the TOP of
+    // each card and the copy flows full-width beneath, so nothing is crushed into
+    // a sidebar. Compact sizing keeps the six cards from feeling oversized. The
+    // duplicate brand line is dropped (the logo already carries it).
+    var narrow = [
+      '.wgc-g-head{padding:1.5rem 1.25rem 1.1rem;}',
+      '.wgc-g-logo{height:3.75rem;margin-block-end:0.6rem;}',
+      '.wgc-g-brand{display:none;}',
+      '.wgc-g-title{font-size:2.5rem;margin-block-end:0.85rem;}',
+      '.wgc-g-mark{margin-block-end:0.7rem;padding:0.4rem;}',
+      '.wgc-g-mark svg{width:1.25rem;height:1.25rem;}',
+      '.wgc-g-tag{font-size:0.9rem;}',
+      '.wgc-g-list{padding:0 0.85rem 1.5rem;gap:0.7rem;}',
+      '.wgc-g-card{flex-direction:column;overflow:hidden;}',
+      '.wgc-g-side{width:auto;margin-inline-start:0;flex-direction:row;justify-content:space-between;',
+      'align-items:center;gap:0.75rem;padding:0.5rem 1rem;border-radius:0.9rem 0.9rem 0 0;}',
+      '.wgc-g-circle{position:static;transform:none;inset-inline-start:auto;width:40px;height:40px;',
+      'border-width:2px;flex:0 0 auto;}',
+      '.wgc-g-circle svg{width:22px;height:22px;}',
+      '.wgc-g-num{font-size:1.35rem;}',
+      '.wgc-g-body{padding:0.75rem 1rem 0.9rem;}',
+      '.wgc-g-cardtitle{font-size:0.95rem;line-height:1.2;}',
+      '.wgc-g-text{font-size:0.85rem;line-height:1.4;}',
+      '.wgc-g-badge{position:static;display:inline-block;margin-block-end:0.4rem;}',
+      '.wgc-g-card:hover{transform:none;box-shadow:0 4px 15px rgba(0,0,0,0.08);}',
+      '.wgc-g-card:hover .wgc-g-circle{transform:none;}',
+      '.wgc-g-foot{padding:1.25rem 4rem 1.25rem 1.15rem;min-height:0;}',
+      '.wgc-g-skew{width:64px;}',
+      '.wgc-g-footrow{gap:0.9rem;}',
+      '.wgc-g-footmark{padding:0.4rem;}',
+      '.wgc-g-footmark svg{width:1.5rem;height:1.5rem;}',
+      '.wgc-g-foottext{padding-inline-start:1rem;}',
+      '.wgc-g-foot-top{font-size:0.75rem;}',
+      '.wgc-g-foot-bottom{font-size:1.05rem;}'
+    ].join('');
+
     return [
       /* @font-face is injected into the host document head, not here, but the
          family names below reference it. */
@@ -157,53 +204,13 @@
       '.wgc-g-foot-top{font-size:1rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;line-height:1;margin-block-end:0.25rem;}',
       '.wgc-g-foot-bottom{font-size:1.3rem;font-weight:900;letter-spacing:-0.01em;text-transform:uppercase;line-height:1;color:' + RED + ';}',
 
-      /* Responsiveness is driven by the WIDGET's own width (container queries),
-         not the viewport, so it reflows the same on our page and inside a narrow
-         column on a host site (Goodjuju). */
-
-      /* wide: scale the display type up like the mockup */
-      '@container (min-width:700px){',
-      '.wgc-g-head{padding-inline:2rem;}',
-      '.wgc-g-brand{font-size:2.4rem;}',
-      '.wgc-g-title{font-size:4.75rem;}',
-      '.wgc-g-tag{font-size:1.15rem;}',
-      '.wgc-g-list{padding-inline:3rem;}',
-      '}',
-
-      /* narrow (phones / narrow embeds): the black number bar moves to the TOP
-         of each card and the copy flows full-width beneath it, so nothing is
-         crushed into a sidebar. The duplicate brand line is dropped (the logo
-         already carries it). */
-      '@container (max-width:560px){',
-      '.wgc-g-head{padding:1.75rem 1.25rem 1.25rem;}',
-      '.wgc-g-logo{height:4.25rem;margin-block-end:0.75rem;}',
-      '.wgc-g-brand{display:none;}',
-      '.wgc-g-title{font-size:2.75rem;margin-block-end:1rem;}',
-      '.wgc-g-mark{margin-block-end:0.85rem;}',
-      '.wgc-g-tag{font-size:0.95rem;}',
-      '.wgc-g-list{padding:0 1rem 1.75rem;gap:0.85rem;}',
-      '.wgc-g-card{flex-direction:column;overflow:hidden;}',
-      '.wgc-g-side{width:auto;margin-inline-start:0;flex-direction:row;justify-content:space-between;',
-      'align-items:center;gap:0.85rem;padding:0.7rem 1.15rem;border-radius:1rem 1rem 0 0;}',
-      '.wgc-g-circle{position:static;transform:none;inset-inline-start:auto;width:46px;height:46px;',
-      'border-width:2px;flex:0 0 auto;}',
-      '.wgc-g-circle svg{width:24px;height:24px;}',
-      '.wgc-g-num{font-size:1.6rem;}',
-      '.wgc-g-body{padding:0.9rem 1.15rem 1.2rem;}',
-      '.wgc-g-cardtitle{font-size:1rem;}',
-      '.wgc-g-text{font-size:0.9rem;line-height:1.4;}',
-      /* badge inline (not overlapping the number bar) on narrow cards */
-      '.wgc-g-badge{position:static;display:inline-block;margin-block-end:0.5rem;}',
-      '.wgc-g-card:hover{transform:none;box-shadow:0 4px 15px rgba(0,0,0,0.08);}',
-      '.wgc-g-card:hover .wgc-g-circle{transform:none;}',
-      /* keep the copy clear of the red skew corner on narrow footers */
-      '.wgc-g-foot{padding:1.35rem 4.25rem 1.35rem 1.25rem;min-height:0;}',
-      '.wgc-g-skew{width:70px;}',
-      '.wgc-g-footrow{gap:1rem;}',
-      '.wgc-g-footmark svg{width:1.6rem;height:1.6rem;}',
-      '.wgc-g-foot-top{font-size:0.8rem;}',
-      '.wgc-g-foot-bottom{font-size:1.1rem;}',
-      '}'
+      /* Responsiveness reflows off the widget's own width (container query) so a
+         narrow embed on a wide host page adapts, AND off the viewport (media
+         query) so phones reflow even without container-query support. */
+      '@container (min-width:700px){' + wide + '}',
+      '@media (min-width:768px){' + wide + '}',
+      '@container (max-width:560px){' + narrow + '}',
+      '@media (max-width:600px){' + narrow + '}'
     ].join('');
   }
 
