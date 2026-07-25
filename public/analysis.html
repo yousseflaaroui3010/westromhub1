@@ -82,6 +82,35 @@
     }
     .site-nav a:hover { background: rgba(255, 255, 255, 0.12); opacity: 1; }
     .site-nav a[aria-current="page"] { background: rgba(255, 255, 255, 0.18); opacity: 1; }
+    .site-nav-toggle { display: none; }
+    @media (max-width: 640px) {
+      .site-nav-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-inline-start: auto;
+        inline-size: 44px;
+        block-size: 44px;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 0;
+        border-radius: 0.6rem;
+        font-size: 1.5rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .site-nav {
+        display: none;
+        flex-basis: 100%;
+        inline-size: 100%;
+        margin-inline-start: 0;
+        flex-direction: column;
+        gap: 0.15rem;
+        padding-block: 0.4rem;
+      }
+      .site-nav.open { display: flex; }
+      .site-nav a { inline-size: 100%; padding: 0.7rem; font-size: 1rem; }
+    }
     .site-header a.brand {
       display: flex;
       align-items: center;
@@ -221,7 +250,8 @@
         <img src="/westrom-logo.webp" alt="Westrom Group logo" width="2048" height="1186">
         <span>Westrom Group</span>
       </a>
-      <nav class="site-nav" aria-label="Site">
+      <button class="site-nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-nav">&#9776;</button>
+      <nav class="site-nav" id="site-nav" aria-label="Site">
         <a href="/">Home</a>
         <a href="/taxes">Taxes</a>
         <a href="/insurance">Insurance</a>
@@ -361,6 +391,20 @@
       }
     ]
   }
+  </script>
+
+  <script>
+    // Mobile header menu toggle (matches the SPA hamburger).
+    (function () {
+      var t = document.querySelector('.site-nav-toggle');
+      var n = document.getElementById('site-nav');
+      if (!t || !n) return;
+      t.addEventListener('click', function () {
+        var open = n.classList.toggle('open');
+        t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        t.innerHTML = open ? '&#10005;' : '&#9776;';
+      });
+    })();
   </script>
 </body>
 </html>

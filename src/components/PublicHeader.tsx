@@ -1,5 +1,5 @@
-import { Mail, Check } from 'lucide-react';
-import { useState } from 'react';
+import { Mail, Check, Menu, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { ViewState } from '../App';
 
 interface PublicHeaderProps {
@@ -15,8 +15,15 @@ const NAV_LINKS: { name: string; id: ViewState }[] = [
   { name: 'Insurance', id: 'insurance' },
 ];
 
+// Static (nginx-served) pages reached by a real navigation, not the SPA router.
+const PAGE_LINKS: { name: string; href: string }[] = [
+  { name: 'Rental Analysis', href: '/analysis' },
+  { name: 'Guarantees', href: '/guarantees' },
+];
+
 export function PublicHeader({ onNavigateHome, currentView, onNavigate }: PublicHeaderProps) {
   const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const copyEmail = async () => {
     try {
@@ -29,10 +36,24 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
     }
   };
 
+  // Close the mobile menu on Escape for keyboard users.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
+
   // Resource nav is persistent on every page (home included) so Taxes,
-  // Insurance, and Rental Analysis are always reachable. The current route
-  // gets the active pill; on home none is active, they read as plain nav.
+  // Insurance, Rental Analysis, and Guarantees are always reachable.
   const showNav = Boolean(onNavigate);
+
+  const handleNav = (id: ViewState) => {
+    onNavigate?.(id);
+    setMenuOpen(false);
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
@@ -91,52 +112,82 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
             onClick={copyEmail}
             aria-label={copied ? 'Email copied to clipboard' : `Copy email address ${EMAIL}`}
             title="Click to copy"
-            className="flex-shrink-0 min-h-[44px] flex items-center gap-1.5 sm:gap-2 text-primary font-bold text-[11px] sm:text-sm bg-primary/5 hover:bg-primary/10 px-2.5 sm:px-4 py-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="hidden sm:flex flex-shrink-0 min-h-[44px] items-center gap-2 text-primary font-bold text-sm bg-primary/5 hover:bg-primary/10 px-4 py-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             {copied ? (
-              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-teal-600" aria-hidden="true" />
+              <Check className="w-4 h-4 flex-shrink-0 text-teal-600" aria-hidden="true" />
             ) : (
-              <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" aria-hidden="true" />
+              <Mail className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
             )}
             <span className={`whitespace-nowrap ${copied ? 'text-teal-600' : ''}`}>
               {copied ? 'Copied!' : EMAIL}
             </span>
           </button>
-        </div>
 
-        <nav aria-label="Main navigation" className="sm:hidden pb-2 -mt-1 flex flex-wrap items-center gap-2">
-          {showNav && (
-            <div className="basis-full flex items-center bg-gray-100/80 p-1 rounded-full">
-              {NAV_LINKS.map((link) => (
+          {/* Mobile: single hamburger toggle instead of a wrapping button row. */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-menu"
+            className="sm:hidden flex-shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl text-primary bg-primary/5 hover:bg-primary/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            {menuOpen ? <X className="w-6 h-6" aria-hidden="true" /> : <Menu className="w-6 h-6" aria-hidden="true" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <nav
+          id="mobile-menu"
+          aria-label="Mobile navigation"
+          className="sm:hidden border-t border-gray-200 bg-white shadow-lg"
+        >
+          <div className="max-w-7xl mx-auto px-3 py-3 flex flex-col gap-1">
+            {showNav &&
+              NAV_LINKS.map((link) => (
                 <button
                   key={link.name}
-                  onClick={() => onNavigate!(link.id)}
-                  className={`flex-1 min-h-[40px] px-4 py-1.5 rounded-full font-semibold text-sm transition-all ${
-                    currentView === link.id
-                      ? 'bg-white text-primary shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                  onClick={() => handleNav(link.id)}
                   aria-current={currentView === link.id ? 'page' : undefined}
+                  className={`w-full text-left min-h-[48px] px-4 rounded-xl font-semibold text-base transition-colors ${
+                    currentView === link.id
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-800 hover:bg-gray-100'
+                  }`}
                 >
                   {link.name}
                 </button>
               ))}
-            </div>
-          )}
-          <a
-            href="/analysis"
-            className="flex-1 min-h-[40px] px-4 py-1.5 rounded-full font-semibold text-sm text-secondary bg-secondary/10 flex items-center justify-center"
-          >
-            Rental Analysis
-          </a>
-          <a
-            href="/guarantees"
-            className="flex-1 min-h-[40px] px-4 py-1.5 rounded-full font-semibold text-sm text-primary bg-primary/10 flex items-center justify-center"
-          >
-            Guarantees
-          </a>
+            {PAGE_LINKS.map((link) => (
+              <a
+                key={link.name}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                className="w-full min-h-[48px] px-4 flex items-center rounded-xl font-semibold text-base text-gray-800 hover:bg-gray-100 transition-colors"
+              >
+                {link.name}
+              </a>
+            ))}
+
+            <button
+              type="button"
+              onClick={copyEmail}
+              aria-label={copied ? 'Email copied to clipboard' : `Copy email address ${EMAIL}`}
+              className="mt-1 w-full min-h-[48px] px-4 flex items-center gap-2 rounded-xl font-bold text-base text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
+            >
+              {copied ? (
+                <Check className="w-5 h-5 flex-shrink-0 text-teal-600" aria-hidden="true" />
+              ) : (
+                <Mail className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+              )}
+              <span className={copied ? 'text-teal-600' : ''}>{copied ? 'Copied!' : EMAIL}</span>
+            </button>
+          </div>
         </nav>
-      </div>
+      )}
     </header>
   );
 }
