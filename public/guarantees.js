@@ -185,12 +185,12 @@
     var linesHtml = p.lines.map(function (l) {
       return '<div data-fit="' + l[1] + '">' + esc(l[0]) + '</div>';
     }).join('');
-    return '<div style="position:relative;height:' + p.h + 'px;' + (p.mb ? 'margin-bottom:' + p.mb + 'px;' : '') + '">'
+    return '<div class="wgc-fly-card" style="position:relative;height:' + p.h + 'px;' + (p.mb ? 'margin-bottom:' + p.mb + 'px;' : '') + '">'
       + '<div style="position:absolute;left:146px;top:0;width:174px;height:' + p.h + 'px;background:' + DARK + ';border-radius:14px;"></div>'
       + '<div style="position:absolute;left:146px;top:0;width:174px;height:' + p.h + 'px;display:flex;align-items:center;justify-content:flex-end;padding-right:' + p.numPr + 'px;box-sizing:border-box;' + barlow + 'font-weight:800;font-size:' + p.numFs + 'px;line-height:1;color:#fff;"><span style="display:inline-block;transform:translateY(' + p.numTy + 'px) scaleX(0.75);transform-origin:100% 50%;">' + p.num + '</span></div>'
-      + '<img src="' + base + '/guarantees-assets/' + p.icon + '" alt="" style="position:absolute;left:' + p.iconL + 'px;top:' + p.iconT + 'px;width:' + p.iconW + 'px;height:' + p.iconH + 'px;border-radius:50%;display:block;">'
+      + '<img class="wgc-fly-icon" src="' + base + '/guarantees-assets/' + p.icon + '" alt="" style="position:absolute;left:' + p.iconL + 'px;top:' + p.iconT + 'px;width:' + p.iconW + 'px;height:' + p.iconH + 'px;border-radius:50%;display:block;">'
       + '<div style="position:absolute;left:338px;top:14px;height:' + p.divH + 'px;width:2px;background:' + RED + ';"></div>'
-      + '<div style="position:absolute;left:340px;top:' + p.bodyT + 'px;width:628px;height:' + p.bodyH + 'px;background:#fff;border-radius:10px;box-shadow:0 3px 10px rgba(0,0,0,0.07);box-sizing:border-box;padding:' + p.bodyPad + ';">'
+      + '<div class="wgc-fly-body" style="position:absolute;left:340px;top:' + p.bodyT + 'px;width:628px;height:' + p.bodyH + 'px;background:#fff;border-radius:10px;box-sizing:border-box;padding:' + p.bodyPad + ';">'
       + '<div style="' + barlow + 'font-weight:600;font-size:' + p.titleFs + 'px;line-height:1.12;color:' + INK + ';" data-fit="' + p.titleFit + '">' + esc(p.title) + '</div>'
       + '<div style="margin-top:' + p.bodyMt + 'px;font-size:' + p.bodyFs + 'px;line-height:' + p.bodyLh + 'px;color:#1a1a1a;">' + linesHtml + '</div>'
       + '</div>'
@@ -273,6 +273,14 @@
       ".wgc-scale-wrap{position:relative;width:100%;max-width:1024px;margin-inline:auto;aspect-ratio:1024/1536;overflow:hidden;background:#fdfdfd;border-radius:12px;box-shadow:0 20px 45px -12px rgba(0,0,0,0.25);}",
       ".wgc-canvas{will-change:transform;}",
 
+      /* hover: lift the whole card unit, deepen its shadow, pop the icon */
+      ".wgc-fly-card{transition:transform 0.22s ease;}",
+      ".wgc-fly-body{box-shadow:0 3px 10px rgba(0,0,0,0.07);transition:box-shadow 0.22s ease;}",
+      ".wgc-fly-icon{transition:transform 0.22s ease;}",
+      ".wgc-fly-card:hover{transform:translateY(-5px);}",
+      ".wgc-fly-card:hover .wgc-fly-body{box-shadow:0 12px 26px rgba(0,0,0,0.16);}",
+      ".wgc-fly-card:hover .wgc-fly-icon{transform:scale(1.08);}",
+
       /* narrow: reflow */
       ".wgc-flow{display:none;}",
       "@container (max-width:599px){.wgc-scale-wrap{display:none;}.wgc-flow{display:block;}}",
@@ -286,7 +294,9 @@
       ".wgc-fsub{margin:0.6rem auto 0;max-width:21rem;font-size:0.95rem;line-height:1.35;color:#141414;}",
 
       ".wgc-fcards{padding:0 1rem 1.4rem;display:flex;flex-direction:column;gap:0.9rem;}",
-      ".wgc-fcard{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,0.08);}",
+      ".wgc-fcard{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,0.08);transition:transform 0.2s ease,box-shadow 0.2s ease;}",
+      ".wgc-fcard:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,0.13);}",
+      "@media(prefers-reduced-motion:reduce){.wgc-fly-card,.wgc-fly-body,.wgc-fly-icon,.wgc-fcard{transition:none;}.wgc-fly-card:hover,.wgc-fcard:hover{transform:none;}.wgc-fly-card:hover .wgc-fly-icon{transform:none;}}",
       ".wgc-fbar{background:" + DARK + ";display:flex;align-items:center;justify-content:space-between;padding:0.45rem 1.05rem 0.45rem 0.7rem;}",
       ".wgc-ficon{width:54px;height:54px;border-radius:50%;display:block;flex:0 0 auto;}",
       ".wgc-fnum{font-family:WgBarlow,'Arial Narrow',sans-serif;font-weight:800;font-size:2.4rem;line-height:1;color:#fff;display:inline-block;transform:scaleX(0.8);transform-origin:100% 50%;}",
