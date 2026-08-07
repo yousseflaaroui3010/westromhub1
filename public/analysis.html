@@ -168,17 +168,27 @@
 
     main { display: block; }
 
+    /* The widget runs data-layout="feature", which brings its own full-bleed
+       band, its own padding and a 1000px cap on the panel inside it. So this
+       section must add no frame of its own: a second max-width here squeezed
+       the two-column panel into a 34rem column and the layout collapsed to
+       its narrow arrangement on desktop. */
     .widget-section {
       background: var(--color-background);
-      padding-block: 2.5rem;
+      padding-block: 0;
     }
     .widget-section .wrap {
-      max-width: 34rem;
+      max-width: none;
       margin-inline: auto;
-      padding-inline: 1.25rem;
+      padding-inline: 0;
     }
 
+    /* The noscript fallback is NOT inside the widget, so it still needs the
+       page's own gutters. */
     .nojs {
+      /* keeps a gutter on narrow screens now that .wrap has none */
+      width: min(34rem, 100% - 2.5rem);
+      margin: 2.5rem auto;
       padding: 16px;
       border: 1px solid #d9d9d9;
       border-radius: 8px;
@@ -293,6 +303,7 @@
              wgc-lead-pipeline repo (page/analysis.html, dev variant) -- that
              copy has drifted from this one and needs a manual sync. -->
         <script src="/embed.js" async
+          data-layout="feature"
           data-widget="rental-analysis"
           data-source="Website - wgcassetguide"></script>
       </div>
