@@ -99,6 +99,12 @@
 .wgc-panel-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  /* The grey band goes full-bleed but the panel must not: this is an embed
+     dropped into pages whose width we do not control, and an uncapped form
+     column on a 1920px screen is unusable. 1000px is the handoff's own
+     desktop canvas, so the proportions match the mockup at any host width. */
+  max-width: 1000px;
+  margin-inline: auto;
   background: var(--wgc-white);
   box-shadow: var(--wgc-shadow);
 }
