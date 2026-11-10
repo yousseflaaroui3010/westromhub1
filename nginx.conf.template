@@ -1,75 +1,180 @@
+# -----------------------------------------------------------------------------
+# wgcassetguide.com edge config (rendered by nginx:alpine's envsubst at boot).
+#
+# Env vars substituted at container start:
+#   PORT                   listen port (Railway injects it)
+#   API_UPSTREAM           e.g. http://api.railway.internal:3001 (no trailing /)
+#   INTERNAL_PROXY_TOKEN   shared secret proving a request came through this
+#                          proxy; the API rejects /api/* without it when the API
+#                          has the same variable set. Empty = not sent.
+#   NGINX_LOCAL_RESOLVERS  filled by the image from /etc/resolv.conf because the
+#                          Dockerfile sets NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1.
+#
+# Every other $name below is an nginx runtime variable, not an env var.
+# -----------------------------------------------------------------------------
+
+# --- Client identity ---------------------------------------------------------
+# Traffic path in production: visitor -> Cloudflare -> Railway edge -> nginx.
+# Railway's edge sets X-Real-IP to the address that connected to it. When that
+# address is a Cloudflare edge, the real visitor is in CF-Connecting-IP. When it
+# is NOT Cloudflare (someone hit *.up.railway.app directly), CF-Connecting-IP is
+# attacker-controlled and must be ignored. X-Forwarded-For is never trusted.
+map $http_x_real_ip $edge_peer_ip {
+    ""      $remote_addr;            # local docker compose: no Railway edge
+    default $http_x_real_ip;
+}
+
+# Cloudflare published ranges (https://www.cloudflare.com/ips/). Review yearly.
+geo $edge_peer_ip $peer_is_cloudflare {
+    default         0;
+    173.245.48.0/20 1;
+    103.21.244.0/22 1;
+    103.22.200.0/22 1;
+    103.31.4.0/22   1;
+    141.101.64.0/18 1;
+    108.162.192.0/18 1;
+    190.93.240.0/20 1;
+    188.114.96.0/20 1;
+    197.234.240.0/22 1;
+    198.41.128.0/17 1;
+    162.158.0.0/15  1;
+    104.16.0.0/13   1;
+    104.24.0.0/14   1;
+    172.64.0.0/13   1;
+    131.0.72.0/22   1;
+    2400:cb00::/32  1;
+    2606:4700::/32  1;
+    2803:f800::/32  1;
+    2405:b500::/32  1;
+    2405:8100::/32  1;
+    2a06:98c0::/29  1;
+    2c0f:f248::/32  1;
+}
+
+map "$peer_is_cloudflare:$http_cf_connecting_ip" $client_ip {
+    "~^1:(?<cf_client>[0-9A-Fa-f:.]{3,45})$" $cf_client;
+    default                                  $edge_peer_ip;
+}
+
+# --- Rate limits (per real client IP, shared across nginx workers) -----------
+# Paid AI work: extraction + recommendations. 6/min sustained, burst of 4.
+limit_req_zone $client_ip zone=api_ai:10m     rate=6r/m;
+# Lead form (token + submit): a human needs ~2-3 requests per submission.
+limit_req_zone $client_ip zone=api_leads:10m  rate=10r/m;
+# Everything else under /api (property lookup, session).
+limit_req_zone $client_ip zone=api_general:10m rate=30r/m;
+limit_conn_zone $client_ip zone=api_conn:10m;
+limit_req_status  429;
+limit_conn_status 429;
+
 server {
     listen ${PORT};
     server_name localhost;
+    server_tokens off;
 
-    # SEC-5: Security headers
+    # Re-resolve the API's private hostname every 10s. A static proxy_pass
+    # resolves once at boot; after the API redeployed onto new private IPs
+    # (2026-11-07) nginx kept dialing the dead ones and every /api call 502'd.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=on;
+    resolver_timeout 5s;
+
+    # --- Security headers -----------------------------------------------------
+    # NOTE: add_header is NOT inherited by a location that declares its own
+    # add_header, so locations below that need these must repeat them.
+    add_header Strict-Transport-Security "max-age=15552000" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-    # CSP: restrict to self + data URIs for PDF canvas rendering.
-    # connect-src also allows the WGC lead-pipeline n8n endpoint (the
-    # /analysis widget posts leads there; without it the browser blocks the
-    # fetch silently).
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://static.cloudflareinsights.com https://main-production-bf72.up.railway.app; worker-src blob: 'self'; frame-src https://www.loom.com;" always;
-    # Hide nginx version from responses
-    server_tokens off;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin-allow-popups" always;
+    # CSP: no inline script. challenges.cloudflare.com = Turnstile bot check.
+    # style-src keeps 'unsafe-inline' (React style props + the widgets' shadow
+    # DOM <style> tags); that is much lower risk than inline script.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src blob: 'self'; frame-src https://www.loom.com https://challenges.cloudflare.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
 
-    # WGC lead-pipeline form page: /analysis serves the static analysis.html
-    # (must come before the SPA fallback, which would swallow it).
+    root /usr/share/nginx/html;
+
+    # Never serve dotfiles (.env, .git/...). Previously these fell through to the
+    # SPA and returned 200 + index.html, which looks like a leak to scanners.
+    location ~ /\. {
+        return 404;
+    }
+
+    # WGC lead-pipeline form page (must come before the SPA fallback).
     location = /analysis {
-        root /usr/share/nginx/html;
         try_files /analysis.html =404;
     }
 
-    # Guarantees page: /guarantees serves the static guarantees.html (must come
-    # before the SPA fallback, which would swallow it). The poster is rendered
-    # by /guarantees.js (a self-hosted file served by the SPA fallback below).
     location = /guarantees {
-        root /usr/share/nginx/html;
         try_files /guarantees.html =404;
     }
 
-    # Self-hosted Montserrat for the guarantees widget. CORS is required so the
-    # same widget embedded on westromgroup.com (Goodjuju, cross-origin) can load
-    # the font; fonts are always fetched in CORS mode. Long cache: the files are
-    # content-stable (immutable weights).
+    # Self-hosted fonts; CORS so the embedded widgets on westromgroup.com can
+    # load them (fonts are always fetched in CORS mode).
     location ~* \.woff2$ {
-        root /usr/share/nginx/html;
         add_header Access-Control-Allow-Origin "*" always;
         add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
         types { font/woff2 woff2; }
         default_type font/woff2;
         try_files $uri =404;
     }
 
-    location / {
-        root /usr/share/nginx/html;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
-
-    # SEC: nginx:alpine's default mime.types does not include .mjs.
-    # Without this, the pdfjs-dist web worker is served as application/octet-stream,
-    # which browsers reject when creating a module worker (strict MIME enforcement).
+    # nginx:alpine's mime.types lacks .mjs; pdf.js's module worker needs a JS type.
     location ~* \.mjs$ {
-        root /usr/share/nginx/html;
         default_type application/javascript;
         try_files $uri =404;
     }
 
-    location /api/ {
-        proxy_pass ${API_UPSTREAM}/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        # Strip Origin so the API's CORS check doesn't reject Railway's domain.
-        # The API is internal-only (behind nginx); browser never talks to it directly.
-        proxy_set_header Origin "";
+    # Vite's content-hashed bundles never change; cache them hard.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        try_files $uri =404;
+    }
+
+    location / {
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # --- API ------------------------------------------------------------------
+    # proxy_pass with a variable forces per-request DNS through `resolver`.
+    # With a variable and no URI part, nginx forwards the original request URI.
+    set $api_upstream "${API_UPSTREAM}";
+
+    location @rate_limited {
+        default_type application/json;
+        add_header Retry-After "60" always;
+        return 429 '{"error":"Too many requests. Please wait a minute and try again.","code":"rate_limited"}';
+    }
+
+    # Paid AI routes: tight per-IP rate, one in-flight request per IP.
+    location ~ ^/api/(extract-tax|extract-insurance|recommend-tax|recommend-insurance)$ {
+        limit_req  zone=api_ai burst=4 nodelay;
+        limit_conn api_conn 2;
+        error_page 429 = @rate_limited;
         client_max_body_size 10m;
-        proxy_connect_timeout 10s;
-        proxy_read_timeout 180s;
-        proxy_send_timeout 30s;
+        proxy_read_timeout 120s;
+        include /etc/nginx/conf.d/api-proxy.inc;
+    }
+
+    # Lead form gateway (/api/leads/token, /api/leads/lead): tiny bodies.
+    location /api/leads/ {
+        limit_req  zone=api_leads burst=6 nodelay;
+        limit_conn api_conn 4;
+        error_page 429 = @rate_limited;
+        client_max_body_size 16k;
+        proxy_read_timeout 20s;
+        include /etc/nginx/conf.d/api-proxy.inc;
+    }
+
+    location /api/ {
+        limit_req  zone=api_general burst=10 nodelay;
+        limit_conn api_conn 4;
+        error_page 429 = @rate_limited;
+        client_max_body_size 64k;
+        proxy_read_timeout 30s;
+        include /etc/nginx/conf.d/api-proxy.inc;
     }
 }
