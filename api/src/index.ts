@@ -31,6 +31,7 @@ async function main() {
     openRouterApiKey: env.OPENROUTER_API_KEY,
     openRouterModel: env.OPENROUTER_MODEL,
     openRouterPremiumModel: env.OPENROUTER_PREMIUM_MODEL,
+    openRouterTextModel: env.OPENROUTER_TEXT_MODEL,
     moonShotApiKey: env.MOONSHOT_API_KEY,
     moonShotModel: env.MOONSHOT_MODEL,
   };
@@ -41,6 +42,8 @@ async function main() {
     console.error('FATAL: No vision AI providers configured. Set GEMINI_API_KEY or OPENROUTER_API_KEY.');
     process.exit(1);
   }
+  console.log(`AI text chain: ${textProviders.map((p) => p.name).join(' -> ') || 'none'}`);
+  console.log(`AI vision chain: ${visionProviders.map((p) => p.name).join(' -> ')}`);
   if (textProviders.length === 0) {
     console.warn('WARNING: No text AI providers configured. Recommendation endpoints will fail.');
   }

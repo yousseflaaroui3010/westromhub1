@@ -242,7 +242,7 @@ describe('bot challenge sessions', () => {
 
 describe('redact', () => {
   it('removes keys, bearer tokens and URL credentials from log text', () => {
-    const s = redact('key sk-or-v1-0123456789abcdef Bearer abc.def AIzaSyA1234567890123456789012 https://u:p@host/x?api_key=zzz');
-    expect(s).not.toMatch(/0123456789abcdef|abc\.def|AIzaSy|u:p@|zzz/);
+    const s = redact('<ak-f8d45du41r4i11auq8r1> key sk-or-v1-0123456789abcdef Bearer abc.def AIzaSyA1234567890123456789012 https://u:p@host/x?api_key=zzz');
+    expect(s).not.toMatch(/0123456789abcdef|abc\.def|AIzaSy|u:p@|zzz|f8d45du41r/);
   });
 });

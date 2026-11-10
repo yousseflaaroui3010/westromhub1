@@ -35,7 +35,7 @@ export function requestId(): MiddlewareHandler {
 // Patterns that must never reach a log line: provider keys, bearer tokens,
 // credentials in URLs, and long opaque tokens.
 const REDACTIONS: Array<[RegExp, string]> = [
-  [/(sk|gsk|pk|rk)[-_][A-Za-z0-9_-]{8,}/g, '[redacted-key]'],
+  [/\b(sk|gsk|pk|rk|ak)[-_][A-Za-z0-9_-]{8,}/g, '[redacted-key]'],
   [/AIza[0-9A-Za-z_-]{20,}/g, '[redacted-key]'],
   [/(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, '$1 [redacted]'],
   [/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1[redacted]@'],
