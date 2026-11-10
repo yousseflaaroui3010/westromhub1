@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, FileText } from 'lucide-react';
-import DOMPurify from 'dompurify';
+import { sanitizeRecommendation } from '../lib/sanitize';
 import { runRuleEngine, type AnalysisResult, type PropertyData } from '../lib/ruleEngine';
-import { generateTaxRecommendation, extractDataFromDocument, lookupProperty } from '../lib/ai';
+import { ApiError, generateTaxRecommendation, extractDataFromDocument, lookupProperty } from '../lib/ai';
 import { COUNTIES, resolveCounty } from '../lib/constants';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
 import { ProtestGuide } from './ProtestGuide';
@@ -208,13 +208,10 @@ export function TaxAnalysis() {
     try {
       const result = runRuleEngine(data);
       setTaxResult(result);
-      const countyUrl =
-        COUNTIES.find(c => c.name === data.county)?.url ??
-        'https://comptroller.texas.gov/taxes/property-tax/';
-      const rec = await generateTaxRecommendation(result, countyUrl);
-      setRecommendationHtml(DOMPurify.sanitize(rec));
-    } catch {
-      setError('Could not generate recommendation');
+      const rec = await generateTaxRecommendation(result);
+      setRecommendationHtml(sanitizeRecommendation(rec));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.display : 'Could not generate a recommendation.');
       setRetryAction(() => () => void runAnalysis(data));
     } finally {
       setIsAnalyzing(false);

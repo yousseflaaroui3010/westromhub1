@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_OLLAMA_BASE_URL?: string;
-  readonly VITE_OLLAMA_VISION_MODEL?: string;
-  readonly VITE_OLLAMA_TEXT_MODEL?: string;
+  /** Only for running the frontend without the nginx/Vite proxy. */
+  readonly VITE_API_BASE_URL?: string;
+  /** Cloudflare Turnstile site key (public). Unset = no bot challenge. */
+  readonly VITE_TURNSTILE_SITE_KEY?: string;
 }
 
 interface ImportMeta {

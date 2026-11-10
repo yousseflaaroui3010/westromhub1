@@ -31,7 +31,7 @@ export function makeGroqTextProvider(apiKey: string, model = 'llama-3.3-70b-vers
       });
 
       if (!res.ok) {
-        const body = await res.text().catch(() => '');
+        const body = (await res.text().catch(() => '')).slice(0, 300);
         throw new Error(`Groq ${model} HTTP ${res.status}: ${body}`);
       }
       const data = (await res.json()) as GroqResponse;

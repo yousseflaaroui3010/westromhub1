@@ -8,6 +8,7 @@ import { NotFoundView } from './components/NotFoundView';
 
 const TaxView = lazy(() => import('./components/TaxView').then(m => ({ default: m.TaxView })));
 const InsuranceView = lazy(() => import('./components/InsuranceView').then(m => ({ default: m.InsuranceView })));
+const PrivacyView = lazy(() => import('./components/PrivacyView').then(m => ({ default: m.PrivacyView })));
 
 export type ViewState = 'home' | 'taxes' | 'insurance';
 
@@ -77,6 +78,7 @@ export default function App() {
               <Route path="/" element={<HomeView onNavigate={onNavigate} />} />
               <Route path="/taxes" element={<TaxView />} />
               <Route path="/insurance" element={<InsuranceView />} />
+              <Route path="/privacy" element={<PrivacyView />} />
               <Route path="*" element={<NotFoundView />} />
             </Routes>
           </Suspense>

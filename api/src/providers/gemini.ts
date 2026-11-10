@@ -6,7 +6,7 @@ import type { TextProvider, VisionProvider } from './types';
  * Default model: gemini-2.5-flash (stable GA release; override via GEMINI_MODEL env var).
  */
 export function makeGeminiTextProvider(apiKey: string, model = 'gemini-2.5-flash'): TextProvider {
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 45_000 } });
   return {
     name: `gemini:${model}`,
     async generate(systemPrompt, userPrompt) {
@@ -31,7 +31,7 @@ export function makeGeminiTextProvider(apiKey: string, model = 'gemini-2.5-flash
  * Uses JSON response mode so no markdown fence cleanup is needed.
  */
 export function makeGeminiVisionProvider(apiKey: string, model = 'gemini-2.5-flash'): VisionProvider {
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 45_000 } });
   return {
     name: `gemini:${model}`,
     async extract(prompt, base64, mimeType) {
