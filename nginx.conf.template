@@ -169,6 +169,20 @@ server {
         include /etc/nginx/conf.d/api-proxy.inc;
     }
 
+    # Compatibility alias: docs/embed-handoff.md (wgc-lead-pipeline) gives
+    # embedders data-endpoint="https://wgcassetguide.com/hook", a path from the
+    # old VPS design that, on Railway, fell through to the SPA (HTML 200), so a
+    # snippet pasted as documented could never submit. Map it to the gateway.
+    location ~ ^/hook/(token|lead)$ {
+        limit_req  zone=api_leads burst=6 nodelay;
+        limit_conn api_conn 4;
+        error_page 429 = @rate_limited;
+        client_max_body_size 16k;
+        proxy_read_timeout 20s;
+        rewrite ^/hook/(token|lead)$ /api/leads/$1 break;
+        include /etc/nginx/conf.d/api-proxy.inc;
+    }
+
     location /api/ {
         limit_req  zone=api_general burst=10 nodelay;
         limit_conn api_conn 4;

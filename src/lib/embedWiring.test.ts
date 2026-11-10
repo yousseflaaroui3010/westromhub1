@@ -27,6 +27,17 @@ describe('public/analysis.html estimator embed', () => {
     expect(scriptTag).toContain('data-layout="feature"');
   });
 
+  it('posts leads to the same-origin gateway, never straight to n8n', () => {
+    expect(scriptTag).toContain('data-endpoint="/api/leads"');
+    expect(html).not.toMatch(/railway\.app\/webhook/);
+  });
+
+  it('ships a widget build whose default endpoint is the gateway', () => {
+    const bundle = readFileSync(resolve(__dirname, '../../public/embed.js'), 'utf8');
+    expect(bundle).toContain('https://wgcassetguide.com/api/leads');
+    expect(bundle).not.toMatch(/railway\.app\/webhook/);
+  });
+
   it('keeps a mount point for the widget', () => {
     expect(html).toContain('id="wgc-analysis"');
   });

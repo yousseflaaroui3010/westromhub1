@@ -81,6 +81,10 @@ async function main() {
     store,
     internalProxyToken: env.INTERNAL_PROXY_TOKEN || undefined,
     turnstile: env.TURNSTILE_SECRET_KEY ? cloudflareTurnstileVerifier(env.TURNSTILE_SECRET_KEY) : null,
+    // Only after the widget build that sends Turnstile tokens is live everywhere.
+    leadTurnstile: env.TURNSTILE_SECRET_KEY && env.LEAD_REQUIRE_TURNSTILE === 'true'
+      ? cloudflareTurnstileVerifier(env.TURNSTILE_SECRET_KEY)
+      : null,
     sessionSecret: env.SESSION_SECRET || undefined,
     aiDailyCallCap: int(env.AI_DAILY_CALL_CAP, 400),
     aiMaxConcurrency: int(env.AI_MAX_CONCURRENCY, 4),

@@ -46,6 +46,11 @@ export interface AppOptions {
   internalProxyToken?: string;
   /** Cloudflare Turnstile verifier. When set, paid routes require a session. */
   turnstile?: TurnstileVerifier | null;
+  /**
+   * Turnstile for the lead form, switched separately: the embedded widget must
+   * be sending tokens BEFORE this is on, or every lead is silently dropped.
+   */
+  leadTurnstile?: TurnstileVerifier | null;
   sessionSecret?: string;
   /** Max billable provider attempts per UTC day. 0 disables (tests only). */
   aiDailyCallCap?: number;
@@ -386,7 +391,7 @@ export function createApp(opts: AppOptions): Hono {
     store,
     allowedOrigins: leadOrigins,
     gateway: opts.leadGateway ?? null,
-    turnstile,
+    turnstile: opts.leadTurnstile ?? null,
   }));
 
   // --- API description (off in production unless EXPOSE_API_DOCS=true) -----

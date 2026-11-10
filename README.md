@@ -1,53 +1,31 @@
-# Westrom Hub
+# Westrom Hub (wgcassetguide.com)
 
-Westrom Hub is a property tax and insurance analysis tool powered by AI.
+Property tax and insurance analysis tools for Texas rental owners, plus the
+static rental-analysis (`/analysis`) and guarantees (`/guarantees`) pages.
 
 ## Architecture
 
-The project runs using Docker Compose:
-- **Frontend**: Vite + React
-- **Backend**: Express + Node.js (proxies AI requests, rate limits, size checks)
-- **AI**: Ollama running locally
+- **Frontend**: Vite + React, served by nginx (`Dockerfile.frontend`,
+  `nginx.conf.template`). nginx is also the trust boundary: it derives the real
+  client IP, rate-limits per IP and proxies `/api/*` to the API.
+- **API**: Hono on Node 22 (`api/`). Document extraction and recommendations via
+  cloud AI providers (Gemini, OpenRouter, Groq), county property lookup, and the
+  lead-form gateway in front of the n8n pipeline (`wgc-lead-pipeline` repo).
+- **Security model and deploy steps**: [`docs/SECURITY.md`](docs/SECURITY.md).
 
-## Run Locally (Docker - Recommended)
+## Run locally
 
-1. Ensure Docker and Docker Compose are installed.
-2. Run the application:
-   ```bash
-   docker-compose up --build
-   ```
-   This will automatically:
-   - Start the frontend on port 80
-   - Start the backend on port 3001
-   - Start Ollama and pull the required models (`qwen2-vl:7b`, `qwen2.5:7b`). *Note: Model pulling may take several minutes on the first run.*
-
-3. Open your browser and navigate to `http://localhost`.
-
-## Run Locally (Manual)
-
-**Prerequisites:** Node.js, Ollama
-
-1. Start Ollama and pull models:
-   ```bash
-   ollama pull qwen2-vl:7b
-   ollama pull qwen2.5:7b
-   ```
-2. Start the API:
-   ```bash
-   cd api
-   npm install
-   npm run dev
-   ```
-3. Start the Frontend:
-   ```bash
-   npm install
-   npm run dev
-   ```
-   The frontend will be available at `http://localhost:3000`.
-
-## Testing
-
-Run tests with:
 ```bash
-npm run test
+cp .env.example api/.env   # add at least OPENROUTER_API_KEY or GEMINI_API_KEY
+docker compose up --build  # http://localhost
+```
+
+Without Docker: `cd api && npm install && npm run dev`, then in another shell
+`npm install && npm run dev` (http://localhost:3000; Vite proxies `/api`).
+
+## Checks
+
+```bash
+npm run lint && npm test && npm run build
+cd api && npm run lint && npm test
 ```

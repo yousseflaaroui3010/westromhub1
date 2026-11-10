@@ -164,13 +164,19 @@ describe('POST /api/leads/lead', () => {
 
   it('requires a passing Turnstile check when configured', async () => {
     const turnstile = vi.fn(async (t: string) => ({ ok: t === 'good' }));
-    const app = build({ turnstile });
+    const app = build({ leadTurnstile: turnstile });
     await submit(app, lead(), { 'X-Real-IP': '203.0.113.110' });
     await submit(app, lead({ turnstile: 'bad' }), { 'X-Real-IP': '203.0.113.111' });
     expect(calls).toHaveLength(0);
     await submit(app, lead({ turnstile: 'good' }), { 'X-Real-IP': '203.0.113.112' });
     expect(calls).toHaveLength(1);
     expect(turnstile).toHaveBeenLastCalledWith('good', '203.0.113.112', expect.any(String));
+  });
+
+  it('paid-route Turnstile alone does not gate the lead form', async () => {
+    const app = build({ turnstile: vi.fn(async () => ({ ok: false })) });
+    await submit(app, lead(), { 'X-Real-IP': '203.0.113.113' });
+    expect(calls).toHaveLength(1);
   });
 
   it('returns 503 so the widget can retry when n8n fails', async () => {
