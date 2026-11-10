@@ -1,7 +1,7 @@
 import type { TextProvider, VisionProvider } from './types';
 import { redact } from '../http/errors';
 import { makeGroqTextProvider } from './groq';
-import { makeOpenRouterVisionProvider, makeOpenRouterPremiumVisionProvider } from './openrouter';
+import { makeOpenRouterVisionProvider, makeOpenRouterPremiumVisionProvider, makeOpenRouterTextProvider } from './openrouter';
 import { makeGeminiTextProvider, makeGeminiVisionProvider } from './gemini';
 import { makeMoonShotTextProvider } from './moonshot';
 
@@ -46,6 +46,7 @@ export interface ProviderConfig {
   openRouterApiKey?: string;
   openRouterModel?: string;
   openRouterPremiumModel?: string;
+  openRouterTextModel?: string;
   moonShotApiKey?: string;
   moonShotModel?: string;
 }
@@ -53,8 +54,9 @@ export interface ProviderConfig {
 /**
  * Text provider priority:
  *   1. Gemini 2.5 Flash  — primary (multimodal, fast, generous free tier)
- *   2. Groq              — fallback (llama-3.3-70b-versatile, very fast inference)
- *   3. MoonShot (Kimi)   — fallback (moonshot-v1-8k)
+ *   2. Groq              — fallback (GROQ_MODEL; free tier, very fast)
+ *   3. OpenRouter        — fallback (OPENROUTER_TEXT_MODEL, default google/gemini-2.5-flash)
+ *   4. MoonShot (Kimi)   — last resort (moonshot-v1-8k)
  */
 export function buildTextProviders(cfg: ProviderConfig): TextProvider[] {
   const providers: TextProvider[] = [];
@@ -63,6 +65,9 @@ export function buildTextProviders(cfg: ProviderConfig): TextProvider[] {
   }
   if (cfg.groqApiKey) {
     providers.push(makeGroqTextProvider(cfg.groqApiKey, cfg.groqModel));
+  }
+  if (cfg.openRouterApiKey) {
+    providers.push(makeOpenRouterTextProvider(cfg.openRouterApiKey, cfg.openRouterTextModel));
   }
   if (cfg.moonShotApiKey) {
     providers.push(makeMoonShotTextProvider(cfg.moonShotApiKey, cfg.moonShotModel));

@@ -7,9 +7,11 @@ interface GroqResponse {
 /**
  * Groq text provider — OpenAI-compatible API.
  * Used as fallback when Ollama is unavailable for text generation.
- * Default model: llama-3.3-70b-versatile (fast, free tier available).
+ * Default model: openai/gpt-oss-120b (override with GROQ_MODEL).
  */
-export function makeGroqTextProvider(apiKey: string, model = 'llama-3.3-70b-versatile'): TextProvider {
+// llama-3.3-70b-versatile was shut down by Groq on 2026-08-16 (404 model_not_found
+// in production); openai/gpt-oss-120b is Groq's listed replacement.
+export function makeGroqTextProvider(apiKey: string, model = 'openai/gpt-oss-120b'): TextProvider {
   return {
     name: `groq:${model}`,
     async generate(systemPrompt, userPrompt) {

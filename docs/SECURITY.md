@@ -85,6 +85,15 @@ The one model change worth considering later is a **delivery ledger**:
 let you reconcile "submitted vs. in LeadSimple" instead of relying on alert
 emails. It touches ADR-5, so it is a product decision.
 
+## AI provider chain (fixed 2026-11-10)
+
+Recommendations had been failing independent of the outage: the API has no
+`GEMINI_API_KEY`, Groq retired `llama-3.3-70b-versatile` on 2026-08-16 (404),
+and the Moonshot account is suspended for balance. The text chain is now
+Gemini (if keyed) -> Groq `openai/gpt-oss-120b` -> OpenRouter
+`google/gemini-2.5-flash` (reuses the vision key) -> Moonshot. The API logs
+both chains at boot. Override with `GROQ_MODEL` / `OPENROUTER_TEXT_MODEL`.
+
 ## Environment variables
 
 API service:
