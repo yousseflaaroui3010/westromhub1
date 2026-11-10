@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, ShieldAlert, ShieldCheck } from 'lucide-react';
-import DOMPurify from 'dompurify';
+import { sanitizeRecommendation } from '../lib/sanitize';
 import { runInsuranceRuleEngine, type InsuranceAnalysisResult, type InsuranceData } from '../lib/ruleEngine';
-import { extractInsuranceData, generateInsuranceRecommendation } from '../lib/ai';
+import { ApiError, extractInsuranceData, generateInsuranceRecommendation } from '../lib/ai';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
 import { useScrollToResult } from '../hooks/useScrollToResult';
 import { getDeviceCapabilities } from '../hooks/useDeviceCapabilities';
@@ -39,9 +39,9 @@ export function InsuranceAnalysis() {
       const result = runInsuranceRuleEngine(data);
       setInsResult(result);
       const rec = await generateInsuranceRecommendation(result);
-      setRecommendationHtml(DOMPurify.sanitize(rec));
-    } catch {
-      setError('Could not generate recommendation');
+      setRecommendationHtml(sanitizeRecommendation(rec));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.display : 'Could not generate a recommendation.');
       setRetryAction(() => () => void runAnalysis(data));
     } finally {
       setIsAnalyzing(false);

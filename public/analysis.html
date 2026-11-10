@@ -297,12 +297,13 @@
           </div>
         </noscript>
         <div id="wgc-analysis"></div>
-        <!-- PRODUCTION copy (deployed on wgcassetguide.com). No data-endpoint:
-             embed.js falls back to DEFAULT_API_BASE (the live Railway n8n
-             webhook base). Source of truth for this file lives in the
-             wgc-lead-pipeline repo (page/analysis.html, dev variant) -- that
-             copy has drifted from this one and needs a manual sync. -->
+        <!-- PRODUCTION copy (deployed on wgcassetguide.com). data-endpoint is the
+             same-origin lead gateway (api/src/routes/leads.ts), which rate-limits
+             and then forwards to the n8n webhooks; the widget must never post to
+             n8n directly. Source of truth for embed.js is the wgc-lead-pipeline
+             repo (widget/dist/embed.js); copy it here after every widget build. -->
         <script src="/embed.js" async
+          data-endpoint="/api/leads"
           data-layout="feature"
           data-widget="rental-analysis"
           data-source="Website - wgcassetguide"></script>
@@ -404,18 +405,6 @@
   }
   </script>
 
-  <script>
-    // Mobile header menu toggle (matches the SPA hamburger).
-    (function () {
-      var t = document.querySelector('.site-nav-toggle');
-      var n = document.getElementById('site-nav');
-      if (!t || !n) return;
-      t.addEventListener('click', function () {
-        var open = n.classList.toggle('open');
-        t.setAttribute('aria-expanded', open ? 'true' : 'false');
-        t.innerHTML = open ? '&#10005;' : '&#9776;';
-      });
-    })();
-  </script>
+  <script src="/site-nav.js" defer></script>
 </body>
 </html>

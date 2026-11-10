@@ -32,7 +32,7 @@ export function makeMoonShotTextProvider(apiKey: string, model = 'moonshot-v1-8k
       });
 
       if (!res.ok) {
-        const body = await res.text().catch(() => '');
+        const body = (await res.text().catch(() => '')).slice(0, 300);
         throw new Error(`MoonShot ${model} HTTP ${res.status}: ${body}`);
       }
       const data = (await res.json()) as MoonShotResponse;

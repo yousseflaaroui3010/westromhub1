@@ -1,4 +1,5 @@
 import type { TextProvider, VisionProvider } from './types';
+import { redact } from '../http/errors';
 import { makeGroqTextProvider } from './groq';
 import { makeOpenRouterVisionProvider, makeOpenRouterPremiumVisionProvider } from './openrouter';
 import { makeGeminiTextProvider, makeGeminiVisionProvider } from './gemini';
@@ -6,25 +7,35 @@ import { makeMoonShotTextProvider } from './moonshot';
 
 export type { TextProvider, VisionProvider };
 
+/** Thrown by a guard to stop the fallback chain immediately (e.g. budget spent). */
+export class StopFallback extends Error {
+  constructor(public readonly code: string) {
+    super(code);
+    this.name = 'StopFallback';
+  }
+}
+
 /**
  * Try each provider in order, returning the first success.
- * Logs each failure to console.error for observability.
+ *
+ * Failure detail (which may include upstream response bodies) is logged with
+ * redaction and NEVER put on the thrown error, because callers must not be able
+ * to leak it to clients. The thrown error carries only the label.
  */
 export async function withFallback<T>(
   providers: Array<() => Promise<T>>,
   label: string,
 ): Promise<T> {
-  const errors: string[] = [];
   for (const run of providers) {
     try {
       return await run();
     } catch (err) {
+      if (err instanceof StopFallback) throw err;
       const msg = err instanceof Error ? err.message : String(err);
-      errors.push(msg);
-      console.error(`[${label}] provider failed: ${msg}`);
+      console.error(`[${label}] provider failed: ${redact(msg)}`);
     }
   }
-  throw new Error(`All providers failed for ${label}: ${errors.join(' | ')}`);
+  throw new Error(`All providers failed for ${label}`);
 }
 
 export interface ProviderConfig {

@@ -28,13 +28,13 @@ function resolveScraper(
 export function createLookupFn(attomApiKey?: string): CadLookupFn {
   return async (rawAddress: string, county: string): Promise<CadLookupResult | null> => {
     const address = normalizeAddress(rawAddress);
-    console.log(`[lookup] county="${county}" normalized="${address}"`);
+    // Never log the address: it is personal data tied to a property owner.
 
     const scraper = resolveScraper(county);
     if (scraper) {
       const cadResult = await scraper(address);
       if (cadResult !== null) {
-        console.log(`[lookup] CAD hit — current=${cadResult.currentValue} prior=${cadResult.priorValue}`);
+        console.log(`[lookup] CAD hit county=${scraper.name}`);
         return cadResult;
       }
       console.log('[lookup] CAD miss — trying ATTOM');
@@ -44,7 +44,7 @@ export function createLookupFn(attomApiKey?: string): CadLookupFn {
 
     const attomResult = await lookupAttom(address, attomApiKey);
     if (attomResult) {
-      console.log(`[lookup] ATTOM hit — prior=${attomResult.priorValue} year=${attomResult.priorYear}`);
+      console.log('[lookup] ATTOM hit');
       // Mark currentValue as unavailable from ATTOM source
       return { ...attomResult, currentValue: 0 };
     }

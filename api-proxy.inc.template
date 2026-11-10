@@ -1,0 +1,18 @@
+# Included by every /api location in nginx.conf.template. Rendered by envsubst.
+proxy_pass $api_upstream;
+proxy_http_version 1.1;
+proxy_set_header Connection "";
+proxy_set_header Host $host;
+# The API keys rate limits and consent evidence on X-Real-IP. Overwrite every
+# identity header with the value derived above; never forward the client's own.
+proxy_set_header X-Real-IP $client_ip;
+proxy_set_header X-Forwarded-For $client_ip;
+proxy_set_header X-Forwarded-Proto https;
+proxy_set_header CF-Connecting-IP "";
+proxy_set_header X-Internal-Proxy-Token "${INTERNAL_PROXY_TOKEN}";
+# Origin is forwarded unchanged so the API can enforce its CORS allowlist.
+# 15s: with serverless sleep on, the first request after idle waits for the
+# API to boot (a few seconds) instead of failing with a 502.
+proxy_connect_timeout 15s;
+proxy_send_timeout 30s;
+proxy_next_upstream off;

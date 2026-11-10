@@ -15,16 +15,15 @@
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
     "@fontsource/manrope": "^5.2.8",
-    "dompurify": "^3.3.3",
+    "dompurify": "^3.4.17",
     "lucide-react": "^0.546.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.14.1"
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",
-    "@types/dompurify": "^3.0.5",
     "@types/node": "^22.14.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

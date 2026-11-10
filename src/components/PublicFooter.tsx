@@ -9,6 +9,7 @@ const RESOURCE_LINKS: { name: string; to: string; external: boolean }[] = [
   { name: 'Insurance', to: '/insurance', external: false },
   { name: 'Rental Analysis', to: '/analysis', external: true },
   { name: 'Guarantees', to: '/guarantees', external: true },
+  { name: 'Privacy', to: '/privacy', external: false },
 ];
 
 export function PublicFooter() {

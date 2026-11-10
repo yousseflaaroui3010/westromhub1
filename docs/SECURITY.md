@@ -1,0 +1,162 @@
+# Security hardening: what changed and how to deploy it
+
+Covers the 2026-11-10 audit (`WGC_Security_Audit_2026-11-10`) plus issues found
+while fixing it. Companion changes live in `wgc-lead-pipeline` on the same
+branch name.
+
+## Request path after this change
+
+```
+visitor ─▶ Cloudflare ─▶ Railway edge ─▶ nginx (frontend service)
+                                          │  derives real client IP
+                                          │  per-IP limit_req / limit_conn
+                                          │  adds X-Internal-Proxy-Token
+                                          ▼
+                                       API (private: api.railway.internal)
+                                          │  per-route + per-session limits
+                                          │  concurrency gate, daily AI budget
+                                          │  Turnstile-backed sessions
+                                          ├─▶ Gemini / OpenRouter / Groq
+                                          └─▶ /api/leads/* ─▶ n8n WF-0 / WF-1
+                                                (X-WGC-Gateway secret)
+```
+
+## Fixed
+
+| Audit item | Fix | Where |
+|---|---|---|
+| API returned 502 / timed out | Root cause: nginx resolved `api.railway.internal` once at boot; the API redeployed on 2026-11-07 onto new private IPs, so every `/api` call hit dead addresses. nginx now re-resolves every 10 s. Reproduced and verified in Docker by moving the upstream to a new IP. | `nginx.conf.template` |
+| Rate limiter trusts `X-Forwarded-For`, no expiry | XFF is never read. nginx derives the client from `CF-Connecting-IP` only when the Railway edge peer is a Cloudflare range, else `X-Real-IP`, and overwrites every identity header. API store has TTL eviction and a hard key cap, or Redis (`REDIS_URL`) for shared limits across replicas and restarts. | `nginx.conf.template`, `api/src/security/*` |
+| Paid routes lack challenge, shared cost cap, concurrency | Turnstile-verified 30-min sessions required on paid routes (when keyed); per-IP and per-session quotas; 4 global / 1 per-client in-flight AI calls; hard daily cap on billable provider attempts (`AI_DAILY_CALL_CAP`, default 400). nginx no longer strips `Origin`, and `INTERNAL_PROXY_TOKEN` refuses requests that skip nginx. | `api/src/app.ts` |
+| Provider errors reach users | Public errors are fixed copy + `code` + `requestId`. Upstream detail is logged only, with key/token/URL-credential redaction. Tested with a mocked failure containing a fake key. | `api/src/http/errors.ts` |
+| Weak AI input/output boundaries | Recommendations accept typed numbers + an allowlisted county only; status, explanation and county portal are computed server-side (rule engine mirrored, parity-tested). Extraction output validated field by field; a model's "not a document" text never reaches users. Recommendation HTML reduced to attribute-free `strong/b/em/i/p/ul/ol/li/br` on the server and again by DOMPurify in the browser. | `api/src/domain/*`, `src/lib/sanitize.ts` |
+| Dependency advisories | API: hono 4.13, @hono/node-server 2, zod 4.6, @google/genai 1.52; unused `pdfjs-dist` removed. Frontend: dompurify 3.4.17, react-router 7.18.5. `npm audit --omit=dev`: 0 in both. Node 22 (20 is EOL). | `package*.json` |
+| CSP `unsafe-inline` script, no HSTS | Inline nav script moved to `/site-nav.js`; `script-src` has no `unsafe-inline`. HSTS 180 d (no `includeSubDomains`/preload until every subdomain is checked). Added `frame-ancestors`, `base-uri`, `form-action`, `object-src`. Dotfiles return 404 instead of the SPA shell. | `nginx.conf.template` |
+| `/privacy` 404, addresses logged | `/privacy` page written from the actual data flows (**needs counsel review**). Address and value logging removed. | `src/components/PrivacyView.tsx`, `api/src/adapters/index.ts` |
+
+## Lead pipeline (LeadSimple) problems found and fixed
+
+These were not in the audit. They come from reading the n8n workflows and the Railway setup.
+
+1. **Anyone could mail anyone through Westrom's Brevo account.** The n8n token
+   endpoint was public, tokens were reusable for 2 h, and `submission_id` is
+   client-chosen. One script could create unlimited LeadSimple deals, send
+   unlimited "new lead" emails to Jon/Ashley/Youssef, and send the guide email
+   to any address on the internet. That is a spam relay that could get the
+   Brevo account suspended. Fix: the `/api/leads/*` gateway with per-IP limits,
+   at most 3 submissions per render token, one guide email per address per
+   24 h, daily caps on submissions (300) and guide emails (150), and optional
+   Turnstile. n8n accepts only gateway calls once `WGC_GATEWAY_SECRET` is set.
+2. **No rate limiting existed in production.** The nginx limit in
+   `wgc-lead-pipeline/infra` belonged to the abandoned VPS design. On Railway,
+   n8n was called directly.
+3. **Consent evidence was forgeable.** The IP came from the first
+   `X-Forwarded-For` entry (client-controlled) and `ts` from the client clock.
+   Now it uses the gateway-verified IP/UA and server receipt time.
+4. **The documented embed snippet could not submit.** `data-endpoint=".../hook"`
+   fell through to the SPA on Railway. `/hook/token` and `/hook/lead` now map to
+   the gateway.
+5. **The dedupe buffer was unbounded** (rewritten on every execution). It is now capped at 5000.
+
+Still open (needs a decision or Railway access, not code):
+
+- **The n8n worker has no volume.** The metrics file and the estimator's
+  `segment-index.json` live on the worker's disk and are wiped on every redeploy,
+  including any env-var change. Recommendation: attach a Railway volume to the
+  worker at `/home/node/.n8n`. Otherwise re-seed after each worker redeploy
+  (`wgc-lead-pipeline/infra/runbooks/deploy-estimator.md`).
+- **Metrics/dedupe use local files and workflow static data,** which race if
+  executions overlap. At today's volume this is acceptable. If it grows, move
+  them to the Redis the n8n project already runs.
+- **Estimate-only submissions (no email) never reach LeadSimple** (WF-2 "Has
+  contact?" has no false branch). This is intentional: no contact, no lead. Say
+  so if the team expected otherwise.
+
+## Data model
+
+No new database is needed. The state these controls need is small, short-lived
+counters (rate windows, token-use counts, a per-email-hash cooldown, daily
+budgets). It lives in the API's counter store: memory by default, Redis with
+`REDIS_URL`. Emails are stored only as SHA-256 hashes with a 24 h TTL.
+`wgc-lead-pipeline` ADR-5 ("no lead database of ours") still holds.
+
+The one model change worth considering later is a **delivery ledger**:
+`submission_id → {status, deal_id, attempts, timestamps}`, with no PII. It would
+let you reconcile "submitted vs. in LeadSimple" instead of relying on alert
+emails. It touches ADR-5, so it is a product decision.
+
+## Environment variables
+
+API service:
+
+| Var | Required | Notes |
+|---|---|---|
+| `INTERNAL_PROXY_TOKEN` | yes | Same value on the frontend service. `openssl rand -hex 32` |
+| `ALLOWED_ORIGINS` | yes | `https://wgcassetguide.com` |
+| `LEAD_ALLOWED_ORIGINS` | no | Default `https://wgcassetguide.com,https://westromgroup.com,https://www.westromgroup.com` |
+| `N8N_LEAD_WEBHOOK_BASE` | yes | `https://main-production-bf72.up.railway.app/webhook/d043c102d78e` |
+| `N8N_GATEWAY_SECRET` | yes | ≥ 32 chars; same value as `WGC_GATEWAY_SECRET` on n8n |
+| `TURNSTILE_SECRET_KEY` | recommended | Cloudflare → Turnstile. Turns on challenge sessions for paid routes |
+| `SESSION_SECRET` | with Turnstile | ≥ 32 chars, so sessions survive restarts |
+| `LEAD_REQUIRE_TURNSTILE` | later | `true` only after the widget carries `data-turnstile-sitekey` everywhere |
+| `REDIS_URL` | recommended | Railway Redis in this project, so limits survive restarts |
+| `AI_DAILY_CALL_CAP` | no | Default 400 provider attempts per UTC day |
+| `LEAD_DAILY_SUBMIT_CAP` / `LEAD_DAILY_GUIDE_EMAIL_CAP` | no | Defaults 300 / 150 |
+
+Frontend service: `INTERNAL_PROXY_TOKEN` (same value), `API_UPSTREAM`
+(unchanged), and optionally `VITE_TURNSTILE_SITE_KEY` (a public key, baked into
+the build). `OLLAMA_BASE_URL`, `TEXT_MODEL`, `VISION_MODEL` and
+`VITE_API_BASE_URL` are unused and can be deleted. So can `ESTATED_API_KEY`,
+`OLLAMA_BASE_URL`, `TEXT_MODEL` and `VISION_MODEL` on the API service.
+
+n8n main **and** worker: `WGC_GATEWAY_SECRET` (step 6 below).
+
+## Deploy order
+
+Each step is safe on its own. Stop at any step if a check fails.
+
+1. **Immediate outage relief (optional, before merging):** redeploy the
+   frontend service. Restarting nginx re-resolves the API's current IP. This
+   holds until the API's next redeploy.
+2. Generate three secrets: `INTERNAL_PROXY_TOKEN`, `SESSION_SECRET`,
+   `N8N_GATEWAY_SECRET`.
+3. Set the API and frontend variables above. Old code ignores them, so this is
+   safe before merge. It triggers redeploys, which also gives the step 1 relief.
+4. Merge. Railway deploys both services from `main`. Check:
+   - `https://wgcassetguide.com/taxes`: upload a notice; values + recommendation appear.
+   - `/analysis`: submit; the estimate appears and a LeadSimple deal is created.
+   - `curl -X POST https://api.wgcassetguide.com/api/recommend-tax` returns `403 forbidden`.
+5. Remove the API's public domains (`api.wgcassetguide.com` and the
+   `*.up.railway.app` one) once you confirm nothing else calls them. Nothing in
+   either repo does. The token from step 3 already blocks them.
+6. **n8n lock:** import the updated WF-0 and WF-1 from `wgc-lead-pipeline`,
+   Publish both, then set `WGC_GATEWAY_SECRET` on n8n main and worker. Setting
+   it redeploys the worker and **wipes the estimator index**. Attach the worker
+   volume first, or re-seed right after. Confirm a direct
+   `GET .../webhook/d043c102d78e/token` now returns an empty body.
+7. Turnstile: create a widget in Cloudflare for `wgcassetguide.com` (and
+   `westromgroup.com` if the form is embedded there). Set
+   `TURNSTILE_SECRET_KEY`, `SESSION_SECRET` and `VITE_TURNSTILE_SITE_KEY`. For
+   the lead form, add `data-turnstile-sitekey` to every embed, then set
+   `LEAD_REQUIRE_TURNSTILE=true`.
+8. Provider dashboards: set hard monthly spend limits on OpenRouter / Groq /
+   Google AI, and rotate any key that has ever been in a client bundle or
+   committed.
+
+## Verification done in this branch
+
+- API: 95 tests (security, gateway, contracts, parity), lint, `npm audit` clean.
+- Frontend: 31 tests, lint, build, `npm audit` clean.
+- Real nginx 1.31 container: config test, identity derivation (Cloudflare
+  vs. direct peer, forged headers), per-client 429s with JSON body, dotfile
+  404s, security headers, body limits, `/hook` alias, and DNS re-resolution
+  after the upstream moved IPs.
+- Compiled API behind real nginx: internal-token gate, CORS, generic errors
+  on real provider 401s with redacted logs. Real Redis: atomic counters,
+  expiry, degraded mode when Redis is down.
+- Browser (Playwright) against the full local stack: lead form submit through
+  the gateway (gateway secret and allowlisted body reached the fake n8n; the
+  estimate rendered), all SPA routes and the static pages load with zero CSP
+  or console errors, mobile nav works without inline script.
+- Not verified here: a Docker image build (the sandbox's network proxy is not
+  reachable from inside `docker build`), real Turnstile keys, and real n8n.

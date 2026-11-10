@@ -5,7 +5,7 @@ import { splitStreet } from './normalizeAddress';
 const DCAD_BASE = 'https://www.dallascad.org';
 const SEARCH_URL = `${DCAD_BASE}/SearchAddr.aspx`;
 const TIMEOUT_MS = 12_000;
-const USER_AGENT = 'Mozilla/5.0 (compatible; WestromHub/1.0; +https://westromhub.com)';
+const USER_AGENT = 'Mozilla/5.0 (compatible; WestromHub/1.0; +https://wgcassetguide.com)';
 
 /**
  * Dallas Central Appraisal District (dallascad.org) adapter.
