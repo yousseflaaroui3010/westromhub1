@@ -62,7 +62,10 @@ Still open (needs a decision or Railway access, not code):
 
 - **n8n consolidated (2026-11-11).** n8n now runs as one `main` service in
   regular mode, pinned to `n8nio/n8n:2.44.4`, plus Postgres. The `worker`, `Redis`
-  and its volume were deleted; they were about half of the project's memory.
+  and its volume were deleted. Measured: n8n memory went from ~0.85 GB
+  (main 0.41 + worker 0.43 + Redis 0.01) to ~0.69 GB on main alone (~19% less;
+  main now runs the executions and JS task runner itself), with two fewer
+  services to run and patch.
   `main`'s `/home/node/.n8n` is still ephemeral, so the estimator's
   `segment-index.json` and the metrics file are lost on each `main` redeploy.
   The index is currently missing (estimates fall back to RentCast market data):
