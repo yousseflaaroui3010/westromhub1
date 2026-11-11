@@ -136,17 +136,18 @@ def _to_document(res, ocr: bool) -> Document:
         pp = page.parsed_page
         if page_no > MAX_PAGES or pp is None or page.size is None:
             continue
-        # OCR cells are in scaled image pixels; embedded text is in points.
-        dim = getattr(pp, "dimension", None)
-        sx = sy = 1.0
+        # Normalise every page to a 612-unit width (US Letter in points), so
+        # layout thresholds mean the same thing for a PDF, a 200-dpi scan
+        # and a 12 MP phone photo. OCR cells may also be in images_scale'd
+        # pixels relative to page.size.
         cells = list(pp.textline_cells or [])
+        k = 1.0
         if cells and any(c.from_ocr for c in cells):
             max_x = max(c.rect.to_bounding_box().r for c in cells)
-            if dim is not None and getattr(dim, "width", 0) and dim.width > page.size.width * 1.05:
-                sx = page.size.width / dim.width
-                sy = page.size.height / dim.height
-            elif max_x > page.size.width * 1.05:
-                sx = sy = 1.0 / 2.0  # images_scale used for OCR
+            if max_x > page.size.width * 1.05:
+                k = 1.0 / 2.0  # images_scale used for OCR
+        sx = sy = k * (612.0 / page.size.width)
+        dim = getattr(pp, "dimension", None)
         for c in cells:
             text = _clean(c.text or "")
             if not text:
@@ -186,8 +187,37 @@ def _sniff(data: bytes) -> str:
     raise ValueError("unsupported_type")
 
 
+def _deskew(img):
+    """Straighten a page photo/scan. Text rows produce sharp peaks in the
+    row-sum profile only when they are horizontal, so we pick the small
+    rotation that maximises the profile's variance (projection-profile
+    method; robust to tables and noise, unlike Hough/minAreaRect)."""
+    import numpy as np
+    from PIL import Image
+
+    g = np.asarray(img.convert("L"), dtype=np.uint8)
+    h, w = g.shape
+    scale = 1000 / max(h, w)
+    small = Image.fromarray(g).resize((max(1, int(w * scale)), max(1, int(h * scale))))
+    a = np.asarray(small, dtype=np.float32)
+    ink = (a < a.mean() - 2 * a.std() / 3).astype(np.float32)  # dark pixels = text
+    if ink.sum() < 200:
+        return img
+
+    def score(angle: float) -> float:
+        r = np.asarray(Image.fromarray((ink * 255).astype(np.uint8)).rotate(angle, resample=Image.BILINEAR, fillcolor=0), dtype=np.float32)
+        prof = r.sum(axis=1)
+        return float(np.var(prof))
+
+    best = max((score(a_), a_) for a_ in np.arange(-6.0, 6.01, 0.5))[1]
+    best = max((score(a_), a_) for a_ in np.arange(best - 0.5, best + 0.51, 0.1))[1]
+    if abs(best) < 0.15:
+        return img
+    return img.rotate(best, resample=Image.BICUBIC, expand=True, fillcolor="white")
+
+
 def _normalize_image(data: bytes, kind: str) -> bytes:
-    """Re-encode images to PNG: fixes EXIF rotation, HEIC and odd modes."""
+    """Re-encode images to PNG: EXIF rotation, HEIC, odd modes, deskew."""
     from PIL import Image, ImageOps
 
     if kind == "heic":
@@ -199,14 +229,39 @@ def _normalize_image(data: bytes, kind: str) -> bytes:
             raise ValueError("unsupported_type") from e
     img = Image.open(io.BytesIO(data))
     img = ImageOps.exif_transpose(img).convert("RGB")
+    return _png(_deskew(_fit(img)))
+
+
+def _fit(img):
+    from PIL import Image
+
     # Phone photos are often 12 MP; OCR gains nothing past ~2600 px.
     longest = max(img.size)
     if longest > 2600:
-        scale = 2600 / longest
-        img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
+        s = 2600 / longest
+        img = img.resize((int(img.width * s), int(img.height * s)), Image.LANCZOS)
+    return img
+
+
+def _png(img) -> bytes:
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _rasterize_pdf(data: bytes) -> list[bytes]:
+    """Image-only PDF -> deskewed page images (200 dpi), first MAX_PAGES."""
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument(data)
+    try:
+        out = []
+        for i in range(min(len(pdf), MAX_PAGES)):
+            img = pdf[i].render(scale=200 / 72).to_pil().convert("RGB")
+            out.append(_png(_deskew(_fit(img))))
+        return out
+    finally:
+        pdf.close()
 
 
 def read(data: bytes) -> Document:
@@ -218,10 +273,19 @@ def read(data: bytes) -> Document:
         doc = _convert(DocumentStream(name="upload.pdf", stream=io.BytesIO(data)), ocr=False)
         if sum(len(l.text) for l in doc.lines) >= MIN_TEXT_CHARS:
             return doc
-        log.info("pdf has little embedded text; running OCR")
-        return _convert(DocumentStream(name="upload.pdf", stream=io.BytesIO(data)), ocr=True)
-    png = _normalize_image(data, kind)
-    return _convert(DocumentStream(name="upload.png", stream=io.BytesIO(png)), ocr=True)
+        log.info("pdf has little embedded text; OCR page by page")
+        pages = _rasterize_pdf(data)
+    else:
+        pages = [_normalize_image(data, kind)]
+    merged = Document(ocr=True)
+    for i, png in enumerate(pages):
+        d = _convert(DocumentStream(name=f"page{i + 1}.png", stream=io.BytesIO(png)), ocr=True)
+        for l in d.lines:
+            merged.lines.append(Line(i + 1, l.x0, l.y0, l.x1, l.y1, l.text))
+        for t in d.tables:
+            merged.tables.append(Table(i + 1, t.cells, t.n_rows, t.n_cols))
+    merged.pages = len(pages)
+    return merged
 
 
 def _convert(stream, ocr: bool) -> Document:

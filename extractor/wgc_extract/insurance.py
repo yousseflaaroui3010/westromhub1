@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-from .fields import Hit, find_lines, first, is_sentence, money_values, norm, pct_values, values_near
+from .fields import Hit, find_lines, first, is_right_of, is_sentence, money_values, norm, pct_values, values_near
 from .reader import Document, Line
 
 INS_DOC_RE = re.compile(r"declaration|policy (?:number|period|premium)|insured|coverage [a-f]\b|premium|deductible|dwelling")
@@ -169,7 +169,7 @@ def _coverage_flag(doc: Document, term_re: re.Pattern[str]) -> Optional[bool]:
         # Status sits on this line or to its right on the same row.
         row = [t[m.end():]] + [
             norm(l.text) for l in doc.lines
-            if l is not line and l.page == line.page and abs(l.cy - line.cy) <= max(3.0, 0.6 * line.h) and l.x0 >= line.x1 - 2
+            if l is not line and l.page == line.page and abs(l.cy - line.cy) <= max(3.0, 0.6 * line.h) and is_right_of(line, l)
         ]
         status = " ".join(row)
         if EXCLUDED_RE.search(status) or EXCLUDED_RE.search(t[: m.start()]):

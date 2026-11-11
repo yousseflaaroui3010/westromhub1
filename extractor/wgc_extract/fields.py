@@ -101,6 +101,21 @@ def same_row(a: Line, b: Line, tol: float = 0.6) -> bool:
     return abs(a.cy - b.cy) <= max(3.0, tol * h)
 
 
+def is_right_of(label: Line, b: Line) -> bool:
+    """b starts to the right of label (OCR boxes may overlap a little)."""
+    cx = (b.x0 + b.x1) / 2
+    return cx > label.x1 and b.x0 >= label.x1 - 0.5 * label.h - 2
+
+
+def is_below(label: Line, b: Line) -> bool:
+    """b sits on a lower row than label (centre clearly lower)."""
+    return b.page == label.page and b.cy >= label.cy + 0.55 * min(label.h, b.h) and b.y0 >= label.y0
+
+
+def is_above(label: Line, b: Line) -> bool:
+    return b.page == label.page and b.cy <= label.cy - 0.55 * min(label.h, b.h) and b.y1 <= label.y1
+
+
 def x_overlap(a: Line, b: Line, pad: float = 0.0) -> float:
     return min(a.x1 + pad, b.x1 + pad) - max(a.x0 - pad, b.x0 - pad)
 
@@ -125,7 +140,7 @@ def values_near(
     if "right" in dirs:
         row = [
             l for l in doc.lines
-            if l is not label and same_row(label, l) and l.x0 >= label.x1 - 2 and l.x0 - label.x1 <= max_right
+            if l is not label and same_row(label, l) and is_right_of(label, l) and l.x0 - label.x1 <= max_right
         ]
         for l in sorted(row, key=lambda l: l.x0):
             for v in parse(norm(l.text)):
@@ -135,22 +150,21 @@ def values_near(
         lim = label.y1 + max_below_lines * label.h + 6
         col = [
             l for l in doc.lines
-            if l is not label and l.page == label.page and l.y0 >= label.y1 - 2 and l.y0 <= lim
-            and (x_overlap(label, l, pad=6) > 0)
+            if l is not label and is_below(label, l) and l.y0 <= lim and x_overlap(label, l, pad=6) > 0
         ]
         for l in sorted(col, key=lambda l: l.y0):
             for v in parse(norm(l.text)):
-                hits.append(Hit(l, v, 1000 + (l.y0 - label.y1), "below"))
+                hits.append(Hit(l, v, 1000 + max(0.0, l.y0 - label.y1), "below"))
                 break
     if "above" in dirs:
         col = [
             l for l in doc.lines
-            if l is not label and l.page == label.page and l.y1 <= label.y0 + 2
+            if l is not label and is_above(label, l)
             and label.y0 - l.y1 <= 2.5 * label.h and x_overlap(label, l, pad=6) > 0
         ]
         for l in sorted(col, key=lambda l: -l.y1):
             for v in parse(norm(l.text)):
-                hits.append(Hit(l, v, 2000 + (label.y0 - l.y1), "above"))
+                hits.append(Hit(l, v, 2000 + max(0.0, label.y0 - l.y1), "above"))
                 break
     return hits
 

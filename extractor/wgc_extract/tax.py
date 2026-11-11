@@ -19,7 +19,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Optional
 
-from .fields import Hit, YEAR_RE, find_lines, is_sentence, money_values, norm, same_row, values_near, x_overlap
+from .fields import Hit, YEAR_RE, find_lines, is_below, is_right_of, is_sentence, money_values, norm, same_row, values_near, x_overlap
 from .reader import Document, Line
 
 KIND_RE = re.compile(r"\b(market|apprais(?:ed|al))\s*(?:value|val\b)", re.I)
@@ -45,21 +45,15 @@ NOT_SITUS_RE = re.compile(r"\b(mailing|owner'?s? address|owner name|mail to|remi
 STREET_RE = re.compile(r"^\s*(\d{1,6}[a-z]?(?:-\d+)?\s+(?:[nsew]\.?\s+)?[a-z0-9][\w .'#/-]{2,60})", re.I)
 CITY_LINE_RE = re.compile(r"^[a-z .'-]{2,30},?\s+(tx|texas)\b\.?(\s+\d{5}(-\d{4})?)?$", re.I)
 
+_COUNTIES = ["tarrant", "dallas", "johnson", "denton", "parker", "ellis", "collin", "harris", "travis", "williamson",
+             "rockwall", "kaufman", "wise", "hood", "bexar", "fort bend", "montgomery", "hays", "brazoria", "galveston"]
+_DOMAINS = {"tarrant": r"tad\.org", "dallas": r"dallascad|\bdcad\b", "johnson": r"johnsoncad", "denton": r"dentoncad",
+            "parker": r"parkercad", "ellis": r"elliscad", "collin": r"collincad", "harris": r"\bhcad\b",
+            "travis": r"traviscad", "williamson": r"\bwcad\b"}
+# "<County> [Central|County] Apprais..." (also cut-off OCR like "Tarrant Apprais").
 DISTRICTS = [
-    (re.compile(r"\btarrant (?:appraisal district|cad)\b|\btad\.org\b|\btarrant county\b"), "Tarrant County"),
-    (re.compile(r"\bdallas (?:central )?appraisal district\b|\bdallascad\b|\bdcad\b|\bdallas county\b"), "Dallas County"),
-    (re.compile(r"\bjohnson (?:central )?appraisal district\b|\bjohnsoncad\b|\bjohnson county\b"), "Johnson County"),
-    (re.compile(r"\bdenton (?:central )?appraisal district\b|\bdentoncad\b|\bdenton county\b"), "Denton County"),
-    (re.compile(r"\bparker (?:county )?appraisal district\b|\bparkercad\b|\bparker county\b"), "Parker County"),
-    (re.compile(r"\bellis (?:central )?appraisal district\b|\belliscad\b|\bellis county\b"), "Ellis County"),
-    (re.compile(r"\bcollin (?:central )?appraisal district\b|\bcollincad\b|\bcollin county\b"), "Collin County"),
-    (re.compile(r"\bharris (?:central )?appraisal district\b|\bhcad\b|\bharris county\b"), "Harris County"),
-    (re.compile(r"\btravis (?:central )?appraisal district\b|\btraviscad\b|\btravis county\b"), "Travis County"),
-    (re.compile(r"\bwilliamson (?:central )?appraisal district\b|\bwcad\b|\bwilliamson county\b"), "Williamson County"),
-    (re.compile(r"\brockwall (?:central )?appraisal district\b|\brockwall county\b"), "Rockwall County"),
-    (re.compile(r"\bkaufman (?:central )?appraisal district\b|\bkaufman county\b"), "Kaufman County"),
-    (re.compile(r"\bwise (?:county )?appraisal district\b|\bwise county\b"), "Wise County"),
-    (re.compile(r"\bhood (?:central )?appraisal district\b|\bhood county\b"), "Hood County"),
+    (re.compile(rf"\b{c}\s*(?:central\s*|county\s*)?(?:apprais|cad\b)" + (f"|{_DOMAINS[c]}" if c in _DOMAINS else "")), c.title() + " County")
+    for c in _COUNTIES
 ]
 GENERIC_DISTRICT_RE = re.compile(r"\b([a-z]+(?: [a-z]+)?) (?:central |county )?appraisal district\b")
 
@@ -136,7 +130,7 @@ def _period_for_value(doc: Document, label: Line, hit: Hit, year: Optional[int])
             if l.page == v.page and l.y1 <= v.y0 + 1 and v.y0 - l.y1 < 260 and l is not label
             and x_overlap(l, v, pad=8) > 0 and _is_period_header(l)
         ]
-        for h in sorted(heads, key=lambda l: v.y0 - l.y1):
+        for h in sorted(heads, key=lambda l: (v.y0 - l.y1, -x_overlap(l, v))):
             p = _period_of(h.text, year)
             if p:
                 return p
@@ -146,7 +140,7 @@ def _period_for_value(doc: Document, label: Line, hit: Hit, year: Optional[int])
             l for l in doc.lines
             if l is not v and same_row(l, v) and l.x1 <= v.x0 + 2 and _is_period_header(l)
         ]
-        for r in sorted(rows, key=lambda l: v.x0 - l.x1):
+        for r in sorted(rows, key=lambda l: abs(l.cy - v.cy)):
             p = _period_of(r.text, year)
             if p:
                 return p
@@ -234,19 +228,30 @@ def value_candidates(doc: Document, year: Optional[int]) -> list[Cand]:
             if hits:
                 out.append(Cand(kind, own, int(hits[0].value), hits[0].distance))
             continue
+        mine: dict[str, set[int]] = {}
+        found: list[Cand] = []
         for h in hits:
             period = _period_for_value(doc, line, h, year)
             if period:
-                out.append(Cand(kind, period, int(h.value), h.distance))
+                mine.setdefault(period, set()).add(int(h.value))
+                found.append(Cand(kind, period, int(h.value), h.distance))
+        # Two different values claiming the same year under one label means
+        # the grid was misread (skewed photo): drop that year, do not guess.
+        out.extend(c for c in found if len(mine[c.period]) == 1)
     return out
 
 
 def pick_values(cands: list[Cand]) -> tuple[Optional[int], Optional[int]]:
     best: dict[tuple[str, str], Cand] = {}
+    values: dict[tuple[str, str], set[int]] = {}
     for c in cands:
         k = (c.kind, c.period)
+        values.setdefault(k, set()).add(c.value)
         if k not in best or c.score < best[k].score:
             best[k] = c
+    for k, vs in values.items():
+        if len(vs) > 1:
+            del best[k]  # contradictory readings of the same cell: unknown
     get = lambda kind, period: best[(kind, period)].value if (kind, period) in best else None  # noqa: E731
     mc, mp, ac, ap = get("market", "cur"), get("market", "prior"), get("appraised", "cur"), get("appraised", "prior")
     if mc and mp:
@@ -273,21 +278,22 @@ def find_address(doc: Document) -> Optional[str]:
         for l in doc.lines:
             if l is line or l.page != line.page:
                 continue
-            if same_row(line, l) and l.x0 >= line.x1 - 2 and l.x0 - line.x1 < 300:
-                cands.append((1 + l.x0 - line.x1, l, l.text))
-            elif l.y0 >= line.y1 - 2 and l.y0 - line.y1 < 2.6 * line.h + 6 and x_overlap(line, l, pad=20) > 0:
-                cands.append((1000 + l.y0 - line.y1, l, l.text))
+            if same_row(line, l) and is_right_of(line, l) and l.x0 - line.x1 < 300:
+                cands.append((1 + max(0.0, l.x0 - line.x1), l, l.text))
+            elif is_below(line, l) and l.y0 - line.y1 < 2.6 * line.h + 6 and x_overlap(line, l, pad=20) > 0:
+                cands.append((1000 + max(0.0, l.y0 - line.y1), l, l.text))
         for _, l, text in sorted(cands, key=lambda c: c[0]):
             sm = STREET_RE.match(text.strip())
             if not sm or NOT_SITUS_RE.search(norm(text)):
                 continue
             street = re.sub(r"\s+", " ", sm.group(1)).strip(" ,")
+            street = re.split(r"\s+(?:lot|blk|block|abst|abstract|acres?|tract|unit \d+ bldg|legal)\b", street, maxsplit=1, flags=re.I)[0]
             if re.search(r"\b(po box|p\.o\.)", street, re.I):
                 continue
             # Append the city line directly under it, if there is one.
             below = [
                 b for b in doc.lines
-                if b.page == l.page and b is not l and 0 <= b.y0 - l.y1 < 1.6 * l.h + 4 and x_overlap(l, b, pad=10) > 0
+                if b is not l and is_below(l, b) and b.y0 - l.y1 < 1.6 * l.h + 4 and x_overlap(l, b, pad=10) > 0
             ]
             for b in sorted(below, key=lambda b: b.y0)[:1]:
                 if CITY_LINE_RE.match(b.text.strip()):
@@ -301,8 +307,11 @@ def find_county(doc: Document) -> Optional[str]:
     for rx, name in DISTRICTS:
         if rx.search(text):
             return name
-    m = GENERIC_DISTRICT_RE.search(text)
-    if m and m.group(1) not in ("the", "your", "an", "appraisal", "central", "this"):
+    stop = {"the", "your", "an", "a", "appraisal", "central", "this", "contact", "county", "local", "my", "our", "each", "that"}
+    for m in GENERIC_DISTRICT_RE.finditer(text):
+        words = m.group(1).split()
+        if any(w in stop for w in words):
+            continue
         return m.group(1).title() + " County"
     return None
 
