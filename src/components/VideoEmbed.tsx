@@ -64,7 +64,7 @@ export function VideoEmbed({ url, title }: VideoEmbedProps) {
   const showFallback = !iframeLoaded && (!thumbnail || thumbnailError);
 
   return (
-    <div ref={containerRef} className="w-full aspect-video rounded-xl overflow-hidden shadow-lg relative bg-gray-900">
+    <div ref={containerRef} className="relative aspect-video w-full overflow-hidden bg-ink">
 
       {/* Thumbnail — visible immediately while iframe loads */}
       {showThumbnail && (

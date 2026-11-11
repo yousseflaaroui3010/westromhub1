@@ -27,6 +27,10 @@
   /* Brand tokens (Westrom pricing page). One red, used for both text and
      fills, so nothing on this widget needs a second one. */
   --wgc-red: #d63520;
+  /* Text-only red: #d63520 is 4.17:1 on the #f1efeb band, below WCAG AA
+     for 11.5px text (axe, 2026-11-11). #b42b18 is 5.54:1 there and 6.36:1 on
+     white. Decorative bars/lines keep the brighter --wgc-red. */
+  --wgc-red-text: #b42b18;
   --wgc-ink: #111111;
   --wgc-white: #ffffff;
   --wgc-section: #f2f1ee;
@@ -75,7 +79,7 @@
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--wgc-red);
+  color: var(--wgc-red-text);
 }
 
 /* Decorative rules either side of the eyebrow text. */

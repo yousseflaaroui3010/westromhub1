@@ -1,4 +1,4 @@
-import { Mail, Check, Menu, X } from 'lucide-react';
+import { Mail, Check, Menu, X, ArrowRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ViewState } from '../App';
 
@@ -10,15 +10,16 @@ interface PublicHeaderProps {
 
 const EMAIL = 'info@westromgroup.com';
 
-const NAV_LINKS: { name: string; id: ViewState }[] = [
-  { name: 'Taxes', id: 'taxes' },
-  { name: 'Insurance', id: 'insurance' },
-];
+// SPA routes (client-side) and static nginx pages (real navigation) share one
+// visual treatment so the nav reads as a single list.
+type NavItem =
+  | { name: string; kind: 'view'; id: ViewState }
+  | { name: string; kind: 'page'; href: string };
 
-// Static (nginx-served) pages reached by a real navigation, not the SPA router.
-const PAGE_LINKS: { name: string; href: string }[] = [
-  { name: 'Rental Analysis', href: '/analysis' },
-  { name: 'Guarantees', href: '/guarantees' },
+const NAV: NavItem[] = [
+  { name: 'Property Taxes', kind: 'view', id: 'taxes' },
+  { name: 'Insurance', kind: 'view', id: 'insurance' },
+  { name: 'Guarantees', kind: 'page', href: '/guarantees' },
 ];
 
 export function PublicHeader({ onNavigateHome, currentView, onNavigate }: PublicHeaderProps) {
@@ -31,12 +32,10 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      // Clipboard blocked (older browser / non-HTTPS / permissions) — the
-      // address is still visible as button text so users can long-press to copy.
+      // Clipboard blocked: the address stays visible so users can copy it.
     }
   };
 
-  // Close the mobile menu on Escape for keyboard users.
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -46,145 +45,129 @@ export function PublicHeader({ onNavigateHome, currentView, onNavigate }: Public
     return () => document.removeEventListener('keydown', onKey);
   }, [menuOpen]);
 
-  // Resource nav is persistent on every page (home included) so Taxes,
-  // Insurance, Rental Analysis, and Guarantees are always reachable.
-  const showNav = Boolean(onNavigate);
-
-  const handleNav = (id: ViewState) => {
+  const go = (id: ViewState) => {
     onNavigate?.(id);
     setMenuOpen(false);
   };
 
+  const linkBase =
+    'relative inline-flex h-10 items-center rounded-lg px-3 text-[15px] font-semibold transition-colors';
+
   return (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6">
-        <div className="flex items-center justify-between gap-2 sm:gap-4 h-16 sm:h-20">
-          <button
-            aria-label="Go to homepage"
-            onClick={onNavigateHome}
-            className="flex-shrink-0 cursor-pointer transition-transform hover:scale-105 motion-reduce:hover:scale-100 group"
-          >
-            <img
-              src="/westrom-logo.webp"
-              alt="Westrom Group Logo"
-              width={2048}
-              height={1186}
-              fetchPriority="high"
-              className="h-11 sm:h-16 w-[74px] sm:w-[110px] bg-white p-1 sm:p-1.5 rounded-xl border border-gray-100 shadow-sm group-hover:shadow-md transition-shadow"
-            />
-          </button>
+    <header className="sticky top-0 z-50 border-b border-line bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+      <div className="container-page flex h-16 items-center justify-between gap-4 md:h-[4.5rem]">
+        <button
+          type="button"
+          aria-label="Westrom Group, go to homepage"
+          onClick={onNavigateHome}
+          className="flex shrink-0 items-center rounded-lg"
+        >
+          <img
+            src="/westrom-logo.webp"
+            alt=""
+            width={2048}
+            height={1186}
+            fetchPriority="high"
+            className="h-10 w-auto md:h-12"
+          />
+        </button>
 
-          <nav aria-label="Main navigation" className="hidden sm:flex items-center gap-2">
-            {showNav && (
-              <div className="flex items-center bg-gray-100/80 p-1 rounded-full">
-                {NAV_LINKS.map((link) => (
-                  <button
-                    key={link.name}
-                    onClick={() => onNavigate!(link.id)}
-                    className={`px-5 py-2 rounded-full font-semibold text-sm transition-all duration-200 ${
-                      currentView === link.id
-                        ? 'bg-white text-primary shadow-sm'
-                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
-                    }`}
-                    aria-current={currentView === link.id ? 'page' : undefined}
-                  >
-                    {link.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            <a
-              href="/analysis"
-              className="px-5 py-2 rounded-full font-semibold text-sm text-secondary bg-secondary/10 hover:bg-secondary hover:text-white transition-colors duration-200"
-            >
-              Rental Analysis
-            </a>
-            <a
-              href="/guarantees"
-              className="px-5 py-2 rounded-full font-semibold text-sm text-primary bg-primary/10 hover:bg-primary hover:text-white transition-colors duration-200"
-            >
-              Guarantees
-            </a>
-          </nav>
+        <nav aria-label="Main navigation" className="hidden items-center gap-1 md:flex">
+          {NAV.map((item) => {
+            if (item.kind === 'view') {
+              const active = currentView === item.id;
+              return (
+                <button
+                  key={item.name}
+                  type="button"
+                  onClick={() => go(item.id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`${linkBase} ${
+                    active
+                      ? 'text-primary after:absolute after:inset-x-3 after:-bottom-[13px] after:h-0.5 after:rounded-full after:bg-secondary'
+                      : 'text-on-surface-variant hover:bg-slate-100 hover:text-ink'
+                  }`}
+                >
+                  {item.name}
+                </button>
+              );
+            }
+            return (
+              <a key={item.name} href={item.href} className={`${linkBase} text-on-surface-variant hover:bg-slate-100 hover:text-ink`}>
+                {item.name}
+              </a>
+            );
+          })}
+        </nav>
 
+        <div className="hidden items-center gap-2 md:flex">
           <button
             type="button"
             onClick={copyEmail}
             aria-label={copied ? 'Email copied to clipboard' : `Copy email address ${EMAIL}`}
             title="Click to copy"
-            className="hidden sm:flex flex-shrink-0 min-h-[44px] items-center gap-2 text-primary font-bold text-sm bg-primary/5 hover:bg-primary/10 px-4 py-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-slate-100 hover:text-ink"
           >
-            {copied ? (
-              <Check className="w-4 h-4 flex-shrink-0 text-teal-600" aria-hidden="true" />
-            ) : (
-              <Mail className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-            )}
-            <span className={`whitespace-nowrap ${copied ? 'text-teal-600' : ''}`}>
-              {copied ? 'Copied!' : EMAIL}
-            </span>
+            {copied ? <Check className="h-4 w-4 text-success" aria-hidden="true" /> : <Mail className="h-4 w-4" aria-hidden="true" />}
+            <span className={`hidden whitespace-nowrap lg:inline ${copied ? 'text-success' : ''}`}>{copied ? 'Copied!' : EMAIL}</span>
+            <span className={`whitespace-nowrap lg:hidden ${copied ? 'text-success' : ''}`}>{copied ? 'Copied!' : 'Email'}</span>
           </button>
-
-          {/* Mobile: single hamburger toggle instead of a wrapping button row. */}
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={menuOpen}
-            aria-controls="mobile-menu"
-            className="sm:hidden flex-shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl text-primary bg-primary/5 hover:bg-primary/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          >
-            {menuOpen ? <X className="w-6 h-6" aria-hidden="true" /> : <Menu className="w-6 h-6" aria-hidden="true" />}
-          </button>
+          <a href="/analysis" className="btn-accent min-h-10 px-4 text-sm">
+            Free rental analysis <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </a>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={menuOpen}
+          aria-controls="mobile-menu"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-primary transition-colors hover:bg-slate-100 md:hidden"
+        >
+          {menuOpen ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
+        </button>
       </div>
 
-      {/* Mobile dropdown menu */}
       {menuOpen && (
-        <nav
-          id="mobile-menu"
-          aria-label="Mobile navigation"
-          className="sm:hidden border-t border-gray-200 bg-white shadow-lg"
-        >
-          <div className="max-w-7xl mx-auto px-3 py-3 flex flex-col gap-1">
-            {showNav &&
-              NAV_LINKS.map((link) => (
+        <nav id="mobile-menu" aria-label="Mobile navigation" className="border-t border-line bg-white md:hidden">
+          <div className="container-page flex flex-col gap-1 py-3">
+            {NAV.map((item) =>
+              item.kind === 'view' ? (
                 <button
-                  key={link.name}
-                  onClick={() => handleNav(link.id)}
-                  aria-current={currentView === link.id ? 'page' : undefined}
-                  className={`w-full text-left min-h-[48px] px-4 rounded-xl font-semibold text-base transition-colors ${
-                    currentView === link.id
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-gray-800 hover:bg-gray-100'
+                  key={item.name}
+                  type="button"
+                  onClick={() => go(item.id)}
+                  aria-current={currentView === item.id ? 'page' : undefined}
+                  className={`flex min-h-12 w-full items-center rounded-xl px-4 text-left text-base font-semibold ${
+                    currentView === item.id ? 'bg-primary-soft text-primary' : 'text-ink hover:bg-slate-100'
                   }`}
                 >
-                  {link.name}
+                  {item.name}
                 </button>
-              ))}
-            {PAGE_LINKS.map((link) => (
-              <a
-                key={link.name}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className="w-full min-h-[48px] px-4 flex items-center rounded-xl font-semibold text-base text-gray-800 hover:bg-gray-100 transition-colors"
-              >
-                {link.name}
-              </a>
-            ))}
-
+              ) : (
+                <a
+                  key={item.name}
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="flex min-h-12 w-full items-center rounded-xl px-4 text-base font-semibold text-ink hover:bg-slate-100"
+                >
+                  {item.name}
+                </a>
+              ),
+            )}
             <button
               type="button"
               onClick={copyEmail}
               aria-label={copied ? 'Email copied to clipboard' : `Copy email address ${EMAIL}`}
-              className="mt-1 w-full min-h-[48px] px-4 flex items-center gap-2 rounded-xl font-bold text-base text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
+              className="flex min-h-12 w-full items-center gap-2 rounded-xl px-4 text-base font-semibold text-on-surface-variant hover:bg-slate-100"
             >
-              {copied ? (
-                <Check className="w-5 h-5 flex-shrink-0 text-teal-600" aria-hidden="true" />
-              ) : (
-                <Mail className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-              )}
-              <span className={copied ? 'text-teal-600' : ''}>{copied ? 'Copied!' : EMAIL}</span>
+              {copied ? <Check className="h-5 w-5 text-success" aria-hidden="true" /> : <Mail className="h-5 w-5" aria-hidden="true" />}
+              <span className={copied ? 'text-success' : ''}>{copied ? 'Copied!' : EMAIL}</span>
             </button>
+            <a href="/analysis" onClick={() => setMenuOpen(false)} className="btn-accent mt-2 w-full">
+              Free rental analysis <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </a>
           </div>
         </nav>
       )}

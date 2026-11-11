@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Upload, Loader2, CheckCircle, AlertCircle, FileText } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Upload, Loader2, CheckCircle, AlertCircle, FileText, ChevronDown } from 'lucide-react';
 import { sanitizeRecommendation } from '../lib/sanitize';
 import { runRuleEngine, type AnalysisResult, type PropertyData } from '../lib/ruleEngine';
 import { ApiError, generateTaxRecommendation, extractDataFromDocument, lookupProperty } from '../lib/ai';
@@ -12,7 +12,7 @@ import { getDeviceCapabilities } from '../hooks/useDeviceCapabilities';
 
 function RecommendationSkeleton() {
   return (
-    <div className="space-y-3 animate-pulse mb-8" aria-label="Generating recommendation…" role="status">
+    <div className="space-y-3 animate-pulse" aria-label="Generating recommendation…" role="status">
       <div className="h-4 bg-gray-200 rounded-full w-full" />
       <div className="h-4 bg-gray-200 rounded-full w-11/12" />
       <div className="h-4 bg-gray-200 rounded-full w-10/12" />
@@ -42,7 +42,7 @@ function CountySteps({ county, searchUrl, countyLabel, houseNumber, streetName, 
   addrHint: string | null; year: number;
 }) {
   const link = (
-    <a href={searchUrl} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:text-amber-800">
+    <a href={searchUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
       {countyLabel}
     </a>
   );
@@ -117,7 +117,7 @@ function CountySteps({ county, searchUrl, countyLabel, houseNumber, streetName, 
   );
 }
 
-export function TaxAnalysis() {
+export function TaxAnalysis({ aside }: { aside?: ReactNode } = {}) {
   const [formData, setFormData] = useState<PropertyData>(DEFAULT_FORM);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [taxResult, setTaxResult] = useState<AnalysisResult | null>(null);
@@ -283,162 +283,145 @@ export function TaxAnalysis() {
     void runAnalysis(formData);
   };
 
-  const statusBorderColor = {
-    AUTOMATIC_REDUCTION: 'border-secondary',
-    PROTEST_RECOMMENDED: 'border-amber-500',
-    CONTACT_WESTROM: 'border-tertiary',
-    NO_ACTION: 'border-teal-500',
-    AMBIGUOUS: 'border-gray-300',
-  } as const;
 
-  const statusIconBg = {
-    AUTOMATIC_REDUCTION: 'bg-secondary/10 text-secondary',
-    PROTEST_RECOMMENDED: 'bg-amber-100 text-amber-600',
-    CONTACT_WESTROM: 'bg-tertiary/10 text-tertiary',
-    NO_ACTION: 'bg-teal-50 text-teal-600',
-    AMBIGUOUS: 'bg-gray-100 text-gray-500',
+
+
+  const statusTone = {
+    AUTOMATIC_REDUCTION: { bar: 'bg-secondary', icon: 'bg-secondary-soft text-secondary' },
+    PROTEST_RECOMMENDED: { bar: 'bg-amber-500', icon: 'bg-warning-soft text-warning' },
+    CONTACT_WESTROM: { bar: 'bg-primary', icon: 'bg-primary-soft text-primary' },
+    NO_ACTION: { bar: 'bg-success', icon: 'bg-success-soft text-success' },
+    AMBIGUOUS: { bar: 'bg-slate-300', icon: 'bg-slate-100 text-on-surface-variant' },
   } as const;
 
   const statusLabel = {
-    AUTOMATIC_REDUCTION: 'Automatic Reduction Eligible',
-    PROTEST_RECOMMENDED: 'Protest Recommended',
-    CONTACT_WESTROM: 'Contact Westrom',
-    NO_ACTION: 'No Action Needed',
-    AMBIGUOUS: "We Can't Fully Assess This",
+    AUTOMATIC_REDUCTION: 'Automatic reduction eligible',
+    PROTEST_RECOMMENDED: 'Protest recommended',
+    CONTACT_WESTROM: 'Worth a second opinion',
+    NO_ACTION: 'No action needed',
+    AMBIGUOUS: "We can't fully assess this yet",
   } as const;
 
+  const year = new Date().getFullYear();
+  const lookupFilled = (field: 'current' | 'prior') =>
+    lookupState === 'both_found' || (field === 'prior' && lookupState === 'prior_only');
+
   return (
-    <section id="tax-analysis" className="mb-24">
-      <div className="mb-10 text-center max-w-3xl mx-auto">
-        <h2 className="font-heading font-bold text-3xl text-primary mb-4 tracking-tight">
-          Free Property Tax Analysis
-        </h2>
-        <p className="text-gray-600 text-lg">
-          Enter your property details or upload your tax notice for AI-powered protest recommendations.
+    <section id="tax-analysis" aria-labelledby="tax-analysis-title" className="scroll-mt-24">
+      <div className="max-w-2xl">
+        <p className="eyebrow">Free analysis</p>
+        <h2 id="tax-analysis-title" className="section-title mt-3">Check your appraisal notice</h2>
+        <p className="lead mt-3">
+          Upload your county notice or enter the values yourself. You&apos;ll see whether to protest, and why.
         </p>
       </div>
 
-      <div className={`grid gap-8 ${taxResult ? 'lg:grid-cols-2' : 'max-w-3xl mx-auto'}`}>
-        {/* Input column */}
-        <div className="bg-white p-5 md:p-10 rounded-3xl shadow-lg border border-gray-100">
-          {/* Upload zone */}
-          <div className="mb-10">
-            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
-              <span className="text-red-500 text-lg leading-none mt-0.5">★</span>
-              <p className="text-sm text-red-700 leading-relaxed font-medium">
-                Upload your official County Appraisal Notice here. This eliminates manual entry errors and ensures our AI can provide the most precise and reliable protest recommendation.
+      <div className="mt-10 grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        {/* Input */}
+        <div className="card p-5 sm:p-8">
+          <div
+            className={`group rounded-2xl border-2 border-dashed p-6 text-center transition-colors sm:p-8 ${
+              isDragging ? 'border-secondary bg-secondary-soft' : 'cursor-pointer border-slate-300 hover:border-primary hover:bg-slate-50'
+            }`}
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
+            onDrop={e => { void handleDrop(e); }}
+            onClick={() => fileInputRef.current?.click()}
+            role="button"
+            aria-label="Upload tax notice"
+            aria-describedby={isIOS ? 'upload-helper' : 'upload-hint'}
+          >
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={e => { void handleFileChange(e); }}
+            />
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-soft text-primary" aria-live="polite">
+              {isExtracting ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
+            </div>
+            <p className="mt-4 font-heading text-lg font-bold text-ink">
+              {isExtracting ? 'Reading your notice…' : 'Upload your appraisal notice'}
+            </p>
+            <p id="upload-hint" className="mt-1 text-sm text-on-surface-variant">
+              {isTouch ? 'Tap to choose a PDF or photo.' : 'Drag a PDF or photo here, or browse.'} For PDFs, page 1 should show the values.
+            </p>
+            <span className="btn-secondary mt-5 min-h-10 px-5 text-sm" aria-hidden="true">
+              {isExtracting ? 'Extracting…' : 'Browse files'}
+            </span>
+            {isIOS && (
+              <p id="upload-helper" className="mt-3 text-sm text-on-surface-variant">
+                On iPhone, tap Browse to find PDFs in your Files app.
               </p>
-            </div>
-            <div
-              className={`border-2 border-dashed rounded-2xl p-10 min-h-[120px] text-center transition-all duration-300 cursor-pointer ${
-                isDragging
-                  ? 'border-secondary bg-secondary/5 scale-[1.02]'
-                  : 'border-gray-300 hover:border-primary hover:bg-gray-50'
-              }`}
-              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
-              onDrop={e => { void handleDrop(e); }}
-              onClick={() => fileInputRef.current?.click()}
-              role="button"
-              aria-label="Upload Tax Notice"
-              aria-describedby={isIOS ? "upload-helper" : undefined}
-            >
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp,image/*"
-                className="hidden"
-                ref={fileInputRef}
-                onChange={e => { void handleFileChange(e); }}
-              />
-              <div className="flex flex-col items-center justify-center gap-4">
-                <div className="w-16 h-16 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-2" aria-live="polite">
-                  {isExtracting ? (
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                  ) : (
-                    <Upload className="w-8 h-8" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-xl text-gray-900 mb-2">Upload Tax Notice</h3>
-                  <p className="text-gray-500">{isTouch ? "Tap to upload your PDF or image" : "Drag and drop your PDF or image here"}</p>
-                  <p className="text-xs text-gray-500 mt-1">PDF: page 1 only — ensure appraised values appear on the first page</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={isExtracting}
-                  className="mt-2 px-6 py-2.5 min-h-[44px] min-w-[44px] bg-white border border-gray-200 rounded-full text-sm font-bold text-primary hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm disabled:opacity-50"
-                >
-                  {isExtracting ? 'Extracting…' : 'Browse Files'}
-                </button>
-                {isIOS && (
-                  <p id="upload-helper" className="text-sm text-gray-500 mt-2">
-                    On iPhone, tap 'Browse' to find PDFs in your Files app
-                  </p>
-                )}
-              </div>
-            </div>
+            )}
           </div>
+          <p className="mt-3 text-center text-xs text-on-surface-variant">
+            Most accurate option: it removes typing errors.
+          </p>
 
-          <div className="flex items-center gap-4 mb-10">
-            <div className="h-px bg-gray-200 flex-grow" />
-            <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">OR ENTER MANUALLY</span>
-            <div className="h-px bg-gray-200 flex-grow" />
+          <div className="my-8 flex items-center gap-4" aria-hidden="true">
+            <div className="h-px flex-grow bg-line" />
+            <span className="text-xs font-bold uppercase tracking-[0.14em] text-on-surface-variant">or enter manually</span>
+            <div className="h-px flex-grow bg-line" />
           </div>
 
           {error && (
-            <div className="bg-red-50 text-red-900 p-4 rounded-xl mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-red-100" aria-live="assertive">
+            <div className="mb-6 flex flex-col justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900 sm:flex-row sm:items-center" aria-live="assertive">
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                 <p className="text-sm font-medium">{error}</p>
               </div>
               {retryAction && (
                 <button
                   onClick={retryAction}
                   disabled={isAnalyzing || isExtracting}
-                  className="whitespace-nowrap px-4 py-2.5 min-h-[44px] bg-red-100 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-red-700 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="btn min-h-10 whitespace-nowrap bg-red-100 px-4 text-sm text-red-800 hover:bg-red-200"
                 >
-                  Retry Analysis
+                  Try again
                 </button>
               )}
             </div>
           )}
 
-          <form ref={formRef} onSubmit={e => { void handleSubmit(e); }} className="space-y-6">
+          <form ref={formRef} onSubmit={e => { void handleSubmit(e); }} className="space-y-5">
             <div>
-              <label htmlFor="tax-address" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                Property Address
-              </label>
+              <label htmlFor="tax-address" className="field-label">Property address</label>
               <input
                 id="tax-address"
                 type="text"
                 name="address"
+                autoComplete="street-address"
                 value={formData.address ?? ''}
                 onChange={handleInputChange}
-                placeholder="e.g. 123 Main St, Fort Worth, TX 76102"
-                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all"
+                placeholder="123 Main St, Fort Worth, TX 76102"
+                className="field"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div>
-                <label htmlFor="tax-county" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">County *</label>
-                <select
-                  id="tax-county"
-                  name="county"
-                  value={formData.county}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all appearance-none"
-                >
-                  <option value="" disabled>Select a county…</option>
-                  {COUNTIES.map(c => (
-                    <option key={c.name} value={c.name}>{c.name}</option>
-                  ))}
-                </select>
+                <label htmlFor="tax-county" className="field-label">County</label>
+                <div className="relative">
+                  <select
+                    id="tax-county"
+                    name="county"
+                    value={formData.county}
+                    onChange={handleInputChange}
+                    required
+                    className="field appearance-none pr-10"
+                  >
+                    <option value="" disabled>Select a county…</option>
+                    {COUNTIES.map(c => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" aria-hidden="true" />
+                </div>
               </div>
               <div>
-                <label htmlFor="tax-zillow-link" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  Zillow Link (Opt)
+                <label htmlFor="tax-zillow-link" className="field-label">
+                  Zillow link<span className="field-optional">optional</span>
                 </label>
                 <input
                   id="tax-zillow-link"
@@ -447,37 +430,35 @@ export function TaxAnalysis() {
                   value={formData.zillowLink ?? ''}
                   onChange={handleInputChange}
                   placeholder="https://zillow.com/…"
-                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all"
+                  className="field"
                 />
               </div>
             </div>
 
-            {/* Lookup status banner — shown while searching or after result */}
             {lookupState === 'searching' && (
-              <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200">
-                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-slate-50 px-4 py-3 text-sm text-on-surface-variant" role="status">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                 Looking up your appraisal values…
               </div>
             )}
             {lookupState === 'both_found' && (
-              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-4 py-3 rounded-xl border border-green-200">
-                <CheckCircle className="w-4 h-4 shrink-0" />
-                Found your {new Date().getFullYear()} and {new Date().getFullYear() - 1} values — verify with your appraisal notice then click Analyze.
+              <div className="flex items-center gap-2 rounded-xl border border-teal-200 bg-success-soft px-4 py-3 text-sm text-success" role="status">
+                <CheckCircle className="h-4 w-4 shrink-0" />
+                Found your {year} and {year - 1} values. Check them against your notice, then analyze.
               </div>
             )}
             {lookupState === 'prior_only' && (
-              <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-4 py-3 rounded-xl border border-amber-200">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                Found your {new Date().getFullYear() - 1} value — enter your {new Date().getFullYear()} value from your appraisal notice below.
+              <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-warning-soft px-4 py-3 text-sm text-warning" role="status">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                Found your {year - 1} value. Enter your {year} value from your notice below.
               </div>
             )}
             {lookupState === 'not_found' && formData.county && (() => {
               const countyEntry  = COUNTIES.find(c => c.name === formData.county);
               const searchUrl    = countyEntry?.searchUrl ?? '#';
               const countyLabel  = countyEntry?.description ?? formData.county;
-              const year         = new Date().getFullYear();
 
-              // Address parsing — skip directional prefixes (N/S/E/W etc.) when extracting street name
+              // Address parsing: skip directional prefixes (N/S/E/W etc.) when extracting the street name.
               const tokens      = (formData.address ?? '').trim().toUpperCase().replace(/,/g, '').split(/\s+/).filter(Boolean);
               const hasHouseNum = tokens.length > 0 && /^\d/.test(tokens[0]);
               const houseNumber = hasHouseNum ? tokens[0] : null;
@@ -487,12 +468,12 @@ export function TaxAnalysis() {
               const addrHint    = houseNumber ? `${houseNumber} ${streetName ?? ''}`.trim() : streetName;
 
               return (
-                <div className="text-sm text-amber-700 bg-amber-50 px-4 py-3 rounded-xl border border-amber-200 space-y-1">
-                  <div className="flex items-center gap-2 font-medium">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    We couldn&apos;t auto-fill your values — find them on the {countyLabel} website:
+                <div className="space-y-2 rounded-xl border border-amber-200 bg-warning-soft px-4 py-3 text-sm text-warning">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    We couldn&apos;t auto-fill your values. Find them on the {countyLabel} website:
                   </div>
-                  <ol className="pl-6 text-amber-600 space-y-1 list-decimal list-inside">
+                  <ol className="list-inside list-decimal space-y-1 pl-6">
                     <CountySteps
                       county={formData.county}
                       searchUrl={searchUrl}
@@ -507,183 +488,114 @@ export function TaxAnalysis() {
               );
             })()}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="tax-current-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  {new Date().getFullYear()} Appraised Value *
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    name="currentValue"
-                    value={formData.currentValue ?? ''}
-                    onChange={handleInputChange}
-                    id="tax-current-value"
-                    placeholder={lookupState === 'searching' ? 'Looking up…' : `From your ${new Date().getFullYear()} notice`}
-                    className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium border ${
-                      lookupState === 'both_found'
-                        ? 'bg-green-50 border-green-200'
-                        : 'bg-gray-50 border-gray-200'
-                    }`}
-                    required
-                  />
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              {([
+                { id: 'tax-current-value', name: 'currentValue', label: `${year} appraised value`, required: true, filled: lookupFilled('current'), placeholder: lookupState === 'searching' ? 'Looking up…' : `From your ${year} notice` },
+                { id: 'tax-prior-value', name: 'priorValue', label: `${year - 1} appraised value`, required: false, filled: lookupFilled('prior'), placeholder: lookupState === 'searching' ? 'Looking up…' : 'e.g. 350000' },
+                { id: 'tax-zillow-value', name: 'zillowValue', label: 'Zillow estimate', required: false, filled: false, placeholder: '' },
+                { id: 'tax-realtor-value', name: 'realtorValue', label: 'Realtor.com estimate', required: false, filled: false, placeholder: '' },
+              ] as const).map(f => (
+                <div key={f.id}>
+                  <label htmlFor={f.id} className="field-label">
+                    {f.label}
+                    {!f.required && f.name !== 'priorValue' && <span className="field-optional">optional</span>}
+                  </label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" aria-hidden="true">$</span>
+                    <input
+                      id={f.id}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      name={f.name}
+                      value={formData[f.name] ?? ''}
+                      onChange={handleInputChange}
+                      placeholder={f.placeholder}
+                      required={f.required}
+                      className={`field pl-8 font-medium tabular-nums ${f.filled ? 'border-teal-300 bg-success-soft' : ''}`}
+                    />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label htmlFor="tax-prior-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  {new Date().getFullYear() - 1} Appraised Value
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    name="priorValue"
-                    value={formData.priorValue ?? ''}
-                    onChange={handleInputChange}
-                    id="tax-prior-value"
-                    placeholder={lookupState === 'searching' ? 'Looking up…' : 'e.g. 350000'}
-                    className={`w-full p-4 pl-8 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium border ${
-                      lookupState === 'both_found' || lookupState === 'prior_only'
-                        ? 'bg-green-50 border-green-200'
-                        : 'bg-gray-50 border-gray-200'
-                    }`}
-                  />
-                </div>
-              </div>
+              ))}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="tax-zillow-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  Zillow Est. (Opt)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
-                  <input
-                    id="tax-zillow-value"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    name="zillowValue"
-                    value={formData.zillowValue ?? ''}
-                    onChange={handleInputChange}
-                    className="w-full p-4 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium"
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="tax-realtor-value" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  Realtor Est. (Opt)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-4 text-gray-400 font-medium">$</span>
-                  <input
-                    id="tax-realtor-value"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    name="realtorValue"
-                    value={formData.realtorValue ?? ''}
-                    onChange={handleInputChange}
-                    className="w-full p-4 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all font-medium"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 pt-4 items-center">
+            <div className="pt-2">
               <button
                 type="submit"
                 disabled={isAnalyzing || isExtracting}
-                className="w-full bg-primary text-white font-semibold py-3.5 px-6 min-h-[44px] rounded-xl hover:bg-primary-container transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="btn-primary w-full"
                 aria-live="polite"
               >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="w-6 h-6 animate-spin" /> Analyzing Property…</>
-                ) : (
-                  'Get Free Analysis'
-                )}
+                {isAnalyzing ? (<><Loader2 className="h-5 w-5 animate-spin" /> Analyzing property…</>) : 'Get my free analysis'}
               </button>
-              <p className="text-xs text-center text-gray-500 max-w-md mx-auto">
-                Informational only — not professional tax or legal advice.
+              <p className="mt-3 text-center text-xs text-on-surface-variant">
+                Informational only, not professional tax or legal advice.
               </p>
             </div>
           </form>
         </div>
 
-        {/* Results column */}
-        {taxResult && (
-          <div ref={resultRef} className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 scroll-mt-24">
-            <div className={`bg-white rounded-3xl shadow-xl overflow-hidden border-t-8 ${statusBorderColor[taxResult.status]}`}>
-              <div className="p-8 md:p-10">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${statusIconBg[taxResult.status]}`}>
+        {/* Result, or guidance until there is one */}
+        {taxResult ? (
+          <div ref={resultRef} className="rise-in space-y-6 scroll-mt-24">
+            <div className="card overflow-hidden">
+              <div className={`h-1.5 ${statusTone[taxResult.status].bar}`} />
+              <div className="p-6 sm:p-8">
+                <div className="flex items-center gap-4">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${statusTone[taxResult.status].icon}`}>
                     {taxResult.status === 'NO_ACTION' ? (
-                      <CheckCircle className="w-7 h-7" />
+                      <CheckCircle className="h-6 w-6" />
                     ) : taxResult.status === 'CONTACT_WESTROM' ? (
-                      <FileText className="w-7 h-7" />
+                      <FileText className="h-6 w-6" />
                     ) : (
-                      <AlertCircle className="w-7 h-7" />
+                      <AlertCircle className="h-6 w-6" />
                     )}
                   </div>
-                  <h3 className="font-heading font-bold text-2xl text-gray-900 leading-tight">
-                    {statusLabel[taxResult.status]}
-                  </h3>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-on-surface-variant">Your result</p>
+                    <h3 className="font-heading text-2xl font-bold leading-tight text-ink">{statusLabel[taxResult.status]}</h3>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                <dl className="mt-6 grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-5">
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">YoY Increase</div>
-                    <div className="font-heading font-bold text-3xl text-primary">
+                    <dt className="text-xs font-semibold text-on-surface-variant">Change from last year</dt>
+                    <dd className="mt-1 font-heading text-3xl font-extrabold tabular-nums text-ink">
                       {(taxResult.yoyIncreasePct * 100).toFixed(1)}%
-                    </div>
+                    </dd>
                   </div>
                   {taxResult.marketGapPct !== null && (
                     <div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Market Gap</div>
-                      <div className="font-heading font-bold text-3xl text-primary">
+                      <dt className="text-xs font-semibold text-on-surface-variant">Above market estimate</dt>
+                      <dd className="mt-1 font-heading text-3xl font-extrabold tabular-nums text-ink">
                         {(taxResult.marketGapPct * 100).toFixed(1)}%
-                      </div>
+                      </dd>
                     </div>
+                  )}
+                </dl>
+
+                <div className="mt-6">
+                  {isAnalyzing ? (
+                    <RecommendationSkeleton />
+                  ) : (
+                    <div className="prose-rec" dangerouslySetInnerHTML={{ __html: recommendationHtml }} />
                   )}
                 </div>
 
-                {/* AI recommendation — skeleton while generating, content once ready */}
-                {isAnalyzing ? (
-                  <RecommendationSkeleton />
-                ) : (
-                  <div
-                    className="text-gray-600 mb-8 text-base leading-relaxed
-                      [&_strong]:font-semibold [&_strong]:text-gray-900
-                      [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ul]:my-3
-                      [&_li]:text-gray-700
-                      [&_a]:text-secondary [&_a]:underline [&_a:hover]:text-secondary-container"
-                    dangerouslySetInnerHTML={{ __html: recommendationHtml }}
-                  />
-                )}
-
-                <div className="pt-8 border-t border-gray-100">
-                  <a
-                    href={COUNTIES.find(c => c.name === formData.county)?.url ?? '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center w-full py-4 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-primary font-bold rounded-xl transition-colors"
-                  >
-                    {formData.county === 'Other (Texas)'
-                    ? 'Find Your County Appraisal District'
-                    : `Visit ${formData.county} Website`}
-                  </a>
-                </div>
+                <a
+                  href={COUNTIES.find(c => c.name === formData.county)?.url ?? '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary mt-8 w-full"
+                >
+                  {formData.county === 'Other (Texas)' ? 'Find your county appraisal district' : `Visit ${formData.county} website`}
+                </a>
               </div>
             </div>
             <ProtestGuide status={taxResult.status} county={formData.county} />
           </div>
+        ) : (
+          aside ?? null
         )}
       </div>
     </section>

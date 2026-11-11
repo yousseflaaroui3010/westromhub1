@@ -1,40 +1,59 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Westrom design tokens
+   Navy is the brand ground, Westrom red is reserved for the single most
+   important action on a screen and for small accents. Everything else is ink
+   on warm white. Contrast: ink/white 15.9:1, body/white 7.4:1, red/white 6.3:1.
+   --------------------------------------------------------------------------- */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Manrope", ui-sans-serif, system-ui, sans-serif;
 
   --color-primary: #002045;
-  --color-primary-container: #1a365d;
+  --color-primary-container: #12345e;
+  --color-primary-soft: #e8edf5;
   --color-secondary: #b61710;
+  --color-secondary-dark: #93120c;
   --color-secondary-container: #da3427;
+  --color-secondary-soft: #fbeceb;
   --color-tertiary: #06242e;
-  --color-background: #fbf9f8;
+  --color-ink: #0f1b2d;
+  --color-background: #f7f6f3;
+  --color-line: #e2e5ea;
   --color-on-surface: #1b1c1c;
-  --color-on-surface-variant: #43474e;
+  --color-on-surface-variant: #475467;
   --color-error: #ba1a1a;
+  --color-success: #0f766e;
+  --color-success-soft: #e6f4f2;
+  --color-warning: #92400e;
+  --color-warning-soft: #fdf3e2;
+
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+  --shadow-raised: 0 18px 40px -18px rgb(0 32 69 / 0.28);
 }
 
 body {
   background-color: var(--color-background);
   color: var(--color-on-surface);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 html {
-  /* Mobile header is a single row (logo + hamburger, ~4rem); the nav lives in a
-     dropdown menu. Desktop is a single ~5rem row. */
+  /* Sticky header is 4rem (mobile) / 4.5rem (desktop). */
   scroll-padding-top: 5rem;
-}
-
-@media (min-width: 640px) {
-  html {
-    scroll-padding-top: 5.5rem;
-  }
+  scroll-behavior: smooth;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 @layer base {
@@ -42,13 +61,97 @@ h1, h2, h3, h4, h5, h6 {
     outline: 2px solid var(--color-primary) !important;
     outline-offset: 2px !important;
   }
+  ::selection {
+    background: var(--color-primary-soft);
+    color: var(--color-ink);
+  }
+}
+
+/* --- Composable utilities (usable in markup and in @apply) ------------------ */
+@utility card {
+  @apply rounded-2xl border border-line bg-white shadow-(--shadow-card);
+}
+@utility btn {
+  @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-6 text-[15px] font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+/* --- Components ----------------------------------------------------------- */
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
+  }
+
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.14em] text-secondary;
+  }
+
+  .section-title {
+    @apply font-heading text-3xl font-extrabold tracking-tight text-ink md:text-[2.25rem] md:leading-tight;
+  }
+
+  .lead {
+    @apply text-lg leading-relaxed text-on-surface-variant;
+  }
+
+
+  .card-link {
+    @apply card transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-(--shadow-raised) motion-reduce:hover:translate-y-0;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary text-white hover:bg-primary-container;
+  }
+  .btn-accent {
+    @apply btn bg-secondary text-white hover:bg-secondary-dark;
+  }
+  .btn-secondary {
+    @apply btn border border-line bg-white text-primary hover:border-slate-400 hover:bg-slate-50;
+  }
+  .btn-on-dark {
+    @apply btn bg-white text-primary hover:bg-slate-100;
+  }
+  .btn-ghost-dark {
+    @apply btn border border-white/25 text-white hover:bg-white/10;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-sm font-semibold text-ink;
+  }
+  .field-optional {
+    @apply ml-1 text-xs font-normal text-on-surface-variant;
+  }
+  .field {
+    @apply h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-[15px] text-ink transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none;
+  }
+
+  .text-link {
+    @apply font-semibold text-primary underline decoration-primary/30 underline-offset-4 transition hover:decoration-primary;
+  }
+
+  /* Model-written recommendation HTML (already sanitized to a tag allowlist). */
+  .prose-rec {
+    @apply text-base leading-relaxed text-on-surface-variant;
+  }
+  .prose-rec strong { @apply font-semibold text-ink; }
+  .prose-rec p + p { @apply mt-3; }
+  .prose-rec ul { @apply my-3 list-disc space-y-1 pl-5; }
+  .prose-rec ol { @apply my-3 list-decimal space-y-1 pl-5; }
+}
+
+/* Subtle entrance for result panels; off for reduced motion. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.rise-in {
+  animation: rise-in 0.35s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
 }

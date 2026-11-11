@@ -1,134 +1,204 @@
-import { Calculator, ShieldCheck, ArrowRight, KeyRound } from 'lucide-react';
+import { Calculator, ShieldCheck, ArrowRight, KeyRound, Upload, ScanSearch, ClipboardCheck, BadgeCheck } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface HomeViewProps {
   onNavigate: (view: 'taxes' | 'insurance') => void;
 }
 
+const GUARANTEES = [
+  '12-Month Placement',
+  'Eviction Protection',
+  '$3,000 Pet',
+  'Happiness',
+  '90-Day Money-Back',
+  'No-Markup Maintenance',
+];
+
+const STEPS = [
+  {
+    icon: Upload,
+    title: 'Upload or type it in',
+    body: 'Your appraisal notice or insurance declarations page, or just the key numbers. PDFs are converted in your browser.',
+  },
+  {
+    icon: ScanSearch,
+    title: 'Get a plain-English read',
+    body: 'We check the numbers against Texas rules and market data, then explain what they mean for your property.',
+  },
+  {
+    icon: ClipboardCheck,
+    title: 'Act with confidence',
+    body: 'Protest it yourself with our step-by-step guide, hire a firm, or ask the Westrom team for a second opinion.',
+  },
+];
+
+function PathCard(props: {
+  icon: ReactNode;
+  title: string;
+  body: string;
+  cta: string;
+  accent?: boolean;
+  onClick?: () => void;
+  href?: string;
+}) {
+  const inner = (
+    <>
+      <div
+        className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+          props.accent ? 'bg-secondary-soft text-secondary' : 'bg-primary-soft text-primary'
+        }`}
+      >
+        {props.icon}
+      </div>
+      <h3 className="mt-6 font-heading text-xl font-bold text-ink">{props.title}</h3>
+      <p className="mt-2 flex-grow leading-relaxed text-on-surface-variant">{props.body}</p>
+      <span
+        className={`mt-6 inline-flex items-center gap-2 font-semibold transition-[gap] group-hover:gap-3 ${
+          props.accent ? 'text-secondary' : 'text-primary'
+        }`}
+      >
+        {props.cta} <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </span>
+    </>
+  );
+  const cls = 'card-link group flex h-full flex-col p-7 text-left';
+  return props.href ? (
+    <a href={props.href} className={cls}>{inner}</a>
+  ) : (
+    <button type="button" onClick={props.onClick} className={cls}>{inner}</button>
+  );
+}
+
 export function HomeView({ onNavigate }: HomeViewProps) {
   return (
-    <div className="flex-grow flex flex-col animate-in fade-in zoom-in-95 duration-700">
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-slate-900 via-primary to-slate-800 text-white py-8 md:py-12 px-6 flex-grow flex flex-col justify-center relative overflow-hidden">
-        {/* Decorative background elements */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-          <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-white/5 blur-[120px]"></div>
-          <div className="absolute -bottom-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-secondary/10 blur-[120px]"></div>
-        </div>
-
-        <div className="max-w-5xl mx-auto text-center w-full relative z-10">
-          <h1 className="font-heading font-extrabold text-3xl md:text-4xl lg:text-5xl mb-2 tracking-tight leading-tight drop-shadow-sm">
-            Tools to Protect and Maximize Your Investment
-          </h1>
-          <div className="bg-white/5 backdrop-blur-md rounded-2xl p-4 md:p-5 mb-6 border border-white/10 shadow-xl max-w-3xl mx-auto flex flex-col items-center">
-            <p className="text-base md:text-lg text-gray-100 font-medium leading-relaxed text-center mb-3">
-              Access expert resources and AI-driven analysis to optimize your rental property taxes and insurance.
+    <div className="flex-grow">
+      {/* Hero */}
+      <section className="relative overflow-hidden bg-primary text-white">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]"
+        />
+        <div className="container-page relative grid items-center gap-12 py-16 md:py-24 lg:grid-cols-[1.15fr_0.85fr]">
+          <div>
+            <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/85">
+              <span className="h-2 w-2 rounded-full bg-amber-300" aria-hidden="true" />
+              This season: protest your tax value and shop your insurance
             </p>
-            <div className="inline-flex items-center gap-2 bg-amber-300/15 border border-amber-300/30 rounded-full px-3 py-1 text-xs md:text-sm">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-300"></span>
-              </span>
-              <span className="text-white">
-                This season's focus: <strong className="text-amber-300 font-bold">proactively protest your tax values and shop your insurance.</strong>
-              </span>
+            <h1 className="mt-6 font-heading text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.5rem]">
+              Tools to protect and maximize your investment
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/80">
+              Free, expert-built tools for Texas rental owners. Check your property tax notice, find gaps in your
+              insurance, and see what your property could rent for.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <button type="button" onClick={() => onNavigate('taxes')} className="btn-on-dark">
+                Check my property taxes <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button type="button" onClick={() => onNavigate('insurance')} className="btn-ghost-dark">
+                Review my insurance
+              </button>
             </div>
           </div>
 
-          <h2 className="text-xl font-bold mb-4 text-white/90 tracking-wide uppercase text-sm">Choose your path to get started</h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto">
-            {/* Taxes Pathway */}
-            <button
-              onClick={() => onNavigate('taxes')}
-              aria-label="Enter Property Tax Hub"
-              aria-describedby="tax-card-desc"
-              className="group bg-white rounded-3xl p-8 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-secondary flex flex-col h-full relative overflow-hidden"
-            >
-              <div className="absolute top-0 end-0 w-32 h-32 bg-secondary/5 rounded-bl-full -me-8 -mt-8 transition-transform group-hover:scale-110 motion-reduce:group-hover:scale-100"></div>
-              <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mb-8 text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-300 shadow-sm">
-                <Calculator className="w-8 h-8" />
-              </div>
-              <h3 className="font-heading font-bold text-3xl text-gray-900 mb-4">Property Taxes</h3>
-              <p id="tax-card-desc" className="text-gray-600 text-lg flex-grow leading-relaxed">
-                Review your appraisal notice, learn how to protest, and use our AI tool to see if you qualify for an automatic reduction.
-              </p>
-              <div className="mt-8 text-secondary font-bold flex items-center gap-2 group-hover:gap-4 transition-all text-lg">
-                Enter Tax Hub <ArrowRight className="w-5 h-5" />
-              </div>
-            </button>
-
-            {/* Insurance Pathway */}
-            <button
-              onClick={() => onNavigate('insurance')}
-              aria-label="Enter Insurance Hub"
-              aria-describedby="insurance-card-desc"
-              className="group bg-white rounded-3xl p-8 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-tertiary flex flex-col h-full relative overflow-hidden"
-            >
-              <div className="absolute top-0 end-0 w-32 h-32 bg-tertiary/5 rounded-bl-full -me-8 -mt-8 transition-transform group-hover:scale-110 motion-reduce:group-hover:scale-100"></div>
-              <div className="w-16 h-16 bg-tertiary/10 rounded-2xl flex items-center justify-center mb-8 text-tertiary group-hover:bg-tertiary group-hover:text-white transition-colors duration-300 shadow-sm">
-                <ShieldCheck className="w-8 h-8" />
-              </div>
-              <h3 className="font-heading font-bold text-3xl text-gray-900 mb-4">Insurance</h3>
-              <p id="insurance-card-desc" className="text-gray-600 text-lg flex-grow leading-relaxed">
-                Analyze your declaration page to find dangerous coverage gaps and optimize your premiums before renewal.
-              </p>
-              <div className="mt-8 text-tertiary font-bold flex items-center gap-2 group-hover:gap-4 transition-all text-lg">
-                Enter Insurance Hub <ArrowRight className="w-5 h-5" />
-              </div>
-            </button>
-
-            {/* Rental Analysis Pathway — leaves the SPA on purpose: /analysis is a
-                static page served by nginx (see nginx.conf.template), not a react-router route. */}
-            <a
-              href="/analysis"
-              aria-label="Get your free rental analysis"
-              aria-describedby="rental-card-desc"
-              className="group bg-white rounded-3xl p-8 text-left transition-all duration-300 hover:-translate-y-2 motion-reduce:hover:translate-y-0 hover:shadow-2xl border-2 border-transparent hover:border-secondary flex flex-col h-full relative overflow-hidden sm:col-span-2 lg:col-span-1"
-            >
-              <div className="absolute top-0 end-0 w-32 h-32 bg-secondary/5 rounded-bl-full -me-8 -mt-8 transition-transform group-hover:scale-110 motion-reduce:group-hover:scale-100"></div>
-              <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-8 text-secondary group-hover:bg-secondary group-hover:text-white transition-colors duration-300 shadow-sm">
-                <KeyRound className="w-8 h-8" />
-              </div>
-              <h3 className="font-heading font-bold text-3xl text-gray-900 mb-4">Rental Analysis</h3>
-              <p id="rental-card-desc" className="text-gray-600 text-lg flex-grow leading-relaxed">
-                See what your property could rent for and get a human-prepared analysis — free.
-              </p>
-              <div className="mt-8 text-secondary font-bold flex items-center gap-2 group-hover:gap-4 transition-all text-lg">
-                Get My Analysis <ArrowRight className="w-5 h-5" />
-              </div>
-            </a>
-          </div>
-
-          {/* Guarantees trust strip — reassurance, not a 4th "path" card. Links to
-              the static /guarantees page (leaves the SPA, like the Rental Analysis card). */}
-          <div className="mt-10 md:mt-12 w-full max-w-4xl mx-auto text-center">
-            <p className="text-xs md:text-sm uppercase tracking-wide text-white/70 mb-3">
-              Every Westrom owner is backed by 6 guarantees
+          {/* At-a-glance panel: the 20% rule is the single most valuable fact
+              on the site, so it gets the hero's second column. */}
+          <aside className="rounded-2xl border border-white/10 bg-white/[0.06] p-6 backdrop-blur-sm md:p-8">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Texas rental owners</p>
+            <p className="mt-3 font-heading text-6xl font-extrabold tracking-tight">20%</p>
+            <p className="mt-2 text-lg font-semibold">Cap on yearly appraisal increases for rentals</p>
+            <p className="mt-3 leading-relaxed text-white/75">
+              If your notice jumped by more than 20% from last year, you may be owed an automatic reduction. Our tax
+              tool checks this for you.
             </p>
-            <ul className="flex flex-wrap justify-center gap-2 mb-5">
-              {[
-                '12-Month Placement',
-                'Eviction Protection',
-                '$3,000 Pet',
-                'Happiness',
-                '90-Day Money-Back',
-                'No-Markup Maintenance',
-              ].map((label) => (
-                <li
-                  key={label}
-                  className="text-xs md:text-sm text-white/90 bg-white/10 border border-white/15 rounded-full px-3 py-1"
-                >
-                  {label}
+            <button
+              type="button"
+              onClick={() => onNavigate('taxes')}
+              className="mt-6 inline-flex items-center gap-2 font-semibold text-white underline decoration-white/30 underline-offset-4 hover:decoration-white"
+            >
+              Check my notice <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </aside>
+        </div>
+      </section>
+
+      {/* Paths */}
+      <section className="container-page py-16 md:py-20" aria-labelledby="paths-title">
+        <div className="max-w-2xl">
+          <p className="eyebrow">Choose your path</p>
+          <h2 id="paths-title" className="section-title mt-3">Three free tools, one goal: a better return</h2>
+        </div>
+        <div className="mt-10 grid gap-5 md:grid-cols-3">
+          <PathCard
+            icon={<Calculator className="h-6 w-6" aria-hidden="true" />}
+            title="Property taxes"
+            body="Review your appraisal notice, see if you qualify for an automatic reduction, and learn how to protest."
+            cta="Open the tax hub"
+            onClick={() => onNavigate('taxes')}
+          />
+          <PathCard
+            icon={<ShieldCheck className="h-6 w-6" aria-hidden="true" />}
+            title="Insurance"
+            body="Upload your declarations page to find dangerous coverage gaps and ways to lower your premium before renewal."
+            cta="Open the insurance hub"
+            onClick={() => onNavigate('insurance')}
+          />
+          {/* /analysis is a static nginx page, not a react-router route. */}
+          <PathCard
+            icon={<KeyRound className="h-6 w-6" aria-hidden="true" />}
+            title="Rental analysis"
+            body="See an instant rent estimate for your property, plus a free expert analysis from our team."
+            cta="Get my free analysis"
+            href="/analysis"
+            accent
+          />
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="border-y border-line bg-white" aria-labelledby="how-title">
+        <div className="container-page py-16 md:py-20">
+          <div className="max-w-2xl">
+            <p className="eyebrow">How it works</p>
+            <h2 id="how-title" className="section-title mt-3">From paperwork to a clear next step</h2>
+          </div>
+          <ol className="mt-10 grid gap-8 md:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <li key={s.title} className="relative">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-heading text-sm font-bold text-white">
+                    {i + 1}
+                  </span>
+                  <s.icon className="h-5 w-5 text-on-surface-variant" aria-hidden="true" />
+                </div>
+                <h3 className="mt-5 font-heading text-lg font-bold text-ink">{s.title}</h3>
+                <p className="mt-2 leading-relaxed text-on-surface-variant">{s.body}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* Guarantees */}
+      <section className="container-page py-16 md:py-20" aria-labelledby="guarantees-title">
+        <div className="card flex flex-col gap-8 p-8 md:flex-row md:items-center md:justify-between md:p-10">
+          <div className="max-w-xl">
+            <p className="eyebrow">Managed by Westrom</p>
+            <h2 id="guarantees-title" className="mt-3 font-heading text-2xl font-extrabold tracking-tight text-ink md:text-3xl">
+              Every owner is backed by six guarantees
+            </h2>
+            <ul className="mt-5 flex flex-wrap gap-2">
+              {GUARANTEES.map((g) => (
+                <li key={g} className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1.5 text-sm font-medium text-primary">
+                  <BadgeCheck className="h-4 w-4" aria-hidden="true" />
+                  {g}
                 </li>
               ))}
             </ul>
-            <a
-              href="/guarantees"
-              className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary-container text-white font-bold text-sm px-5 py-2.5 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
-            >
-              See our guarantees <ArrowRight className="w-4 h-4" />
-            </a>
           </div>
+          <a href="/guarantees" className="btn-primary shrink-0">
+            See our guarantees <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </a>
         </div>
       </section>
     </div>
