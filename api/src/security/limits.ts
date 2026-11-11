@@ -4,7 +4,7 @@ import { apiError } from '../http/errors';
 import { getClientIp } from './clientIp';
 
 export interface RateRule {
-  /** Bucket namespace, e.g. 'ai' or 'lead-submit'. */
+  /** Bucket namespace, e.g. 'extract' or 'lead-submit'. */
   name: string;
   max: number;
   windowMs: number;
@@ -77,10 +77,9 @@ export function concurrencyLimit(gate: ConcurrencyGate): MiddlewareHandler {
 }
 
 /**
- * Hard daily ceiling on billable AI provider calls (counted per provider
- * ATTEMPT, so fallbacks count too). This bounds worst-case spend even if every
- * other control is bypassed. Set the provider dashboards' own spend caps as
- * well; this one only sees this service.
+ * Hard daily ceiling on document reads. Each read is seconds of CPU on the
+ * extractor, so this bounds worst-case load and cost even if every other
+ * control is bypassed.
  */
 export class DailyBudget {
   constructor(
@@ -90,7 +89,7 @@ export class DailyBudget {
   ) {}
 
   private key(): string {
-    return 'budget:ai:' + new Date(this.now()).toISOString().slice(0, 10);
+    return 'budget:extract:' + new Date(this.now()).toISOString().slice(0, 10);
   }
 
   /** Reserve one call. Returns false when today's cap is spent. */
@@ -98,10 +97,10 @@ export class DailyBudget {
     if (this.cap <= 0) return true; // 0 disables the cap (tests/local only)
     const { count } = await this.store.hit(this.key(), 26 * 3600 * 1000);
     if (count === Math.floor(this.cap * 0.8)) {
-      console.warn(`[budget] AI daily budget 80% used (${count}/${this.cap})`);
+      console.warn(`[budget] daily document-read cap 80% used (${count}/${this.cap})`);
     }
     if (count > this.cap) {
-      if (count === this.cap + 1) console.error(`[budget] AI daily budget exhausted (${this.cap}); paid routes now refuse`);
+      if (count === this.cap + 1) console.error(`[budget] daily document-read cap reached (${this.cap}); uploads now refused`);
       return false;
     }
     return true;

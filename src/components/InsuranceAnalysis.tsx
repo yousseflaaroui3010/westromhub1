@@ -2,7 +2,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { sanitizeRecommendation } from '../lib/sanitize';
 import { runInsuranceRuleEngine, type InsuranceAnalysisResult, type InsuranceData } from '../lib/ruleEngine';
-import { ApiError, extractInsuranceData, generateInsuranceRecommendation } from '../lib/ai';
+import { ApiError, extractInsuranceData, generateInsuranceRecommendation } from '../lib/api';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
 import { useScrollToResult } from '../hooks/useScrollToResult';
 import { getDeviceCapabilities } from '../hooks/useDeviceCapabilities';

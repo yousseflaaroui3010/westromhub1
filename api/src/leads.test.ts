@@ -17,10 +17,10 @@ const fakeFetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) 
 function build(extra: Partial<AppOptions> = {}) {
   return createApp({
     textProviders: [],
-    visionProviders: [],
+    extractor: null,
     allowedOrigins: ['https://wgcassetguide.com'],
     leadAllowedOrigins: [ORIGIN],
-    aiDailyCallCap: 0,
+    extractDailyCap: 0,
     leadGateway: { baseUrl: 'https://n8n.example/webhook/hook', secret: SECRET, fetchImpl: fakeFetch, dailySubmitCap: 5, dailyGuideEmailCap: 2 },
     ...extra,
   });

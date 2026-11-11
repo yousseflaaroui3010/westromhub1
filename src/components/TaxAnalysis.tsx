@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Upload, Loader2, CheckCircle, AlertCircle, FileText, ChevronDown } from 'lucide-react';
 import { sanitizeRecommendation } from '../lib/sanitize';
 import { runRuleEngine, type AnalysisResult, type PropertyData } from '../lib/ruleEngine';
-import { ApiError, generateTaxRecommendation, extractDataFromDocument, lookupProperty } from '../lib/ai';
+import { ApiError, generateTaxRecommendation, extractDataFromDocument, lookupProperty } from '../lib/api';
 import { COUNTIES, resolveCounty } from '../lib/constants';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
 import { ProtestGuide } from './ProtestGuide';
@@ -48,7 +48,7 @@ function CountySteps({ county, searchUrl, countyLabel, houseNumber, streetName, 
   );
   const hn  = houseNumber ? <strong>{houseNumber}</strong> : <>your house number</>;
   const sn  = streetName  ? <strong>{streetName.charAt(0).toUpperCase() + streetName.slice(1).toLowerCase()}</strong> : <>street name only</>;
-  const up  = <>— upload it above and the AI will check your values automatically</>;
+  const up  = <>— upload it above and we will read your values automatically</>;
 
   if (county === 'Tarrant County') return (
     <>
@@ -242,8 +242,8 @@ export function TaxAnalysis({ aside }: { aside?: ReactNode } = {}) {
     const newData: PropertyData = {
       ...formDataRef.current,
       address: extracted.address ?? formDataRef.current.address,
-      // Map the AI-extracted county string to a canonical COUNTIES entry so the
-      // correct portal URL and AI county rule are applied. Falls back to the
+      // Map the extracted county string to a canonical COUNTIES entry so the
+      // correct portal URL and county rule are applied. Falls back to the
       // user's current selection when the document county is absent or unreadable.
       county: extracted.county
         ? resolveCounty(extracted.county)

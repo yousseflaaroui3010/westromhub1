@@ -14,9 +14,9 @@ visitor ─▶ Cloudflare ─▶ Railway edge ─▶ nginx (frontend service)
                                           ▼
                                        API (private: api.railway.internal)
                                           │  per-route + per-session limits
-                                          │  concurrency gate, daily AI budget
+                                          │  concurrency gate, daily read cap
                                           │  Turnstile-backed sessions
-                                          ├─▶ Gemini / OpenRouter / Groq
+                                          ├─▶ extractor (private, Docling, no AI)
                                           └─▶ /api/leads/* ─▶ n8n WF-0 / WF-1
                                                 (X-WGC-Gateway secret)
 ```
@@ -27,7 +27,7 @@ visitor ─▶ Cloudflare ─▶ Railway edge ─▶ nginx (frontend service)
 |---|---|---|
 | API returned 502 / timed out | Root cause: nginx resolved `api.railway.internal` once at boot; the API redeployed on 2026-11-07 onto new private IPs, so every `/api` call hit dead addresses. nginx now re-resolves every 10 s. Reproduced and verified in Docker by moving the upstream to a new IP. | `nginx.conf.template` |
 | Rate limiter trusts `X-Forwarded-For`, no expiry | XFF is never read. nginx derives the client from `CF-Connecting-IP` only when the Railway edge peer is a Cloudflare range, else `X-Real-IP`, and overwrites every identity header. API store has TTL eviction and a hard key cap, or Redis (`REDIS_URL`) for shared limits across replicas and restarts. | `nginx.conf.template`, `api/src/security/*` |
-| Paid routes lack challenge, shared cost cap, concurrency | Turnstile-verified 30-min sessions required on paid routes (when keyed); per-IP and per-session quotas; 4 global / 1 per-client in-flight AI calls; hard daily cap on billable provider attempts (`AI_DAILY_CALL_CAP`, default 400). nginx no longer strips `Origin`, and `INTERNAL_PROXY_TOKEN` refuses requests that skip nginx. | `api/src/app.ts` |
+| Paid routes lack challenge, shared cost cap, concurrency | Turnstile-verified 30-min sessions required on paid routes (when keyed); per-IP and per-session quotas; 4 global / 1 per-client in-flight document reads; hard daily cap on reads (`EXTRACT_DAILY_CAP`, default 400; originally a cap on billable AI calls). nginx no longer strips `Origin`, and `INTERNAL_PROXY_TOKEN` refuses requests that skip nginx. | `api/src/app.ts` |
 | Provider errors reach users | Public errors are fixed copy + `code` + `requestId`. Upstream detail is logged only, with key/token/URL-credential redaction. Tested with a mocked failure containing a fake key. | `api/src/http/errors.ts` |
 | Weak AI input/output boundaries | Recommendations accept typed numbers + an allowlisted county only; status, explanation and county portal are computed server-side (rule engine mirrored, parity-tested). Extraction output validated field by field; a model's "not a document" text never reaches users. Recommendation HTML reduced to attribute-free `strong/b/em/i/p/ul/ol/li/br` on the server and again by DOMPurify in the browser. | `api/src/domain/*`, `src/lib/sanitize.ts` |
 | Dependency advisories | API: hono 4.13, @hono/node-server 2, zod 4.6, @google/genai 1.52; unused `pdfjs-dist` removed. Frontend: dompurify 3.4.17, react-router 7.18.5. `npm audit --omit=dev`: 0 in both. Node 22 (20 is EOL). | `package*.json` |
@@ -96,8 +96,11 @@ The rule engine already decides every outcome, so the recommendation text is
 a template over its numbers (`api/src/domain/recommendations.ts`). No AI text
 provider, no session, no budget slot; nothing leaves our server. The Groq and
 Moonshot providers were removed; `GROQ_*`, `MOONSHOT_*` and
-`OPENROUTER_TEXT_MODEL` are no longer read. Only document reading
-(`/api/extract-*`) still uses a vision provider chain.
+`OPENROUTER_TEXT_MODEL` are no longer read. Document reading moved to the private Docling `extractor` the same day, and
+the remaining AI code (Gemini/OpenRouter providers, prompts, `@google/genai`)
+was deleted; no AI keys are set anywhere. The daily cap and concurrency gate
+now bound document reads (`EXTRACT_DAILY_CAP`, `EXTRACT_MAX_CONCURRENCY`;
+the old `AI_*` names are still read as a fallback).
 
 ## Railway configuration (2026-11-11)
 
@@ -127,7 +130,7 @@ API service:
 | `EXTRACTOR_URL` | recommended | `http://${{extractor.RAILWAY_PRIVATE_DOMAIN}}:8080`. Document reading via the private Docling service (no AI). Unset = legacy AI vision chain |
 | `EXTRACTOR_TOKEN` | recommended | `${{shared.EXTRACTOR_TOKEN}}`, same value on the extractor service |
 | `REDIS_URL` | recommended | Railway Redis in this project, so limits survive restarts |
-| `AI_DAILY_CALL_CAP` | no | Default 400 provider attempts per UTC day |
+| `EXTRACT_DAILY_CAP` | no | Default 400 document reads per UTC day (`AI_DAILY_CALL_CAP` still read as a fallback) |
 | `LEAD_DAILY_SUBMIT_CAP` / `LEAD_DAILY_GUIDE_EMAIL_CAP` | no | Defaults 300 / 150 |
 
 Frontend service: `INTERNAL_PROXY_TOKEN` (same value), `API_UPSTREAM`
@@ -165,9 +168,9 @@ Each step is safe on its own. Stop at any step if a check fails.
    `TURNSTILE_SECRET_KEY`, `SESSION_SECRET` and `VITE_TURNSTILE_SITE_KEY`. For
    the lead form, add `data-turnstile-sitekey` to every embed, then set
    `LEAD_REQUIRE_TURNSTILE=true`.
-8. Provider dashboards: set hard monthly spend limits on OpenRouter / Groq /
-   Google AI, and rotate any key that has ever been in a client bundle or
-   committed.
+8. AI provider keys: none are used any more (all removed from Railway on
+   2026-11-11). Revoke the old OpenRouter / Groq / Google AI / Moonshot keys
+   in those dashboards so they cannot be misused.
 
 ## Verification done in this branch
 

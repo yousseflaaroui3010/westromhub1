@@ -1,4 +1,4 @@
-// Cloudflare Turnstile (bot check) for the paid AI tools.
+// Cloudflare Turnstile (bot check) for document uploads.
 //
 // Enabled only when VITE_TURNSTILE_SITE_KEY is set at build time. Rendered with
 // appearance "interaction-only": most visitors never see anything; a suspicious

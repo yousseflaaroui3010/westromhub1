@@ -1,4 +1,4 @@
-// Deterministic recommendation text. Replaces the AI text providers: the rule
+// Deterministic recommendation text (no AI): the rule
 // engine already decides the outcome, so the wording is a template over its
 // numbers. Same input -> same output, no cost, nothing sent to a third party.
 //
