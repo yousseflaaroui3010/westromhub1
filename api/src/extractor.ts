@@ -13,28 +13,52 @@ export class ExtractorError extends Error {
 
 export type Extractor = (kind: ExtractKind, bytes: Buffer) => Promise<unknown>;
 
-export function httpExtractor(baseUrl: string, token: string | undefined, timeoutMs = 100_000): Extractor {
+export interface ExtractorOptions {
+  timeoutMs?: number;
+  /** How long to keep retrying while the (serverless) service wakes up. */
+  wakeWindowMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+export function httpExtractor(baseUrl: string, token: string | undefined, opts: ExtractorOptions = {}): Extractor {
   const base = baseUrl.replace(/\/+$/, '');
+  const timeoutMs = opts.timeoutMs ?? 100_000;
+  const wakeWindowMs = opts.wakeWindowMs ?? 60_000;
+  const sleep = opts.sleep ?? wait;
+
   return async (kind, bytes) => {
-    let res: Response;
-    try {
-      res = await fetch(`${base}/extract/${kind}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          ...(token ? { 'X-Extractor-Token': token } : {}),
-        },
-        body: new Blob([new Uint8Array(bytes)]),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-    } catch (err) {
-      const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
-      throw new ExtractorError(timedOut ? 504 : 502, timedOut ? 'timeout' : 'unreachable');
+    const body = new Blob([new Uint8Array(bytes)]);
+    const started = Date.now();
+    let delay = 1_000;
+    for (;;) {
+      let res: Response;
+      try {
+        res = await fetch(`${base}/extract/${kind}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            ...(token ? { 'X-Extractor-Token': token } : {}),
+          },
+          body,
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      } catch (err) {
+        const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+        if (timedOut) throw new ExtractorError(504, 'timeout');
+        // Connection refused/reset: the service is asleep and waking up
+        // (Railway serverless). Retry with backoff inside the wake window.
+        if (Date.now() - started + delay > wakeWindowMs) throw new ExtractorError(502, 'unreachable');
+        await sleep(delay);
+        delay = Math.min(delay * 2, 8_000);
+        continue;
+      }
+      const json = (await res.json().catch(() => ({}))) as { error?: unknown };
+      // 200 bodies may carry { error: 'not_a_tax_document' }: that is an
+      // answer, not a failure, and the caller classifies it.
+      if (res.ok) return json;
+      throw new ExtractorError(res.status, typeof json.error === 'string' ? json.error : `http_${res.status}`);
     }
-    const body = (await res.json().catch(() => ({}))) as { error?: unknown };
-    // 200 bodies may carry { error: 'not_a_tax_document' }: that is an answer,
-    // not a failure, and the caller classifies it.
-    if (res.ok) return body;
-    throw new ExtractorError(res.status, typeof body.error === 'string' ? body.error : `http_${res.status}`);
   };
 }
