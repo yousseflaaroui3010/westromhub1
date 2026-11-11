@@ -60,14 +60,19 @@ These were not in the audit. They come from reading the n8n workflows and the Ra
 
 Still open (needs a decision or Railway access, not code):
 
-- **The n8n worker has no volume.** The metrics file and the estimator's
-  `segment-index.json` live on the worker's disk and are wiped on every redeploy,
-  including any env-var change. Recommendation: attach a Railway volume to the
-  worker at `/home/node/.n8n`. Otherwise re-seed after each worker redeploy
-  (`wgc-lead-pipeline/infra/runbooks/deploy-estimator.md`).
+- **n8n consolidated (2026-11-11).** n8n now runs as one `main` service in
+  regular mode, pinned to `n8nio/n8n:2.44.4`, plus Postgres. The `worker`, `Redis`
+  and its volume were deleted. Measured: n8n memory went from ~0.85 GB
+  (main 0.41 + worker 0.43 + Redis 0.01) to ~0.69 GB on main alone (~19% less;
+  main now runs the executions and JS task runner itself), with two fewer
+  services to run and patch.
+  `main`'s `/home/node/.n8n` is still ephemeral, so the estimator's
+  `segment-index.json` and the metrics file are lost on each `main` redeploy.
+  The index is currently missing (estimates fall back to RentCast market data):
+  re-seed it (`wgc-lead-pipeline/infra/runbooks/deploy-estimator.md` STEP 1).
 - **Metrics/dedupe use local files and workflow static data,** which race if
   executions overlap. At today's volume this is acceptable. If it grows, move
-  them to the Redis the n8n project already runs.
+  them to Postgres.
 - **Estimate-only submissions (no email) never reach LeadSimple** (WF-2 "Has
   contact?" has no false branch). This is intentional: no contact, no lead. Say
   so if the team expected otherwise.
@@ -94,6 +99,17 @@ Gemini (if keyed) -> Groq `openai/gpt-oss-120b` -> OpenRouter
 `google/gemini-2.5-flash` (reuses the vision key) -> Moonshot. The API logs
 both chains at boot. Override with `GROQ_MODEL` / `OPENROUTER_TEXT_MODEL`.
 
+## Railway configuration (2026-11-11)
+
+- frontend + api: serverless (sleep after idle), healthchecks (`/`, `/health`),
+  restart ON_FAILURE x10, watch paths so each only rebuilds on its own files,
+  and `RAILWAY_DOCKERFILE_PATH` pinned. Without it, a dashboard "Redeploy"
+  rebuilt the frontend with Railpack/Caddy (no nginx, no `/api` proxy): the
+  site's `/api` was down for ~35 minutes on 2026-11-10 until this was set.
+- api: the Railway-generated public domain was removed; `api.wgcassetguide.com`
+  stays attached (token-locked) until its Cloudflare DNS record is deleted.
+- n8n: see "n8n consolidated" above.
+
 ## Environment variables
 
 API service:
@@ -118,7 +134,7 @@ the build). `OLLAMA_BASE_URL`, `TEXT_MODEL`, `VISION_MODEL` and
 `VITE_API_BASE_URL` are unused and can be deleted. So can `ESTATED_API_KEY`,
 `OLLAMA_BASE_URL`, `TEXT_MODEL` and `VISION_MODEL` on the API service.
 
-n8n main **and** worker: `WGC_GATEWAY_SECRET` (step 6 below).
+n8n `main`: `WGC_GATEWAY_SECRET` (step 6 below).
 
 ## Deploy order
 
@@ -139,9 +155,8 @@ Each step is safe on its own. Stop at any step if a check fails.
    `*.up.railway.app` one) once you confirm nothing else calls them. Nothing in
    either repo does. The token from step 3 already blocks them.
 6. **n8n lock:** import the updated WF-0 and WF-1 from `wgc-lead-pipeline`,
-   Publish both, then set `WGC_GATEWAY_SECRET` on n8n main and worker. Setting
-   it redeploys the worker and **wipes the estimator index**. Attach the worker
-   volume first, or re-seed right after. Confirm a direct
+   Publish both, then set `WGC_GATEWAY_SECRET` on n8n `main`. Setting it
+   redeploys `main` and **wipes the estimator index**; re-seed right after. Confirm a direct
    `GET .../webhook/d043c102d78e/token` now returns an empty body.
 7. Turnstile: create a widget in Cloudflare for `wgcassetguide.com` (and
    `westromgroup.com` if the form is embedded there). Set
