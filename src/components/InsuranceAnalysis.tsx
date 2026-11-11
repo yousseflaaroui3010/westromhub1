@@ -136,7 +136,7 @@ export function InsuranceAnalysis({ aside }: { aside?: ReactNode } = {}) {
           >
             <input
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.webp,image/*"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,image/*"
               className="hidden"
               ref={fileInputRef}
               onChange={e => { void handleFileChange(e); }}

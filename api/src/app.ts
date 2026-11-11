@@ -21,9 +21,13 @@ import { ConcurrencyGate, DailyBudget, concurrencyLimit, rateLimit } from './sec
 import { SessionSigner, requireSession, sessionIdOf, type TurnstileVerifier } from './security/session';
 import { getClientIp, requireInternalProxy } from './security/clientIp';
 import { leadRoutes, type LeadGatewayConfig } from './routes/leads';
+import { ExtractorError, type Extractor, type ExtractKind } from './extractor';
 
 export interface AppOptions {
+  /** Legacy AI document reading; used only when `extractor` is not set. */
   visionProviders: VisionProvider[];
+  /** Private Docling document reader. When set, no AI is used for documents. */
+  extractor?: Extractor | null;
   /** Origins allowed to call the analysis API from a browser. */
   allowedOrigins?: string[];
   /** Origins allowed to call /api/leads/* (the embeddable form). */
@@ -208,6 +212,28 @@ export function createApp(opts: AppOptions): Hono {
       return apiError(c, 400, 'invalid_request', parsed.error.issues[0]?.message ?? 'Invalid request.');
     }
     const { base64, mimeType } = parsed.data;
+    if (opts.extractor) {
+      const kind: ExtractKind = label === 'extract-tax' ? 'tax' : 'insurance';
+      try {
+        return { raw: await opts.extractor(kind, Buffer.from(base64, 'base64')) };
+      } catch (err) {
+        logFailure(c, label, err);
+        const e = err instanceof ExtractorError ? err : new ExtractorError(502, 'unknown');
+        if (e.status === 415) {
+          return apiError(c, 415, 'unsupported_media_type', 'Please upload a PDF or a photo (JPG, PNG, WEBP or HEIC).');
+        }
+        if (e.status === 413) {
+          return apiError(c, 413, 'payload_too_large', 'That file is too large. Please upload a file under 7 MB.');
+        }
+        if (e.status === 422) {
+          return apiError(c, 422, 'unreadable_document', 'We could not read that file. Please try a clearer copy or enter your values manually.');
+        }
+        return apiError(c, 503, 'reader_unavailable', 'Our document reader is busy right now. Please try again in a minute or enter your values manually.');
+      }
+    }
+    if (mimeType === 'application/pdf' && visionProviders.length === 0) {
+      return apiError(c, 503, 'reader_unavailable', 'Document reading is unavailable right now. Please enter your values manually.');
+    }
     let content: string;
     try {
       content = await withFallback(

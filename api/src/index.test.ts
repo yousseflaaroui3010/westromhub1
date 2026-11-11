@@ -169,8 +169,9 @@ describe('POST /api/extract-tax', () => {
   });
 
   it('returns 400 for unsupported mimeType (SEC-3 / Bug-1b regression)', async () => {
-    expect((await post('/api/extract-tax', { base64: 'dGVzdA==', mimeType: 'application/pdf' })).status).toBe(400);
+    // PDFs are accepted since the Docling reader (text layer is read exactly).
     expect((await post('/api/extract-tax', { base64: 'dGVzdA==', mimeType: 'video/mp4' })).status).toBe(400);
+    expect((await post('/api/extract-tax', { base64: 'dGVzdA==', mimeType: 'text/html' })).status).toBe(400);
   });
 });
 

@@ -124,6 +124,8 @@ API service:
 | `TURNSTILE_SECRET_KEY` | recommended | Cloudflare → Turnstile. Turns on challenge sessions for paid routes |
 | `SESSION_SECRET` | with Turnstile | ≥ 32 chars, so sessions survive restarts |
 | `LEAD_REQUIRE_TURNSTILE` | later | `true` only after the widget carries `data-turnstile-sitekey` everywhere |
+| `EXTRACTOR_URL` | recommended | `http://${{extractor.RAILWAY_PRIVATE_DOMAIN}}:8080`. Document reading via the private Docling service (no AI). Unset = legacy AI vision chain |
+| `EXTRACTOR_TOKEN` | recommended | `${{shared.EXTRACTOR_TOKEN}}`, same value on the extractor service |
 | `REDIS_URL` | recommended | Railway Redis in this project, so limits survive restarts |
 | `AI_DAILY_CALL_CAP` | no | Default 400 provider attempts per UTC day |
 | `LEAD_DAILY_SUBMIT_CAP` / `LEAD_DAILY_GUIDE_EMAIL_CAP` | no | Defaults 300 / 150 |
