@@ -92,11 +92,15 @@ def _converter(ocr: bool):
 
         opts = PdfPipelineOptions(
             do_ocr=ocr,
-            do_table_structure=True,
+            # Parsers work on text-line cells; TableFormer would only cost
+            # time and a second copy of a large model per pipeline.
+            do_table_structure=False,
             ocr_options=RapidOcrOptions(force_full_page_ocr=True),
         )
         opts.document_timeout = float(os.environ.get("EXTRACT_DOC_TIMEOUT_S", "70"))
-        opts.images_scale = 2.0 if ocr else 1.0
+        # The OCR pipeline only receives our own ~200 dpi page images (PDFs are
+        # rasterised in read()), so no further upscaling: it doubled memory.
+        opts.images_scale = 1.0
         # Keep docling-parse / OCR text-line cells: layout items merge
         # consecutive key-value lines into paragraphs, lines do not.
         opts.generate_parsed_pages = True

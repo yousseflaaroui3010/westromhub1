@@ -27,6 +27,29 @@ third party, and no document text is logged.
 3. Anything not found is left out, and the owner types it in. **A missing
    value is safe; a wrong one is not.** The test bar is zero wrong values.
 
+## Results (2026-11-11)
+
+`python -m tests.evaluate --variants pdf,scan,photo,scanpdf --seeds 1,2,3 --real ...`
+
+| | documents | fully correct | wrong values |
+|---|---|---|---|
+| Text-layer PDFs | 33 | 33 | 0 |
+| Degraded scans (rotation, noise, JPEG 55) | 33 | 33 | 0 |
+| Phone photos (perspective, uneven light) | 33 | 33 | 0 |
+| Image-only PDFs (scanned PDF) | 33 | 33 | 0 |
+| Real TDI/TWIA specimen declarations pages | 5 | 5 | 0 |
+| Wrong documents (invoices, inspection reports) refused | 3 | 3 | 0 |
+| Every document through the *other* reader, refused | 132 | 132 | 0 |
+| Unseen seeds 5-6 (scan, photo, image PDF) | 66 | 66 | 0 |
+
+Speed (4 vCPU, models loaded): median 2.8 s, p95 5.0 s, max 6.5 s.
+Peak memory about 1.8 GB (both pipelines loaded, image-only PDF).
+
+The corpus is synthetic plus public specimens. **The next real check is
+real notices and declarations pages from owners.** Run any of them with
+`python -m wgc_extract.cli tax|insurance FILE --lines`; a miss becomes a
+new corpus layout and a test.
+
 ## Run and test
 
 ```bash
