@@ -90,7 +90,7 @@ server {
     # CSP: no inline script. challenges.cloudflare.com = Turnstile bot check.
     # style-src keeps 'unsafe-inline' (React style props + the widgets' shadow
     # DOM <style> tags); that is much lower risk than inline script.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src blob: 'self'; frame-src https://www.loom.com https://challenges.cloudflare.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.loom.com; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com https://challenges.cloudflare.com; worker-src blob: 'self'; frame-src https://www.loom.com https://challenges.cloudflare.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
 
     root /usr/share/nginx/html;
 
