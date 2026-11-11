@@ -68,6 +68,31 @@ describe('httpExtractor', () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'busy' }, { status: 503 })));
     await expect(httpExtractor('http://x', undefined)('tax', Buffer.from('a'))).rejects.toMatchObject({ status: 503, code: 'busy' });
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
-    await expect(httpExtractor('http://x', undefined)('tax', Buffer.from('a'))).rejects.toMatchObject({ status: 502, code: 'unreachable' });
+    const noWait = { sleep: async () => {}, wakeWindowMs: 5_000 };
+    await expect(httpExtractor('http://x', undefined, noWait)('tax', Buffer.from('a'))).rejects.toMatchObject({ status: 502, code: 'unreachable' });
+  });
+
+  it('waits for a sleeping service to wake (connection refused, then answers)', async () => {
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls += 1;
+      if (calls < 3) throw new TypeError('fetch failed: ECONNREFUSED');
+      return Response.json({ currentValue: 250000 });
+    }));
+    const sleeps: number[] = [];
+    const ex = httpExtractor('http://x', undefined, { sleep: async (ms) => { sleeps.push(ms); } });
+    expect(await ex('tax', Buffer.from('a'))).toEqual({ currentValue: 250000 });
+    expect(sleeps).toEqual([1000, 2000]);
+  });
+
+  it('never retries an answer or a timeout', async () => {
+    const f = vi.fn(async () => Response.json({ error: 'busy' }, { status: 503 }));
+    vi.stubGlobal('fetch', f);
+    await expect(httpExtractor('http://x', undefined, { sleep: async () => {} })('tax', Buffer.from('a'))).rejects.toMatchObject({ status: 503 });
+    expect(f).toHaveBeenCalledTimes(1);
+    const t = vi.fn(async () => { const e = new Error('timed out'); e.name = 'TimeoutError'; throw e; });
+    vi.stubGlobal('fetch', t);
+    await expect(httpExtractor('http://x', undefined, { sleep: async () => {} })('tax', Buffer.from('a'))).rejects.toMatchObject({ status: 504 });
+    expect(t).toHaveBeenCalledTimes(1);
   });
 });
