@@ -1,11 +1,9 @@
-import type { TextProvider, VisionProvider } from './types';
+import type { VisionProvider } from './types';
 import { redact } from '../http/errors';
-import { makeGroqTextProvider } from './groq';
-import { makeOpenRouterVisionProvider, makeOpenRouterPremiumVisionProvider, makeOpenRouterTextProvider } from './openrouter';
-import { makeGeminiTextProvider, makeGeminiVisionProvider } from './gemini';
-import { makeMoonShotTextProvider } from './moonshot';
+import { makeOpenRouterVisionProvider, makeOpenRouterPremiumVisionProvider } from './openrouter';
+import { makeGeminiVisionProvider } from './gemini';
 
-export type { TextProvider, VisionProvider };
+export type { VisionProvider };
 
 /** Thrown by a guard to stop the fallback chain immediately (e.g. budget spent). */
 export class StopFallback extends Error {
@@ -41,38 +39,9 @@ export async function withFallback<T>(
 export interface ProviderConfig {
   geminiApiKey?: string;
   geminiModel?: string;
-  groqApiKey?: string;
-  groqModel?: string;
   openRouterApiKey?: string;
   openRouterModel?: string;
   openRouterPremiumModel?: string;
-  openRouterTextModel?: string;
-  moonShotApiKey?: string;
-  moonShotModel?: string;
-}
-
-/**
- * Text provider priority:
- *   1. Gemini 2.5 Flash  — primary (multimodal, fast, generous free tier)
- *   2. Groq              — fallback (GROQ_MODEL; free tier, very fast)
- *   3. OpenRouter        — fallback (OPENROUTER_TEXT_MODEL, default google/gemini-2.5-flash)
- *   4. MoonShot (Kimi)   — last resort (moonshot-v1-8k)
- */
-export function buildTextProviders(cfg: ProviderConfig): TextProvider[] {
-  const providers: TextProvider[] = [];
-  if (cfg.geminiApiKey) {
-    providers.push(makeGeminiTextProvider(cfg.geminiApiKey, cfg.geminiModel));
-  }
-  if (cfg.groqApiKey) {
-    providers.push(makeGroqTextProvider(cfg.groqApiKey, cfg.groqModel));
-  }
-  if (cfg.openRouterApiKey) {
-    providers.push(makeOpenRouterTextProvider(cfg.openRouterApiKey, cfg.openRouterTextModel));
-  }
-  if (cfg.moonShotApiKey) {
-    providers.push(makeMoonShotTextProvider(cfg.moonShotApiKey, cfg.moonShotModel));
-  }
-  return providers;
 }
 
 /**

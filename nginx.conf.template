@@ -57,7 +57,7 @@ map "$peer_is_cloudflare:$http_cf_connecting_ip" $client_ip {
 }
 
 # --- Rate limits (per real client IP, shared across nginx workers) -----------
-# Paid AI work: extraction + recommendations. 6/min sustained, burst of 4.
+# Paid document reading. 6/min sustained, burst of 4.
 limit_req_zone $client_ip zone=api_ai:10m     rate=6r/m;
 # Lead form (token + submit): a human needs ~2-3 requests per submission.
 limit_req_zone $client_ip zone=api_leads:10m  rate=10r/m;
@@ -159,7 +159,7 @@ server {
     }
 
     # Paid AI routes: tight per-IP rate, one in-flight request per IP.
-    location ~ ^/api/(extract-tax|extract-insurance|recommend-tax|recommend-insurance)$ {
+    location ~ ^/api/(extract-tax|extract-insurance)$ {
         limit_req  zone=api_ai burst=4 nodelay;
         limit_conn api_conn 2;
         error_page 429 = @rate_limited;

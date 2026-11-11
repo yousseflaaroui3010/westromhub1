@@ -221,3 +221,11 @@ describe('Tax Rule Engine — edge cases', () => {
   });
 });
 
+
+describe('insurance status precedence', () => {
+  it('a coverage gap outranks a deductible optimization', () => {
+    const r = runInsuranceRuleEngine({ policyType: 'DP-3', hasLossOfRent: false, hasWaterBackup: true, windHailDeductible: '$1,000' });
+    expect(r.status).toBe('UPGRADE_RECOMMENDED');
+    expect(r.optimizations).toHaveLength(1);
+  });
+});

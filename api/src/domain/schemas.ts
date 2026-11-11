@@ -130,27 +130,3 @@ export function parseInsuranceExtraction(raw: unknown) {
   const data = pickValid(InsuranceExtractionShape, raw);
   return classify(raw, data, ['policyType', 'annualPremium', 'windHailDeductible', 'aopDeductible']);
 }
-
-// --- Recommendation OUTPUT ---------------------------------------------------
-// The UI renders this as HTML. Allow a handful of attribute-free formatting
-// tags; escape everything else. The browser also runs DOMPurify with the same
-// allowlist, so either layer alone is sufficient.
-const ALLOWED_TAG = /<\s*(\/?)\s*(strong|b|em|i|p|ul|ol|li|br)\b[^<>]*?(\/?)\s*>/gi;
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-export function sanitizeRecommendation(raw: string, max = 4_000): string {
-  const text = String(raw).replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '').trim().slice(0, max);
-  let out = '';
-  let last = 0;
-  for (const m of text.matchAll(ALLOWED_TAG)) {
-    out += escapeHtml(text.slice(last, m.index));
-    const tag = m[2].toLowerCase();
-    out += tag === 'br' ? '<br/>' : `<${m[1]}${tag}>`;
-    last = (m.index ?? 0) + m[0].length;
-  }
-  out += escapeHtml(text.slice(last));
-  return out;
-}

@@ -1,17 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { TextProvider, VisionProvider } from './providers/types';
+import type { VisionProvider } from './providers/types';
 import { createApp, type AppOptions } from './app';
 import { MemoryStore } from './security/store';
 import { ConcurrencyGate, DailyBudget } from './security/limits';
 import { SessionSigner } from './security/session';
 import { redact } from './http/errors';
 
-const text: TextProvider = { name: 't', generate: vi.fn() };
 const vision: VisionProvider = { name: 'v', extract: vi.fn() };
 
 function build(extra: Partial<AppOptions> = {}) {
   return createApp({
-    textProviders: [text],
     visionProviders: [vision],
     allowedOrigins: ['https://wgcassetguide.com'],
     aiDailyCallCap: 0,
@@ -30,7 +28,6 @@ function req(app: ReturnType<typeof build>, path: string, init: { method?: strin
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(vision.extract).mockResolvedValue('{"currentValue":1}');
-  vi.mocked(text.generate).mockResolvedValue('ok');
 });
 
 describe('internal proxy token', () => {
@@ -134,12 +131,12 @@ describe('daily AI budget', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const codes: number[] = [];
     for (let i = 0; i < 3; i++) {
-      const res = await req(app, '/api/recommend-tax', { body: { county: 'Ellis County' }, headers: { 'X-Real-IP': `203.0.113.${20 + i}` } });
+      const res = await req(app, '/api/extract-tax', { body: { base64: 'dGVzdA==' }, headers: { 'X-Real-IP': `203.0.113.${20 + i}` } });
       codes.push(res.status);
       if (res.status === 503) expect((await res.json() as Record<string, string>).code).toBe('temporarily_unavailable');
     }
     expect(codes).toEqual([200, 200, 503]);
-    expect(vi.mocked(text.generate)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(vision.extract)).toHaveBeenCalledTimes(2);
   });
 
   it('counts each fallback attempt', async () => {
