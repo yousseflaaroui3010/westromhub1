@@ -3,7 +3,7 @@ dotenv.config({ quiet: true });
 
 import { serve } from '@hono/node-server';
 import type { AddressInfo } from 'net';
-import { buildTextProviders, buildVisionProviders } from './providers';
+import { buildVisionProviders } from './providers';
 import { createApp } from './app';
 import { createLookupFn } from './adapters/index';
 import { createStore } from './security/store';
@@ -26,27 +26,17 @@ async function main() {
   const providerConfig = {
     geminiApiKey: env.GEMINI_API_KEY,
     geminiModel: env.GEMINI_MODEL,
-    groqApiKey: env.GROQ_API_KEY,
-    groqModel: env.GROQ_MODEL,
     openRouterApiKey: env.OPENROUTER_API_KEY,
     openRouterModel: env.OPENROUTER_MODEL,
     openRouterPremiumModel: env.OPENROUTER_PREMIUM_MODEL,
-    openRouterTextModel: env.OPENROUTER_TEXT_MODEL,
-    moonShotApiKey: env.MOONSHOT_API_KEY,
-    moonShotModel: env.MOONSHOT_MODEL,
   };
-  const textProviders = buildTextProviders(providerConfig);
   const visionProviders = buildVisionProviders(providerConfig);
 
   if (visionProviders.length === 0) {
     console.error('FATAL: No vision AI providers configured. Set GEMINI_API_KEY or OPENROUTER_API_KEY.');
     process.exit(1);
   }
-  console.log(`AI text chain: ${textProviders.map((p) => p.name).join(' -> ') || 'none'}`);
   console.log(`AI vision chain: ${visionProviders.map((p) => p.name).join(' -> ')}`);
-  if (textProviders.length === 0) {
-    console.warn('WARNING: No text AI providers configured. Recommendation endpoints will fail.');
-  }
 
   const allowedOrigins = list(env.ALLOWED_ORIGINS, 'http://localhost:3000,http://localhost:5173');
   const leadAllowedOrigins = list(
@@ -76,7 +66,6 @@ async function main() {
   const store = await createStore(env.REDIS_URL);
 
   const app = createApp({
-    textProviders,
     visionProviders,
     allowedOrigins,
     leadAllowedOrigins,

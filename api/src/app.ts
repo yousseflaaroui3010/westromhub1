@@ -1,31 +1,20 @@
 import { Hono } from 'hono';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { TextProvider, VisionProvider } from './providers/types';
-import {
-  TAX_EXTRACTION_PROMPT,
-  INSURANCE_EXTRACTION_PROMPT,
-  TAX_SYSTEM_INSTRUCTION,
-  INSURANCE_SYSTEM_INSTRUCTION,
-} from './prompts';
+import type { VisionProvider } from './providers/types';
+import { TAX_EXTRACTION_PROMPT, INSURANCE_EXTRACTION_PROMPT } from './prompts';
 import { StopFallback, withFallback } from './providers';
 import type { CadLookupFn } from './adapters/types';
 import {
-  COUNTY_PORTALS,
   ExtractBodySchema,
   PropertyLookupQuerySchema,
   RecommendInsuranceBodySchema,
   RecommendTaxBodySchema,
   parseInsuranceExtraction,
   parseTaxExtraction,
-  sanitizeRecommendation,
 } from './domain/schemas';
-import {
-  getInsuranceStatusExplanation,
-  getStatusExplanation,
-  runInsuranceRuleEngine,
-  runRuleEngine,
-} from './domain/ruleEngine';
+import { runInsuranceRuleEngine, runRuleEngine } from './domain/ruleEngine';
+import { buildInsuranceRecommendation, buildTaxRecommendation } from './domain/recommendations';
 import { apiError, logFailure, requestId } from './http/errors';
 import { MemoryStore, type CounterStore } from './security/store';
 import { ConcurrencyGate, DailyBudget, concurrencyLimit, rateLimit } from './security/limits';
@@ -34,7 +23,6 @@ import { getClientIp, requireInternalProxy } from './security/clientIp';
 import { leadRoutes, type LeadGatewayConfig } from './routes/leads';
 
 export interface AppOptions {
-  textProviders: TextProvider[];
   visionProviders: VisionProvider[];
   /** Origins allowed to call the analysis API from a browser. */
   allowedOrigins?: string[];
@@ -89,7 +77,6 @@ async function readJson(c: Context): Promise<{ ok: true; body: unknown } | { ok:
 
 export function createApp(opts: AppOptions): Hono {
   const {
-    textProviders,
     visionProviders,
     allowedOrigins = DEFAULT_ORIGINS,
     cadLookupFn,
@@ -210,10 +197,7 @@ export function createApp(opts: AppOptions): Hono {
       return apiError(c, 503, 'temporarily_unavailable', 'Document analysis is temporarily unavailable. Please try again later or enter your values manually.');
     }
     logFailure(c, label, err);
-    const message = label.startsWith('extract')
-      ? 'Our document reader is unavailable right now. Please try again shortly or enter your values manually.'
-      : 'Personalized recommendations are unavailable right now. Your results above are still accurate.';
-    return apiError(c, 503, 'ai_unavailable', message);
+    return apiError(c, 503, 'ai_unavailable', 'Our document reader is unavailable right now. Please try again shortly or enter your values manually.');
   }
 
   async function runExtraction(c: Context, label: string, prompt: string) {
@@ -268,73 +252,35 @@ export function createApp(opts: AppOptions): Hono {
     return c.json(out.data);
   });
 
-  // Recommendations: the client sends typed values only. The status, its
-  // explanation and the county portal are computed/looked up HERE, so nothing
-  // client-authored reaches the prompt except numbers and short validated labels.
-  app.use('/api/recommend-tax', ...paid(16, 'recommend'));
+  // Recommendations: templated from the server-side rule engine result
+  // (domain/recommendations.ts). No AI and no third party is involved, so these
+  // are cheap: no session, budget or concurrency slot, just a generous rate
+  // limit. The client sends typed values only; status is recomputed here.
+  const recommendGuards: MiddlewareHandler[] = [
+    bodyLimit({ maxSize: 16 * 1024, onError: (c) => apiError(c, 413, 'payload_too_large', 'Request too large.') }),
+    requireJson(),
+    rateLimit(store, { name: 'recommend-ip', max: 120, windowMs: 60 * 60_000 }),
+  ];
+
+  app.use('/api/recommend-tax', ...recommendGuards);
   app.post('/api/recommend-tax', async (c) => {
     const body = await readJson(c);
     if (!body.ok) return apiError(c, 400, 'invalid_json', 'Invalid JSON body.');
     const parsed = RecommendTaxBodySchema.safeParse(body.body);
     if (!parsed.success) return apiError(c, 400, 'invalid_request', 'Invalid analysis input.');
     const input = parsed.data;
-
     const result = runRuleEngine({ ...input });
-    const analysis = {
-      status: result.status,
-      yoyIncreasePct: result.yoyIncreasePct,
-      marketGapPct: result.marketGapPct,
-      county: input.county,
-      currentValue: input.currentValue ?? null,
-      priorValue: input.priorValue ?? null,
-      zillowValue: input.zillowValue ?? null,
-      realtorValue: input.realtorValue ?? null,
-    };
-    const userPrompt = [
-      'Generate a recommendation for this property owner.',
-      '<DATA>',
-      JSON.stringify(analysis),
-      '</DATA>',
-      `COUNTY PORTAL: ${COUNTY_PORTALS[input.county]}`,
-      `STATUS CONTEXT: ${getStatusExplanation(result.status)}`,
-    ].join('\n');
-
-    try {
-      const content = await withFallback(
-        metered(textProviders.map((p) => () => p.generate(TAX_SYSTEM_INSTRUCTION, userPrompt))),
-        'recommend-tax',
-      );
-      return c.json({ recommendation: sanitizeRecommendation(content), status: result.status });
-    } catch (err) {
-      return providerFailure(c, 'recommend-tax', err);
-    }
+    return c.json({ recommendation: buildTaxRecommendation(input, result), status: result.status });
   });
 
-  app.use('/api/recommend-insurance', ...paid(16, 'recommend'));
+  app.use('/api/recommend-insurance', ...recommendGuards);
   app.post('/api/recommend-insurance', async (c) => {
     const body = await readJson(c);
     if (!body.ok) return apiError(c, 400, 'invalid_json', 'Invalid JSON body.');
     const parsed = RecommendInsuranceBodySchema.safeParse(body.body);
     if (!parsed.success) return apiError(c, 400, 'invalid_request', 'Invalid analysis input.');
-
     const result = runInsuranceRuleEngine(parsed.data);
-    const userPrompt = [
-      'Generate a recommendation for this property owner.',
-      '<DATA>',
-      JSON.stringify(result),
-      '</DATA>',
-      `STATUS CONTEXT: ${getInsuranceStatusExplanation(result.status)}`,
-    ].join('\n');
-
-    try {
-      const content = await withFallback(
-        metered(textProviders.map((p) => () => p.generate(INSURANCE_SYSTEM_INSTRUCTION, userPrompt))),
-        'recommend-insurance',
-      );
-      return c.json({ recommendation: sanitizeRecommendation(content), status: result.status });
-    } catch (err) {
-      return providerFailure(c, 'recommend-insurance', err);
-    }
+    return c.json({ recommendation: buildInsuranceRecommendation(result), status: result.status });
   });
 
   // --- Property lookup (free, but scrapes a county site per call) ----------
@@ -403,8 +349,8 @@ export function createApp(opts: AppOptions): Hono {
         '/api/session': { post: { summary: 'Exchange a Turnstile token for a 30-minute session token' } },
         '/api/extract-tax': { post: { summary: 'Extract appraisal values from a notice image (session required)' } },
         '/api/extract-insurance': { post: { summary: 'Extract policy details from a declarations image (session required)' } },
-        '/api/recommend-tax': { post: { summary: 'Tax recommendation from typed values (session required)' } },
-        '/api/recommend-insurance': { post: { summary: 'Insurance recommendation from typed values (session required)' } },
+        '/api/recommend-tax': { post: { summary: 'Tax recommendation from typed values (templated, no AI)' } },
+        '/api/recommend-insurance': { post: { summary: 'Insurance recommendation from typed values (templated, no AI)' } },
         '/api/property-lookup': { get: { summary: 'Assessed values by address + county' } },
         '/api/leads/token': { get: { summary: 'Render token for the lead form' } },
         '/api/leads/lead': { post: { summary: 'Submit the lead form' } },

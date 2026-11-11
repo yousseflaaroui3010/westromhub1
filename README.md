@@ -8,8 +8,9 @@ static rental-analysis (`/analysis`) and guarantees (`/guarantees`) pages.
 - **Frontend**: Vite + React, served by nginx (`Dockerfile.frontend`,
   `nginx.conf.template`). nginx is also the trust boundary: it derives the real
   client IP, rate-limits per IP and proxies `/api/*` to the API.
-- **API**: Hono on Node 22 (`api/`). Document extraction and recommendations via
-  cloud AI providers (Gemini, OpenRouter, Groq), county property lookup, and the
+- **API**: Hono on Node 22 (`api/`). Document extraction via cloud vision
+  providers (Gemini, OpenRouter); recommendations are templated from the rule
+  engine (no AI); county property lookup, and the
   lead-form gateway in front of the n8n pipeline (`wgc-lead-pipeline` repo).
 - **Security model and deploy steps**: [`docs/SECURITY.md`](docs/SECURITY.md).
 

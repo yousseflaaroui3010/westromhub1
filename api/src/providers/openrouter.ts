@@ -1,4 +1,4 @@
-import type { TextProvider, VisionProvider } from './types';
+import type { VisionProvider } from './types';
 
 interface OpenRouterResponse {
   choices: Array<{ message: { content: string } }>;
@@ -72,45 +72,3 @@ export function makeOpenRouterPremiumVisionProvider(
   };
 }
 
-/**
- * OpenRouter text provider. Reuses the OPENROUTER_API_KEY that already powers
- * vision, so recommendations keep working when Gemini is unset, Groq retires
- * a model, or another account lapses (all three were true on 2026-11-10).
- */
-export function makeOpenRouterTextProvider(
-  apiKey: string,
-  model = 'google/gemini-2.5-flash',
-): TextProvider {
-  return {
-    name: `openrouter:${model}`,
-    async generate(systemPrompt, userPrompt) {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://wgcassetguide.com',
-          'X-Title': 'Westrom Hub',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0,
-          max_tokens: 800,
-        }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (!res.ok) {
-        const body = (await res.text().catch(() => '')).slice(0, 300);
-        throw new Error(`OpenRouter ${model} HTTP ${res.status}: ${body}`);
-      }
-      const data = (await res.json()) as OpenRouterResponse;
-      const content = data.choices?.[0]?.message?.content;
-      if (!content) throw new Error('OpenRouter returned empty response');
-      return content;
-    },
-  };
-}

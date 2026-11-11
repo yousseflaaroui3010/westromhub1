@@ -1,17 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { TextProvider, VisionProvider } from './providers/types';
+import type { VisionProvider } from './providers/types';
 import type { CadLookupFn } from './adapters/types';
 import { createApp, type AppOptions } from './app';
 
 // --- Mock providers ---
 
-const mockTextProvider: TextProvider = { name: 'mock-text', generate: vi.fn() };
 const mockVisionProvider: VisionProvider = { name: 'mock-vision', extract: vi.fn() };
 const mockCadLookup = vi.fn<CadLookupFn>();
 
 function build(extra: Partial<AppOptions> = {}) {
   return createApp({
-    textProviders: [mockTextProvider],
     visionProviders: [mockVisionProvider],
     allowedOrigins: ['http://localhost:5173'],
     aiDailyCallCap: 0,
@@ -211,32 +209,21 @@ describe('POST /api/recommend-tax', () => {
     expect((await post('/api/recommend-tax', { county: 'Evil County' })).status).toBe(400);
   });
 
-  it('computes status server-side and uses the allowlisted portal', async () => {
-    vi.mocked(mockTextProvider.generate).mockResolvedValue('Your value rose <strong>25%</strong>.');
+  it('computes the status server-side and returns templated text (no AI)', async () => {
     const res = await post('/api/recommend-tax', { county: 'Dallas County', currentValue: 125000, priorValue: 100000 });
     expect(res.status).toBe(200);
     const body = await res.json() as Record<string, string>;
     expect(body.status).toBe('AUTOMATIC_REDUCTION');
-    expect(body.recommendation).toBe('Your value rose <strong>25%</strong>.');
-    const prompt = vi.mocked(mockTextProvider.generate).mock.calls[0][1];
-    expect(prompt).toContain('COUNTY PORTAL: https://www.dallascad.org');
-    expect(prompt).toContain('"status":"AUTOMATIC_REDUCTION"');
-    expect(prompt).toMatch(/<DATA>\n.*\n<\/DATA>/);
+    expect(body.recommendation).toContain('<strong>25%</strong>');
+    expect(body.recommendation).toContain('<strong>$120,000</strong>');
+    expect(body.recommendation).toContain('dallascad.org');
+    expect(vi.mocked(mockVisionProvider.extract)).not.toHaveBeenCalled();
   });
 
-  it('strips disallowed HTML from model output', async () => {
-    vi.mocked(mockTextProvider.generate).mockResolvedValue(
-      '<p onclick="x()">Hi</p><img src=x onerror=alert(1)><a href="https://evil.example">click</a><strong class="k">ok</strong>',
-    );
-    const res = await post('/api/recommend-tax', { county: 'Ellis County', currentValue: 1, priorValue: 1 });
-    const { recommendation } = await res.json() as { recommendation: string };
-    expect(recommendation).toBe('<p>Hi</p>&lt;img src=x onerror=alert(1)&gt;&lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;<strong>ok</strong>');
-  });
-
-  it('returns 503 when all providers fail', async () => {
-    vi.mocked(mockTextProvider.generate).mockRejectedValue(new Error('down'));
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect((await post('/api/recommend-tax', { county: 'Ellis County' })).status).toBe(503);
+  it('works without a session even when Turnstile is on (no paid work)', async () => {
+    const strict = build({ turnstile: async () => ({ ok: true }) });
+    const res = await post('/api/recommend-tax', { county: 'Ellis County', currentValue: 1 }, {}, strict);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -246,11 +233,12 @@ describe('POST /api/recommend-insurance', () => {
     expect((await post('/api/recommend-insurance', { policyType: 'x'.repeat(41) })).status).toBe(400);
   });
 
-  it('returns 200 with recommendation and server-computed status', async () => {
-    vi.mocked(mockTextProvider.generate).mockResolvedValue('<ul><li>Gap</li></ul>');
+  it('returns 200 with templated recommendation and server-computed status', async () => {
     const res = await post('/api/recommend-insurance', { policyType: 'HO-3', hasLossOfRent: false });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ recommendation: '<ul><li>Gap</li></ul>', status: 'CRITICAL_WARNING' });
+    const body = await res.json() as Record<string, string>;
+    expect(body.status).toBe('CRITICAL_WARNING');
+    expect(body.recommendation).toContain('Missing Loss of Rental Income coverage');
   });
 });
 
@@ -263,7 +251,6 @@ describe('CORS middleware', () => {
   });
 
   it('allows requests from a known origin', async () => {
-    vi.mocked(mockTextProvider.generate).mockResolvedValue('ok');
     const res = await post('/api/recommend-tax', { county: 'Ellis County' }, { Origin: 'http://localhost:5173' });
     expect(res.status).toBe(200);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173');

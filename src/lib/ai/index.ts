@@ -74,6 +74,17 @@ async function paidPost<T>(path: string, body: unknown): Promise<T> {
   throw new ApiError('Something went wrong. Please try again.', 'retry_exhausted');
 }
 
+/** POST to a free route (no session, no bot check). */
+async function plainPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await toApiError(res);
+  return (await res.json()) as T;
+}
+
 function networkError(): ApiError {
   return new ApiError('Unable to reach the analysis service. Check your internet connection and try again.', 'network');
 }
@@ -99,8 +110,8 @@ export function extractInsuranceData(base64: string, mimeType: string): Promise<
 }
 
 // --- Recommendations -----------------------------------------------------------
-// Only typed values are sent. The server recomputes the status and picks the
-// county portal itself, so these payloads carry no free text.
+// Templated on the server from its own rule-engine run (no AI, no session).
+// Only typed values are sent, so these payloads carry no free text.
 
 const COUNTY_NAMES = new Set<string>(COUNTIES.map((c) => c.name));
 
@@ -118,7 +129,7 @@ export async function generateTaxRecommendation(result: AnalysisResult): Promise
   const d = result.data;
   const county = (COUNTY_NAMES.has(d.county) ? d.county : 'Other (Texas)') as CountyName;
   try {
-    const data = await paidPost<{ recommendation: string }>('/recommend-tax', {
+    const data = await plainPost<{ recommendation: string }>('/recommend-tax', {
       county,
       currentValue: money(d.currentValue),
       priorValue: money(d.priorValue),
@@ -134,7 +145,7 @@ export async function generateTaxRecommendation(result: AnalysisResult): Promise
 export async function generateInsuranceRecommendation(result: InsuranceAnalysisResult): Promise<string> {
   const d = result.data;
   try {
-    const data = await paidPost<{ recommendation: string }>('/recommend-insurance', {
+    const data = await plainPost<{ recommendation: string }>('/recommend-insurance', {
       policyType: label(d.policyType, 40),
       windHailDeductible: label(d.windHailDeductible, 24),
       aopDeductible: label(d.aopDeductible, 24),

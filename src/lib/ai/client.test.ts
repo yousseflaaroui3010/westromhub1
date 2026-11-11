@@ -62,14 +62,18 @@ describe('paid API client', () => {
     handler = (url) => (url.endsWith('/session') ? sessionOk() : Response.json({ recommendation: 'ok' }));
     const result = runRuleEngine({ county: 'Not A County', currentValue: 120000.4, priorValue: 100000, address: '1 Main St' });
     await generateTaxRecommendation(result);
-    const body = JSON.parse(String(calls[1].init.body));
+    // Recommendations are templated server-side: no session round trip.
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toMatch(/\/recommend-tax$/);
+    expect(new Headers(calls[0].init.headers).get('Authorization')).toBeNull();
+    const body = JSON.parse(String(calls[0].init.body));
     expect(body).toEqual({ county: 'Other (Texas)', currentValue: 120000, priorValue: 100000 });
   });
 
   it('strips markup from insurance labels before sending', async () => {
     handler = (url) => (url.endsWith('/session') ? sessionOk() : Response.json({ recommendation: 'ok' }));
     await generateInsuranceRecommendation(runInsuranceRuleEngine({ policyType: '<b>HO-3</b>', hasLossOfRent: false }));
-    const body = JSON.parse(String(calls[1].init.body));
+    const body = JSON.parse(String(calls[0].init.body));
     expect(body).toEqual({ policyType: 'bHO-3/b', hasLossOfRent: false });
   });
 

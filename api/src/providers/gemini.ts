@@ -1,29 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import type { TextProvider, VisionProvider } from './types';
-
-/**
- * Gemini text provider — handles recommendation generation.
- * Default model: gemini-2.5-flash (stable GA release; override via GEMINI_MODEL env var).
- */
-export function makeGeminiTextProvider(apiKey: string, model = 'gemini-2.5-flash'): TextProvider {
-  const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 45_000 } });
-  return {
-    name: `gemini:${model}`,
-    async generate(systemPrompt, userPrompt) {
-      const response = await ai.models.generateContent({
-        model,
-        contents: userPrompt,
-        config: {
-          systemInstruction: systemPrompt,
-          temperature: 0,
-        },
-      });
-      const text = response.text;
-      if (!text) throw new Error('Gemini returned empty response');
-      return text;
-    },
-  };
-}
+import type { VisionProvider } from './types';
 
 /**
  * Gemini vision provider — handles document image extraction.

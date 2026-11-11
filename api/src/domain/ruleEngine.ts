@@ -122,6 +122,11 @@ export function runInsuranceRuleEngine(data: InsuranceData): InsuranceAnalysisRe
     gaps.push('Missing Sewer & Drain Backup coverage. This is a common claim in Texas and is excluded by default.');
   }
 
+  // A coverage gap outranks a premium optimization, so decide it first.
+  if (gaps.length > 0 && status === 'GOOD_STANDING') {
+    status = 'UPGRADE_RECOMMENDED';
+  }
+
   // Deductible optimization
   const wh = data.windHailDeductible || '';
   if (wh.includes('$')) {
@@ -130,10 +135,6 @@ export function runInsuranceRuleEngine(data: InsuranceData): InsuranceAnalysisRe
       optimizations.push(`Low flat-rate Wind/Hail deductible detected (${wh}). Switching to a 1% or 2% deductible could significantly lower your premium.`);
       if (status === 'GOOD_STANDING') status = 'OPTIMIZATION_POSSIBLE';
     }
-  }
-
-  if (gaps.length > 0 && status === 'GOOD_STANDING') {
-    status = 'UPGRADE_RECOMMENDED';
   }
 
   return { status, gaps, optimizations, data };

@@ -1,10 +1,4 @@
-// Provider interfaces for the AI fallback chain.
-// Text: Ollama → Groq.  Vision: Ollama → OpenRouter.
-
-export interface TextProvider {
-  readonly name: string;
-  generate(systemPrompt: string, userPrompt: string): Promise<string>;
-}
+// Vision provider interface for the document-reading fallback chain.
 
 export interface VisionProvider {
   readonly name: string;

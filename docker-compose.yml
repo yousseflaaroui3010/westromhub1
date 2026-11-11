@@ -32,7 +32,6 @@ services:
       - ALLOWED_ORIGINS=http://localhost,http://localhost:3000
       # Cloud AI providers — set these in api/.env (see api/.env.example)
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
     healthcheck:
       # node:20-alpine ships with wget
