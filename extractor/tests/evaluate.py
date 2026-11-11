@@ -105,6 +105,18 @@ def run(args) -> dict:
                 tally[f"{case.kind}:{vname}"][v] += 1
                 tally[f"field:{k}"][v] += 1
             bad = {k: (out.get(k), case.truth.get(k)) for k, v in res.items() if v in ("WRONG", "miss", "EXTRA")}
+            # The same document through the OTHER reader (wrong upload box)
+            # must be refused or yield nothing, never fields.
+            other = extract_insurance(doc) if case.kind == "tax" else extract_tax(doc)
+            if "error" not in other:
+                core = {k: v for k, v in other.items() if k in ("currentValue", "priorValue", "policyType", "annualPremium", "windHailDeductible", "aopDeductible")}
+                if core:
+                    bad["cross_reader"] = (core, "error")
+                    tally["cross_reader"]["WRONG"] += 1
+                else:
+                    tally["cross_reader"]["ok"] += 1
+            else:
+                tally["cross_reader"]["ok"] += 1
             rows.append(dict(case=case.name, variant=vname, secs=round(secs, 1), ocr=doc.ocr, bad=bad))
             flag = "PASS" if not bad else "FAIL"
             print(f"{flag} {case.name:22} {vname:8} {secs:5.1f}s  {bad if bad else ''}", flush=True)

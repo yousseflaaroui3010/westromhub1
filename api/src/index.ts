@@ -4,6 +4,7 @@ dotenv.config({ quiet: true });
 import { serve } from '@hono/node-server';
 import type { AddressInfo } from 'net';
 import { buildVisionProviders } from './providers';
+import { httpExtractor } from './extractor';
 import { createApp } from './app';
 import { createLookupFn } from './adapters/index';
 import { createStore } from './security/store';
@@ -32,11 +33,18 @@ async function main() {
   };
   const visionProviders = buildVisionProviders(providerConfig);
 
-  if (visionProviders.length === 0) {
-    console.error('FATAL: No vision AI providers configured. Set GEMINI_API_KEY or OPENROUTER_API_KEY.');
+  // Document reading: the private Docling service when configured (no AI);
+  // otherwise the legacy AI vision chain.
+  const extractor = env.EXTRACTOR_URL ? httpExtractor(env.EXTRACTOR_URL, env.EXTRACTOR_TOKEN || undefined) : null;
+  if (extractor) {
+    console.log(`Document reader: extractor at ${new URL(env.EXTRACTOR_URL as string).host} (no AI)`);
+    if (!env.EXTRACTOR_TOKEN) console.warn('WARNING: EXTRACTOR_TOKEN unset; extractor calls are unauthenticated.');
+  } else if (visionProviders.length === 0) {
+    console.error('FATAL: No document reader. Set EXTRACTOR_URL (preferred) or GEMINI_API_KEY / OPENROUTER_API_KEY.');
     process.exit(1);
+  } else {
+    console.log(`Document reader: AI vision chain ${visionProviders.map((p) => p.name).join(' -> ')}`);
   }
-  console.log(`AI vision chain: ${visionProviders.map((p) => p.name).join(' -> ')}`);
 
   const allowedOrigins = list(env.ALLOWED_ORIGINS, 'http://localhost:3000,http://localhost:5173');
   const leadAllowedOrigins = list(
@@ -67,6 +75,7 @@ async function main() {
 
   const app = createApp({
     visionProviders,
+    extractor,
     allowedOrigins,
     leadAllowedOrigins,
     cadLookupFn: createLookupFn(env.ATTOM_API_KEY),

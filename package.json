@@ -17,7 +17,6 @@
     "@fontsource/manrope": "^5.2.8",
     "dompurify": "^3.4.17",
     "lucide-react": "^0.546.0",
-    "pdfjs-dist": "^4.10.38",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.18.5"

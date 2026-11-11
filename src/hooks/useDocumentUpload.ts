@@ -1,11 +1,10 @@
 import { useCallback, useRef, useState } from 'react';
-import { readFileAsBase64 } from '../lib/fileUtils';
+import { mimeTypeOf, readFileAsBase64 } from '../lib/fileUtils';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+// 7 MB raw = ~9.4 MB of base64, inside the API (10.5 MB) and nginx (10 MB) caps.
+const MAX_FILE_SIZE = 7 * 1024 * 1024;
 
-// Allowlist of MIME types the vision pipeline can process.
-// PDFs are converted to image/png client-side (pdfToImage.ts) — keep application/pdf here
-// so drag-and-drop of PDFs passes this check before conversion.
+// Types the server-side document reader accepts. PDFs are sent as-is.
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -14,7 +13,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/heif',
   'application/pdf',
 ]);
-const ALLOWED_TYPES_LABEL = 'PDF, JPEG, PNG, or WebP';
+const ALLOWED_TYPES_LABEL = 'PDF or a photo (JPEG, PNG, WebP or HEIC)';
 
 interface UseDocumentUploadOptions {
   /** Whether the parent component is currently running its own async operation. */
@@ -50,12 +49,14 @@ export function useDocumentUpload({
 
   const processFile = useCallback(
     async (file: File) => {
-      if (!ALLOWED_MIME_TYPES.has(file.type)) {
-        onError(`Unsupported file type "${file.type || 'unknown'}". Please upload a ${ALLOWED_TYPES_LABEL}.`);
+      // HEIC photos from iPhones often arrive with an empty file.type.
+      const type = mimeTypeOf(file);
+      if (!ALLOWED_MIME_TYPES.has(type)) {
+        onError(`Unsupported file type "${type || 'unknown'}". Please upload a ${ALLOWED_TYPES_LABEL}.`);
         return;
       }
       if (file.size > MAX_FILE_SIZE) {
-        onError('File is too large. Please upload a file smaller than 10 MB.');
+        onError('File is too large. Please upload a file smaller than 7 MB.');
         return;
       }
       setIsExtracting(true);

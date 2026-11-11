@@ -19,6 +19,7 @@ const COUNTY_NAMES = Object.keys(COUNTY_PORTALS) as [CountyName, ...CountyName[]
 // --- Request schemas ----------------------------------------------------------
 
 export const EXTRACT_ALLOWED_MIME_TYPES = [
+  'application/pdf',
   'image/png',
   'image/jpeg',
   'image/webp',
