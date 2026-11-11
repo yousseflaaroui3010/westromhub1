@@ -1,111 +1,101 @@
-import { ShieldCheck, Home, Award, Building, Star, Facebook, Twitter, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-// Resource links. SPA routes use <Link> (client-side nav); the static nginx-served
-// pages (/analysis, /guarantees) use a plain <a> so they do a real navigation.
-const RESOURCE_LINKS: { name: string; to: string; external: boolean }[] = [
-  { name: 'Home', to: '/', external: false },
-  { name: 'Property Taxes', to: '/taxes', external: false },
+// SPA routes use <Link>; the static nginx pages (/analysis, /guarantees) use a
+// plain <a> so they do a real navigation.
+const TOOLS: { name: string; to: string; external: boolean }[] = [
+  { name: 'Property taxes', to: '/taxes', external: false },
   { name: 'Insurance', to: '/insurance', external: false },
-  { name: 'Rental Analysis', to: '/analysis', external: true },
+  { name: 'Rental analysis', to: '/analysis', external: true },
   { name: 'Guarantees', to: '/guarantees', external: true },
-  { name: 'Privacy', to: '/privacy', external: false },
 ];
+
+const AFFILIATIONS: { name: string; href: string }[] = [
+  { name: 'NARPM', href: 'https://www.narpm.org/' },
+  { name: 'REALTOR®', href: 'https://www.nar.realtor/' },
+  { name: 'Texas Realtors', href: 'https://www.texasrealestate.com/' },
+  { name: 'BBB Accredited', href: 'https://www.bbb.org/' },
+  { name: 'Equal Housing', href: 'https://www.hud.gov/program_offices/fair_housing_equal_opp' },
+];
+
+const SOCIAL: { name: string; href: string }[] = [
+  { name: 'Facebook', href: 'https://www.facebook.com/westromgroup' },
+  { name: 'X (Twitter)', href: 'https://x.com/WestromGroup' },
+  { name: 'Zillow', href: 'https://www.zillow.com/profile/WestromGroup' },
+];
+
+const linkCls = 'text-white/75 transition-colors hover:text-white';
+const headCls = 'text-xs font-bold uppercase tracking-[0.14em] text-white/50';
 
 export function PublicFooter() {
   return (
-    <footer aria-label="Site footer" className="bg-primary text-white py-12 mt-20 border-t-4 border-secondary shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8 mb-8">
-          <div className="col-span-2 lg:col-span-1">
-            <div className="mb-4 inline-block">
-              <img
-                src="/westrom-logo.webp"
-                alt="Westrom Group Logo"
-                width={2048}
-                height={1186}
-                loading="lazy"
-                className="h-16 w-[110px] bg-white p-2 rounded-xl border border-gray-200 shadow-md"
-              />
-            </div>
-            <p className="text-gray-300 text-sm max-w-xs">
-              Professional property management serving Texas real estate investors.
+    <footer aria-label="Site footer" className="mt-auto bg-ink text-white">
+      <div className="container-page py-14">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+          <div>
+            <img
+              src="/logo-white.svg"
+              alt="Westrom Group"
+              width={400}
+              height={250}
+              loading="lazy"
+              className="-ml-3 h-20 w-auto"
+            />
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/70">
+              Family-owned property management for Dallas–Fort Worth rental owners.
+            </p>
+            <p className="mt-4 text-sm">
+              <a href="mailto:info@westromgroup.com" className={linkCls}>info@westromgroup.com</a>
+            </p>
+            <p className="mt-1 text-sm">
+              <a href="https://westromgroup.com" target="_blank" rel="noopener noreferrer" className={linkCls}>westromgroup.com</a>
             </p>
           </div>
 
-          <nav aria-label="Footer resources">
-            <h3 className="font-heading font-semibold text-lg mb-4">Resources</h3>
-            <ul className="space-y-2 text-gray-300 text-sm">
-              {RESOURCE_LINKS.map((link) => (
-                <li key={link.name}>
-                  {link.external ? (
-                    <a href={link.to} className="hover:text-white transition-colors">
-                      {link.name}
-                    </a>
-                  ) : (
-                    <Link to={link.to} className="hover:text-white transition-colors">
-                      {link.name}
-                    </Link>
-                  )}
+          <nav aria-label="Footer tools">
+            <h2 className={headCls}>Tools</h2>
+            <ul className="mt-4 space-y-2.5 text-sm">
+              {TOOLS.map((l) => (
+                <li key={l.name}>
+                  {l.external ? <a href={l.to} className={linkCls}>{l.name}</a> : <Link to={l.to} className={linkCls}>{l.name}</Link>}
                 </li>
               ))}
             </ul>
           </nav>
 
           <div>
-            <h3 className="font-heading font-semibold text-lg mb-4">Contact</h3>
-            <ul className="space-y-2 text-gray-300 text-sm">
-              <li>Email: <a href="mailto:info@westromgroup.com" className="hover:text-white transition-colors break-all">info@westromgroup.com</a></li>
-              <li>Website: <a href="https://westromgroup.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">westromgroup.com</a></li>
+            <h2 className={headCls}>Affiliations</h2>
+            <ul className="mt-4 space-y-2.5 text-sm">
+              {AFFILIATIONS.map((l) => (
+                <li key={l.name}>
+                  <a href={l.href} target="_blank" rel="noopener noreferrer" className={linkCls}>{l.name}</a>
+                </li>
+              ))}
             </ul>
           </div>
 
-          <div className="col-span-2 lg:col-span-1">
-            <h3 className="font-heading font-semibold text-lg mb-4">Affiliations &amp; Social</h3>
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
-              <a href="https://www.narpm.org/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
-                <Building className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
-                NARPM
-              </a>
-              <a href="https://www.nar.realtor/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
-                <Award className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
-                REALTOR®
-              </a>
-              <a href="https://www.texasrealestate.com/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
-                <Star className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
-                Texas Realtors
-              </a>
-              <a href="https://www.hud.gov/program_offices/fair_housing_equal_opp" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
-                <Home className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
-                Equal Housing
-              </a>
-              <a href="https://www.bbb.org/" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
-                <ShieldCheck className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
-                BBB Accredited
-              </a>
-              <a href="https://www.facebook.com/westromgroup" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
-                <Facebook className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
-                Facebook
-              </a>
-              <a href="https://x.com/WestromGroup" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
-                <Twitter className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
-                X (Twitter)
-              </a>
-              <a href="https://www.zillow.com/profile/WestromGroup" target="_blank" rel="noopener noreferrer" className="px-3 py-2 min-h-[44px] bg-primary-container/20 hover:bg-primary-container/40 border border-primary-container/30 rounded-lg text-xs font-medium text-gray-200 hover:text-white transition-all flex items-center gap-2 group">
-                <Globe className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
-                Zillow
-              </a>
-            </div>
+          <div>
+            <h2 className={headCls}>Follow</h2>
+            <ul className="mt-4 space-y-2.5 text-sm">
+              {SOCIAL.map((l) => (
+                <li key={l.name}>
+                  <a href={l.href} target="_blank" rel="noopener noreferrer" className={linkCls}>{l.name}</a>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
-        <div className="pt-8 border-t border-primary-container text-xs text-gray-400 space-y-4">
+        <div className="mt-12 border-t border-white/10 pt-8 text-xs leading-relaxed text-white/55">
           <p>
-            <strong>Disclaimer:</strong> This information is provided as a courtesy for educational and informational purposes only. It is not a substitute for professional tax, legal, or insurance advice. Westrom Group does not provide tax or legal advice, nor do we file protests or take action on behalf of owners. Please consult a qualified professional for your specific situation.
+            <strong className="text-white/75">Disclaimer:</strong> This information is provided as a courtesy for
+            educational and informational purposes only. It is not a substitute for professional tax, legal, or
+            insurance advice. Westrom Group does not provide tax or legal advice, nor do we file protests or take action
+            on behalf of owners. Please consult a qualified professional for your specific situation.
           </p>
-          <p>
-            © {new Date().getFullYear()} Westrom Group. All rights reserved.
-          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between">
+            <p>© {new Date().getFullYear()} Westrom Group. All rights reserved.</p>
+            <Link to="/privacy" className={linkCls}>Privacy notice</Link>
+          </div>
         </div>
       </div>
     </footer>

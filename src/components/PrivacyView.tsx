@@ -10,8 +10,8 @@ const UPDATED = 'November 10, 2026';
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mb-10">
-      <h2 className="text-xl font-bold text-primary mb-3">{title}</h2>
-      <div className="space-y-3 text-on-surface-variant leading-relaxed">{children}</div>
+      <h2 className="font-heading text-xl font-bold text-ink">{title}</h2>
+      <div className="mt-3 space-y-3 leading-relaxed text-on-surface-variant">{children}</div>
     </section>
   );
 }
@@ -22,11 +22,11 @@ export function PrivacyView() {
   }, []);
 
   return (
-    <div className="flex-grow px-6 py-12 md:py-16">
-      <article className="max-w-3xl mx-auto bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-12">
-        <p className="text-sm font-semibold uppercase tracking-wide text-secondary mb-2">Privacy</p>
-        <h1 className="text-3xl md:text-4xl font-extrabold text-primary mb-2">Privacy Notice</h1>
-        <p className="text-sm text-gray-500 mb-10">Last updated {UPDATED}</p>
+    <div className="container-page flex-grow py-12 md:py-16">
+      <article className="card mx-auto max-w-3xl p-6 md:p-12">
+        <p className="eyebrow">Privacy</p>
+        <h1 className="mt-3 font-heading text-3xl font-extrabold tracking-tight text-ink md:text-4xl">Privacy notice</h1>
+        <p className="mb-10 mt-2 text-sm text-on-surface-variant">Last updated {UPDATED}</p>
 
         <Section title="Who we are">
           <p>
@@ -92,9 +92,9 @@ export function PrivacyView() {
             You can use the tax and insurance tools without giving us any contact information, and the rental form
             works without an email address. To ask what information we hold about you, to correct it, or to have it
             deleted, or to stop receiving emails from us, contact us at{' '}
-            <a className="text-secondary underline" href="mailto:info@westromgroup.com">info@westromgroup.com</a> or
+            <a className="text-link" href="mailto:info@westromgroup.com">info@westromgroup.com</a> or
             through{' '}
-            <a className="text-secondary underline" href="https://westromgroup.com/contact-us/" rel="noopener noreferrer">
+            <a className="text-link" href="https://westromgroup.com/contact-us/" rel="noopener noreferrer">
               westromgroup.com/contact-us
             </a>.
           </p>

@@ -1,131 +1,160 @@
 import { ResourceCard } from './ResourceCard';
 import { TaxAnalysis } from './TaxAnalysis';
-import { ArrowRight, FileText, Users, AlertTriangle } from 'lucide-react';
+import { PageHero } from './PageHero';
+import { ArrowRight, FileText, Users, Scale, ListChecks, Lock } from 'lucide-react';
 import { COUNTIES } from '../lib/constants';
 
-const AI_TOOLS = [
-  { name: 'Zillow Property Value', url: 'https://www.zillow.com', description: 'Check estimated market value (Zestimate)' },
-  { name: 'Realtor.com Estimates', url: 'https://www.realtor.com', description: 'Compare market value estimates' },
+const EVIDENCE_TOOLS = [
+  { name: 'Zillow', url: 'https://www.zillow.com', description: 'Check the estimated market value (Zestimate).' },
+  { name: 'Realtor.com', url: 'https://www.realtor.com', description: 'Compare a second market value estimate.' },
 ];
 
 const PROTEST_COMPANIES = [
   { name: 'Texas Tax Protest', website: 'https://www.texastaxprotest.com/' },
   { name: 'Ownwell', website: 'https://www.ownwell.com/' },
-  { name: 'O\'Connor & Associates', website: 'https://www.poconnor.com/' },
+  { name: "O'Connor & Associates", website: 'https://www.poconnor.com/' },
 ];
+
+function ToolGuidance() {
+  return (
+    <aside className="space-y-4" aria-label="Before you start">
+      <div className="card p-6 sm:p-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary-soft text-secondary">
+            <Scale className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h3 className="font-heading text-lg font-bold text-ink">The 20% rule</h3>
+        </div>
+        <p className="mt-4 leading-relaxed text-on-surface-variant">
+          In Texas, the appraised value of a non-homestead property, like a rental, can rise by at most{' '}
+          <strong className="text-ink">20% a year</strong>. If your notice shows a bigger jump, you are entitled to an
+          automatic reduction.
+        </p>
+      </div>
+      <div className="card p-6 sm:p-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
+            <ListChecks className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h3 className="font-heading text-lg font-bold text-ink">What you&apos;ll need</h3>
+        </div>
+        <ul className="mt-4 space-y-2.5 text-on-surface-variant">
+          <li className="flex gap-2"><span className="text-secondary" aria-hidden="true">•</span> Your {new Date().getFullYear()} Notice of Appraised Value (PDF or photo)</li>
+          <li className="flex gap-2"><span className="text-secondary" aria-hidden="true">•</span> Or this year&apos;s and last year&apos;s appraised values</li>
+          <li className="flex gap-2"><span className="text-secondary" aria-hidden="true">•</span> Optional: a Zillow or Realtor.com estimate</li>
+        </ul>
+        <p className="mt-5 flex items-start gap-2 border-t border-line pt-5 text-sm text-on-surface-variant">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          We don&apos;t store your documents. <a href="/privacy" className="text-link">Privacy notice</a>
+        </p>
+      </div>
+    </aside>
+  );
+}
 
 export function TaxView() {
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Header Banner */}
-      <div className="bg-slate-50 border-b border-gray-200 py-12 mb-12">
-        <div className="max-w-7xl mx-auto px-6">
-          <h1 className="font-heading font-extrabold text-4xl md:text-5xl text-primary mb-4 tracking-tight">Property Tax Hub</h1>
-          <p className="text-xl text-gray-600 max-w-2xl">Everything you need to review, protest, and reduce your property taxes.</p>
-        </div>
-      </div>
+    <div>
+      <PageHero
+        eyebrow="Property tax hub"
+        title="Lower your property taxes"
+        description="Check your appraisal notice, see whether to protest, and get everything you need to file."
+        jumpLinks={[
+          { label: 'Analyze my notice', href: '#tax-analysis' },
+          { label: 'Protest options', href: '#protest-options' },
+          { label: 'County websites', href: '#counties' },
+        ]}
+      />
 
-      <div className="max-w-7xl mx-auto px-6 pb-24">
-        {/* Hot Tip Card */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-10 flex items-start gap-3 shadow-sm">
-          <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 text-amber-600 mt-0.5">
-            <AlertTriangle className="w-4 h-4" />
+      <div className="container-page space-y-20 py-14 md:space-y-24 md:py-20">
+        <TaxAnalysis aside={<ToolGuidance />} />
+
+        <section id="protest-options" aria-labelledby="protest-title" className="scroll-mt-24">
+          <div className="max-w-2xl">
+            <p className="eyebrow">Next step</p>
+            <h2 id="protest-title" className="section-title mt-3">Your protest options</h2>
           </div>
-          <p className="text-sm text-amber-800 leading-relaxed">
-            <strong className="text-amber-900">Hot Tip: The 20% Rule</strong> — In Texas, non-homestead properties (like rentals) are capped at a <strong>20% increase</strong> in appraised value year-over-year. If your notice shows an increase greater than 20%, you are legally entitled to an automatic reduction.
-          </p>
-        </div>
-
-        {/* Tax Analysis Tool */}
-        <TaxAnalysis />
-
-        {/* Protest Options */}
-        <section id="protest-options" className="mb-24">
-          <div className="mb-10 text-center max-w-3xl mx-auto">
-            <h2 className="font-heading font-bold text-3xl text-primary mb-0 tracking-tight">Your Protest Options</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* DIY Path */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-7 flex flex-col gap-4 hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-4">
-                <div className="w-11 h-11 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 text-primary">
-                  <FileText className="w-5 h-5" />
+          <div className="mt-10 grid gap-5 md:grid-cols-2">
+            <div className="card flex flex-col p-7">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                  <FileText className="h-5 w-5" aria-hidden="true" />
                 </div>
-                <h3 className="font-heading font-bold text-xl text-primary">Do It Yourself</h3>
+                <h3 className="font-heading text-xl font-bold text-ink">Do it yourself</h3>
               </div>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                Free and fully online in most counties. Use the analysis tool above to get a personalized step-by-step guide, then file directly through your county's appraisal district.
+              <p className="mt-4 leading-relaxed text-on-surface-variant">
+                Free and fully online in most counties. The analysis above gives you a step-by-step guide, then you file
+                directly with your county&apos;s appraisal district.
               </p>
-              <a href="#counties" className="mt-auto text-primary font-semibold text-sm flex items-center gap-1.5 hover:gap-3 transition-all">
-                Find your county <ArrowRight className="w-4 h-4" />
+              <a href="#counties" className="mt-auto inline-flex items-center gap-2 pt-6 font-semibold text-primary transition-[gap] hover:gap-3">
+                Find your county <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </a>
             </div>
 
-            {/* Pro Path */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-7 flex flex-col gap-4 hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-4">
-                <div className="w-11 h-11 bg-secondary/10 rounded-xl flex items-center justify-center flex-shrink-0 text-secondary">
-                  <Users className="w-5 h-5" />
+            <div className="card flex flex-col p-7">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary-soft text-secondary">
+                  <Users className="h-5 w-5" aria-hidden="true" />
                 </div>
-                <h3 className="font-heading font-bold text-xl text-primary">Get Professional Help</h3>
+                <h3 className="font-heading text-xl font-bold text-ink">Hire a protest firm</h3>
               </div>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                A firm handles everything for you — typically charging 20–35% of your tax savings only if they win. No upfront cost.
+              <p className="mt-4 leading-relaxed text-on-surface-variant">
+                A firm handles everything, typically for 20–35% of your tax savings and only if they win. No upfront cost.
               </p>
-              <div className="flex flex-col gap-2 mt-auto">
-                {PROTEST_COMPANIES.map((company) => (
-                  <a
-                    key={company.name}
-                    href={company.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-gray-300 transition-colors text-sm"
-                  >
-                    <span className="font-medium text-gray-900">{company.name}</span>
-                    <ArrowRight className="w-4 h-4 text-gray-400" />
-                  </a>
+              <ul className="mt-6 divide-y divide-line overflow-hidden rounded-xl border border-line">
+                {PROTEST_COMPANIES.map((c) => (
+                  <li key={c.name}>
+                    <a
+                      href={c.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex min-h-12 items-center justify-between px-4 text-sm font-semibold text-ink transition-colors hover:bg-slate-50"
+                    >
+                      {c.name}
+                      <ArrowRight className="h-4 w-4 text-on-surface-variant" aria-hidden="true" />
+                    </a>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           </div>
         </section>
 
-        {/* County Directory */}
-        <section id="counties" className="mb-24">
-          <div className="mb-10">
-            <h2 className="font-heading font-bold text-3xl text-primary mb-4 tracking-tight">County Appraisal Districts</h2>
-            <p className="text-gray-600 text-lg">
-              Quick links to file your protest or look up your property value.
-            </p>
+        <section id="counties" aria-labelledby="counties-title" className="scroll-mt-24">
+          <div className="max-w-2xl">
+            <p className="eyebrow">Look up or file</p>
+            <h2 id="counties-title" className="section-title mt-3">County appraisal districts</h2>
+            <p className="lead mt-3">Quick links to look up your value or file your protest.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {COUNTIES.map((county) => (
-              <ResourceCard key={county.name} title={county.name} url={county.url} description={county.description} type="county" />
+              <ResourceCard key={county.name} title={county.name} url={county.url} description={county.description} />
             ))}
           </div>
-          <div className="mt-10 bg-gray-50 p-8 rounded-2xl border border-gray-200 text-center">
-            <p className="text-gray-600 text-lg">
-              Don't see your county? Contact Westrom at <a href="mailto:info@westromgroup.com" className="text-primary font-bold hover:text-primary-container transition-colors">info@westromgroup.com</a>
-            </p>
-          </div>
+          <p className="mt-6 text-on-surface-variant">
+            Don&apos;t see your county? Email us at{' '}
+            <a href="mailto:info@westromgroup.com" className="text-link">info@westromgroup.com</a>.
+          </p>
         </section>
 
-        {/* AI Tools & Resources */}
-        <section id="resources" className="mb-12">
-          <div className="mb-10 text-center max-w-3xl mx-auto">
-            <h2 className="font-heading font-bold text-3xl text-primary mb-4 tracking-tight">Tools & Resources</h2>
-            <p className="text-gray-600 text-lg">
-              Use these tools to gather evidence for your tax protest.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            {AI_TOOLS.map((tool) => (
-              <ResourceCard key={tool.name} title={tool.name} url={tool.url} description={tool.description} type="tool" />
-            ))}
+        <section id="resources" aria-labelledby="resources-title" className="scroll-mt-24">
+          <div className="card flex flex-col gap-8 p-7 md:flex-row md:items-center md:justify-between md:p-10">
+            <div className="max-w-md">
+              <p className="eyebrow">Build your case</p>
+              <h2 id="resources-title" className="mt-3 font-heading text-2xl font-extrabold tracking-tight text-ink">
+                Gather market evidence
+              </h2>
+              <p className="mt-3 leading-relaxed text-on-surface-variant">
+                Market estimates lower than your appraised value strengthen a protest. Compare at least two.
+              </p>
+            </div>
+            <div className="grid w-full gap-4 sm:grid-cols-2 md:max-w-lg">
+              {EVIDENCE_TOOLS.map((t) => (
+                <ResourceCard key={t.name} title={t.name} url={t.url} description={t.description} />
+              ))}
+            </div>
           </div>
         </section>
-
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { sanitizeRecommendation } from '../lib/sanitize';
 import { runInsuranceRuleEngine, type InsuranceAnalysisResult, type InsuranceData } from '../lib/ruleEngine';
@@ -9,7 +9,7 @@ import { getDeviceCapabilities } from '../hooks/useDeviceCapabilities';
 
 function RecommendationSkeleton() {
   return (
-    <div className="space-y-3 animate-pulse mb-8" aria-label="Generating recommendation…" role="status">
+    <div className="space-y-3 animate-pulse" aria-label="Generating recommendation…" role="status">
       <div className="h-4 bg-gray-200 rounded-full w-full" />
       <div className="h-4 bg-gray-200 rounded-full w-11/12" />
       <div className="h-4 bg-gray-200 rounded-full w-10/12" />
@@ -21,7 +21,7 @@ function RecommendationSkeleton() {
   );
 }
 
-export function InsuranceAnalysis() {
+export function InsuranceAnalysis({ aside }: { aside?: ReactNode } = {}) {
   const [insuranceData, setInsuranceData] = useState<InsuranceData | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [insResult, setInsResult] = useState<InsuranceAnalysisResult | null>(null);
@@ -92,200 +92,158 @@ export function InsuranceAnalysis() {
     void runAnalysis(insuranceData);
   };
 
-  const statusBorderColor = {
-    CRITICAL_WARNING: 'border-secondary',
-    UPGRADE_RECOMMENDED: 'border-amber-500',
-    OPTIMIZATION_POSSIBLE: 'border-tertiary',
-    GOOD_STANDING: 'border-teal-500',
-  } as const;
-
-  const statusIconBg = {
-    CRITICAL_WARNING: 'bg-secondary/10 text-secondary',
-    UPGRADE_RECOMMENDED: 'bg-amber-100 text-amber-600',
-    OPTIMIZATION_POSSIBLE: 'bg-tertiary/10 text-tertiary',
-    GOOD_STANDING: 'bg-teal-50 text-teal-600',
+  const statusTone = {
+    CRITICAL_WARNING: { bar: 'bg-secondary', icon: 'bg-secondary-soft text-secondary' },
+    UPGRADE_RECOMMENDED: { bar: 'bg-amber-500', icon: 'bg-warning-soft text-warning' },
+    OPTIMIZATION_POSSIBLE: { bar: 'bg-primary', icon: 'bg-primary-soft text-primary' },
+    GOOD_STANDING: { bar: 'bg-success', icon: 'bg-success-soft text-success' },
   } as const;
 
   const statusLabel = {
-    CRITICAL_WARNING: 'Critical Insurance Warning',
-    UPGRADE_RECOMMENDED: 'Coverage Upgrade Recommended',
-    OPTIMIZATION_POSSIBLE: 'Premium Optimization Possible',
-    GOOD_STANDING: 'Insurance Looks Good',
+    CRITICAL_WARNING: 'Critical coverage warning',
+    UPGRADE_RECOMMENDED: 'Coverage upgrade recommended',
+    OPTIMIZATION_POSSIBLE: 'You may be able to save',
+    GOOD_STANDING: 'Your policy looks good',
   } as const;
 
+  const premium = insuranceData?.annualPremium != null
+    ? '$' + insuranceData.annualPremium.toLocaleString('en-US')
+    : 'unknown';
+
   return (
-    <section id="insurance-analysis" className="mb-24">
-      <div className="mb-10 text-center max-w-3xl mx-auto">
-        <h2 className="font-heading font-bold text-3xl text-primary mb-4 tracking-tight">
-          Free Insurance Analysis
-        </h2>
-        <p className="text-gray-600 text-lg">
-          Upload your insurance declaration page for AI-powered coverage gap and premium optimization recommendations.
+    <section id="insurance-analysis" aria-labelledby="ins-analysis-title" className="scroll-mt-24">
+      <div className="max-w-2xl">
+        <p className="eyebrow">Free analysis</p>
+        <h2 id="ins-analysis-title" className="section-title mt-3">Check your policy</h2>
+        <p className="lead mt-3">
+          Upload your insurance declarations page. We&apos;ll flag coverage gaps and ways to lower your premium.
         </p>
       </div>
 
-      <div className={`grid gap-8 ${insResult ? 'lg:grid-cols-2' : 'max-w-3xl mx-auto'}`}>
-        {/* Input column */}
-        <div className="bg-white p-5 md:p-10 rounded-3xl shadow-lg border border-gray-100">
-          <div className="mb-10">
-            <div
-              className={`border-2 border-dashed rounded-2xl p-10 min-h-[120px] text-center transition-all duration-300 cursor-pointer ${
-                isDragging
-                  ? 'border-secondary bg-secondary/5 scale-[1.02]'
-                  : 'border-gray-300 hover:border-primary hover:bg-gray-50'
-              }`}
-              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
-              onDrop={e => { void handleDrop(e); }}
-              onClick={() => fileInputRef.current?.click()}
-              role="button"
-              aria-label="Upload insurance policy"
-              aria-describedby={isIOS ? "ins-upload-helper" : undefined}
-            >
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp,image/*"
-                className="hidden"
-                ref={fileInputRef}
-                onChange={e => { void handleFileChange(e); }}
-              />
-              <div className="flex flex-col items-center justify-center gap-4">
-                <div className="w-16 h-16 bg-primary/5 rounded-full flex items-center justify-center text-primary mb-2" aria-live="polite">
-                  {isExtracting ? (
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                  ) : (
-                    <Upload className="w-8 h-8" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-xl text-gray-900 mb-2">Upload Insurance Dec Page</h3>
-                  <p className="text-gray-500">{isTouch ? "Tap to upload your PDF or image" : "Drag and drop your PDF or image here"}</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={isExtracting}
-                  className="mt-2 px-6 py-2.5 min-h-[44px] min-w-[44px] bg-white border border-gray-200 rounded-full text-sm font-bold text-tertiary hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm disabled:opacity-50"
-                >
-                  {isExtracting ? 'Extracting…' : 'Browse Files'}
-                </button>
-                {isIOS && (
-                  <p id="ins-upload-helper" className="text-sm text-gray-500 mt-2">
-                    On iPhone, tap 'Browse' to find PDFs in your Files app
-                  </p>
-                )}
-              </div>
+      <div className="mt-10 grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div className="card p-5 sm:p-8">
+          <div
+            className={'rounded-2xl border-2 border-dashed p-6 text-center transition-colors sm:p-10 ' + (
+              isDragging ? 'border-secondary bg-secondary-soft' : 'cursor-pointer border-slate-300 hover:border-primary hover:bg-slate-50'
+            )}
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={e => { e.preventDefault(); setIsDragging(false); }}
+            onDrop={e => { void handleDrop(e); }}
+            onClick={() => fileInputRef.current?.click()}
+            role="button"
+            aria-label="Upload insurance declarations page"
+            aria-describedby={isIOS ? 'ins-upload-helper' : 'ins-upload-hint'}
+          >
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={e => { void handleFileChange(e); }}
+            />
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-soft text-primary" aria-live="polite">
+              {isExtracting ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
             </div>
+            <p className="mt-4 font-heading text-lg font-bold text-ink">
+              {isExtracting ? 'Reading your policy…' : 'Upload your declarations page'}
+            </p>
+            <p id="ins-upload-hint" className="mt-1 text-sm text-on-surface-variant">
+              {isTouch ? 'Tap to choose a PDF or photo.' : 'Drag a PDF or photo here, or browse.'}
+            </p>
+            <span className="btn-secondary mt-5 min-h-10 px-5 text-sm" aria-hidden="true">
+              {isExtracting ? 'Extracting…' : 'Browse files'}
+            </span>
+            {isIOS && (
+              <p id="ins-upload-helper" className="mt-3 text-sm text-on-surface-variant">
+                On iPhone, tap Browse to find PDFs in your Files app.
+              </p>
+            )}
           </div>
 
           {error && (
-            <div className="bg-red-50 text-red-900 p-4 rounded-xl mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-red-100" aria-live="assertive">
+            <div className="mt-6 flex flex-col justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900 sm:flex-row sm:items-center" aria-live="assertive">
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                 <p className="text-sm font-medium">{error}</p>
               </div>
               {retryAction && (
                 <button
                   onClick={retryAction}
                   disabled={isAnalyzing || isExtracting}
-                  className="whitespace-nowrap px-4 py-2.5 min-h-[44px] bg-red-100 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-red-700 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="btn min-h-10 whitespace-nowrap bg-red-100 px-4 text-sm text-red-800 hover:bg-red-200"
                 >
-                  Retry Analysis
+                  Try again
                 </button>
               )}
             </div>
           )}
 
           {insuranceData && (
-            <div className="mb-8 p-6 bg-teal-50 border border-teal-100 rounded-2xl flex items-start gap-4 text-teal-900 shadow-sm">
-              <CheckCircle className="w-6 h-6 flex-shrink-0 mt-1 text-teal-600" />
-              <div>
-                <p className="font-bold text-lg mb-1">Insurance Data Extracted</p>
-                <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-teal-800">
-                  <span className="bg-teal-100/50 px-3 py-1 rounded-md">
-                    Policy: <strong>{insuranceData.policyType ?? 'Unknown'}</strong>
-                  </span>
-                  <span className="bg-teal-100/50 px-3 py-1 rounded-md">
-                    Premium: <strong>${insuranceData.annualPremium ?? 'Unknown'}</strong>
-                  </span>
-                </div>
+            <div className="mt-6 flex items-start gap-3 rounded-xl border border-teal-200 bg-success-soft p-4 text-success" role="status">
+              <CheckCircle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-semibold">We read your policy</p>
+                <p className="mt-1 text-ink">
+                  Policy <strong>{insuranceData.policyType ?? 'unknown'}</strong> · Premium <strong>{premium}</strong>
+                </p>
               </div>
             </div>
           )}
 
-          <form onSubmit={e => { void handleSubmit(e); }}>
-            <div className="flex flex-col gap-4 pt-4 items-center">
-              <button
-                type="submit"
-                disabled={isAnalyzing || isExtracting}
-                className="w-full bg-primary text-white font-semibold py-3.5 px-6 min-h-[44px] rounded-xl hover:bg-primary-container transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                aria-live="polite"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="w-6 h-6 animate-spin" /> Analyzing Policy…
-                  </>
-                ) : (
-                  'Get Free Analysis'
-                )}
-              </button>
-              <p className="text-xs text-center text-gray-500 max-w-md mx-auto">
-                Informational only — not professional legal or insurance advice.
-              </p>
-            </div>
+          <form onSubmit={e => { void handleSubmit(e); }} className="mt-6">
+            <button type="submit" disabled={isAnalyzing || isExtracting} className="btn-primary w-full" aria-live="polite">
+              {isAnalyzing ? (<><Loader2 className="h-5 w-5 animate-spin" /> Analyzing policy…</>) : 'Get my free analysis'}
+            </button>
+            <p className="mt-3 text-center text-xs text-on-surface-variant">
+              Informational only, not professional legal or insurance advice.
+            </p>
           </form>
         </div>
 
-        {/* Results column */}
-        {insResult && (
-          <div ref={resultRef} className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 scroll-mt-24">
-            <div className={`bg-white rounded-3xl shadow-xl overflow-hidden border-t-8 ${statusBorderColor[insResult.status]}`}>
-              <div className="p-8 md:p-10">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${statusIconBg[insResult.status]}`}>
+        {insResult ? (
+          <div ref={resultRef} className="rise-in scroll-mt-24">
+            <div className="card overflow-hidden">
+              <div className={'h-1.5 ' + statusTone[insResult.status].bar} />
+              <div className="p-6 sm:p-8">
+                <div className="flex items-center gap-4">
+                  <div className={'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ' + statusTone[insResult.status].icon}>
                     {insResult.status === 'GOOD_STANDING' ? (
-                      <CheckCircle className="w-7 h-7" />
+                      <CheckCircle className="h-6 w-6" />
                     ) : insResult.status === 'OPTIMIZATION_POSSIBLE' ? (
-                      <ShieldCheck className="w-7 h-7" />
+                      <ShieldCheck className="h-6 w-6" />
                     ) : (
-                      <ShieldAlert className="w-7 h-7" />
+                      <ShieldAlert className="h-6 w-6" />
                     )}
                   </div>
-                  <h3 className="font-heading font-bold text-2xl text-gray-900 leading-tight">
-                    {statusLabel[insResult.status]}
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-6 rounded-2xl border border-gray-100">
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Policy Type</div>
-                    <div className="font-heading font-bold text-xl text-primary">
-                      {insResult.data.policyType ?? 'Unknown'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Wind/Hail Deductible</div>
-                    <div className="font-heading font-bold text-xl text-primary">
-                      {insResult.data.windHailDeductible ?? 'Unknown'}
-                    </div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-on-surface-variant">Your result</p>
+                    <h3 className="font-heading text-2xl font-bold leading-tight text-ink">{statusLabel[insResult.status]}</h3>
                   </div>
                 </div>
 
-                {/* AI recommendation — skeleton while generating, content once ready */}
-                {isAnalyzing ? (
-                  <RecommendationSkeleton />
-                ) : (
-                  <div
-                    className="text-gray-600 mb-8 text-base leading-relaxed
-                      [&_strong]:font-semibold [&_strong]:text-gray-900
-                      [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ul]:my-3
-                      [&_li]:text-gray-700
-                      [&_a]:text-tertiary [&_a]:underline [&_a:hover]:text-tertiary/80"
-                    dangerouslySetInnerHTML={{ __html: recommendationHtml }}
-                  />
-                )}
+                <dl className="mt-6 grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-5">
+                  <div>
+                    <dt className="text-xs font-semibold text-on-surface-variant">Policy type</dt>
+                    <dd className="mt-1 font-heading text-xl font-extrabold text-ink">{insResult.data.policyType ?? 'Unknown'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold text-on-surface-variant">Wind/hail deductible</dt>
+                    <dd className="mt-1 font-heading text-xl font-extrabold text-ink">{insResult.data.windHailDeductible ?? 'Unknown'}</dd>
+                  </div>
+                </dl>
+
+                <div className="mt-6">
+                  {isAnalyzing ? (
+                    <RecommendationSkeleton />
+                  ) : (
+                    <div className="prose-rec" dangerouslySetInnerHTML={{ __html: recommendationHtml }} />
+                  )}
+                </div>
               </div>
             </div>
           </div>
+        ) : (
+          aside ?? null
         )}
       </div>
     </section>

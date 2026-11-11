@@ -52,7 +52,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-background">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-white"
       >
         Skip to main content
       </a>
@@ -66,11 +66,11 @@ export default function App() {
       <main id="main-content" role="main" tabIndex={-1} className="flex-grow flex flex-col">
         <ErrorBoundary resetKey={location.pathname}>
           <Suspense fallback={
-            <div className="flex-grow flex items-center justify-center p-12">
-              <div className="w-full max-w-3xl space-y-4 animate-pulse">
-                <div className="h-8 bg-gray-200 rounded w-1/3 mx-auto mb-8"></div>
-                <div className="h-64 bg-gray-100 rounded-2xl w-full"></div>
-                <div className="h-32 bg-gray-100 rounded-2xl w-full"></div>
+            <div className="flex-grow" aria-busy="true">
+              <div className="h-56 bg-primary md:h-72" />
+              <div className="container-page animate-pulse space-y-4 py-14">
+                <div className="h-8 w-1/3 rounded bg-slate-200" />
+                <div className="h-64 w-full rounded-2xl bg-slate-100" />
               </div>
             </div>
           }>
