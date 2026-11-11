@@ -1,0 +1,15 @@
+# CPU-only torch keeps the image ~1.5 GB smaller than the CUDA build.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.15.0+cpu
+torchvision==0.29.2+cpu
+docling==2.150.0
+docling-core==2.106.0
+docling-parse==7.25.0
+docling-ibm-models==4.0.4
+rapidocr==3.10.0
+onnxruntime==1.31.1
+pillow==13.0.0
+pillow-heif==1.8.1
+numpy==2.5.4
+fastapi==0.162.4
+uvicorn==0.54.0
