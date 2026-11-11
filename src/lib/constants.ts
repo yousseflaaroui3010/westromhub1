@@ -13,13 +13,13 @@ export type CountyName = (typeof COUNTIES)[number]['name'];
 const KNOWN_COUNTIES = COUNTIES.filter(c => c.name !== 'Other (Texas)');
 
 /**
- * Maps a raw county string returned by the AI to a canonical entry in COUNTIES.
+ * Maps a raw county string returned by the document reader to a canonical entry in COUNTIES.
  *
  * Strategy (in order):
  *  1. Case-insensitive exact match — "Tarrant County" → "Tarrant County"
  *  2. Keyword match on the county's first word — handles "Tarrant Appraisal District",
  *     "Dallas CAD", "Ellis County, TX", etc.
- *  3. No match → "Other (Texas)" (triggers the Texas comptroller fallback in the AI prompt)
+ *  3. No match → "Other (Texas)" (the recommendation then points to the Texas Comptroller)
  */
 export function resolveCounty(extracted: string): CountyName {
   const normalized = extracted.toLowerCase().trim();

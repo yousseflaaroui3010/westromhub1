@@ -62,7 +62,7 @@ export function runRuleEngine(data: PropertyData): AnalysisResult {
     }
   }
 
-  // Round to 4 decimal places so the AI sees clean percentages (e.g. -0.7183 not -0.718340405336327)
+  // Round to 4 decimal places so the templates get clean percentages (e.g. -0.7183 not -0.718340405336327)
   const r = (n: number) => Math.round(n * 10000) / 10000;
   return { status, yoyIncreasePct: r(yoyIncreasePct), marketGapPct: marketGapPct !== null ? r(marketGapPct) : null, data };
 }

@@ -3,7 +3,6 @@ dotenv.config({ quiet: true });
 
 import { serve } from '@hono/node-server';
 import type { AddressInfo } from 'net';
-import { buildVisionProviders } from './providers';
 import { httpExtractor } from './extractor';
 import { createApp } from './app';
 import { createLookupFn } from './adapters/index';
@@ -23,27 +22,13 @@ function int(v: string | undefined, fallback: number): number {
 }
 
 async function main() {
-  // AI-1: Build provider chains once at startup.
-  const providerConfig = {
-    geminiApiKey: env.GEMINI_API_KEY,
-    geminiModel: env.GEMINI_MODEL,
-    openRouterApiKey: env.OPENROUTER_API_KEY,
-    openRouterModel: env.OPENROUTER_MODEL,
-    openRouterPremiumModel: env.OPENROUTER_PREMIUM_MODEL,
-  };
-  const visionProviders = buildVisionProviders(providerConfig);
-
-  // Document reading: the private Docling service when configured (no AI);
-  // otherwise the legacy AI vision chain.
+  // Document reading: the private Docling service (no AI).
   const extractor = env.EXTRACTOR_URL ? httpExtractor(env.EXTRACTOR_URL, env.EXTRACTOR_TOKEN || undefined) : null;
   if (extractor) {
     console.log(`Document reader: extractor at ${new URL(env.EXTRACTOR_URL as string).host} (no AI)`);
     if (!env.EXTRACTOR_TOKEN) console.warn('WARNING: EXTRACTOR_TOKEN unset; extractor calls are unauthenticated.');
-  } else if (visionProviders.length === 0) {
-    console.error('FATAL: No document reader. Set EXTRACTOR_URL (preferred) or GEMINI_API_KEY / OPENROUTER_API_KEY.');
-    process.exit(1);
   } else {
-    console.log(`Document reader: AI vision chain ${visionProviders.map((p) => p.name).join(' -> ')}`);
+    console.warn('WARNING: EXTRACTOR_URL unset; /api/extract-* return 503 (owners can still type values in).');
   }
 
   const allowedOrigins = list(env.ALLOWED_ORIGINS, 'http://localhost:3000,http://localhost:5173');
@@ -58,8 +43,8 @@ async function main() {
     console.warn('WARNING: SESSION_SECRET unset; sessions use a per-boot random key and expire on restart.');
   }
   if (!env.INTERNAL_PROXY_TOKEN) console.warn('SECURITY: INTERNAL_PROXY_TOKEN unset; /api is reachable without going through nginx.');
-  if (!env.TURNSTILE_SECRET_KEY) console.warn('SECURITY: TURNSTILE_SECRET_KEY unset; no bot challenge on paid AI routes or the lead form.');
-  if (!env.REDIS_URL) console.warn('NOTICE: REDIS_URL unset; rate limits and the daily AI budget are per-process and reset on restart.');
+  if (!env.TURNSTILE_SECRET_KEY) console.warn('SECURITY: TURNSTILE_SECRET_KEY unset; no bot challenge on document uploads or the lead form.');
+  if (!env.REDIS_URL) console.warn('NOTICE: REDIS_URL unset; rate limits and the daily document-read cap are per-process and reset on restart.');
 
   const leadGateway = env.N8N_LEAD_WEBHOOK_BASE && env.N8N_GATEWAY_SECRET
     ? {
@@ -74,7 +59,6 @@ async function main() {
   const store = await createStore(env.REDIS_URL);
 
   const app = createApp({
-    visionProviders,
     extractor,
     allowedOrigins,
     leadAllowedOrigins,
@@ -87,8 +71,8 @@ async function main() {
       ? cloudflareTurnstileVerifier(env.TURNSTILE_SECRET_KEY)
       : null,
     sessionSecret: env.SESSION_SECRET || undefined,
-    aiDailyCallCap: int(env.AI_DAILY_CALL_CAP, 400),
-    aiMaxConcurrency: int(env.AI_MAX_CONCURRENCY, 4),
+    extractDailyCap: int(env.EXTRACT_DAILY_CAP ?? env.AI_DAILY_CALL_CAP, 400),
+    extractMaxConcurrency: int(env.EXTRACT_MAX_CONCURRENCY ?? env.AI_MAX_CONCURRENCY, 4),
     leadGateway,
     exposeApiDocs: env.EXPOSE_API_DOCS === 'true',
   });

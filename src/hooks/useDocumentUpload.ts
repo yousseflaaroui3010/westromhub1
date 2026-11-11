@@ -18,7 +18,7 @@ const ALLOWED_TYPES_LABEL = 'PDF or a photo (JPEG, PNG, WebP or HEIC)';
 interface UseDocumentUploadOptions {
   /** Whether the parent component is currently running its own async operation. */
   isAnalyzing: boolean;
-  /** Called once the file has been read and base64-encoded. Handle AI extraction here. */
+  /** Called once the file has been read and base64-encoded. Send it to the document reader here. */
   onFileProcessed: (base64: string, mimeType: string) => Promise<void>;
   /** Called on any upload-level error (file too large, read failure, etc.). */
   onError: (message: string) => void;
@@ -36,7 +36,7 @@ interface UseDocumentUploadReturn {
 /**
  * Shared upload logic for TaxAnalysis and InsuranceAnalysis.
  * Handles: drag state, file-size guard, base64 conversion, busy guard.
- * The caller owns the AI extraction logic via onFileProcessed.
+ * The caller owns the extraction call via onFileProcessed.
  */
 export function useDocumentUpload({
   isAnalyzing,

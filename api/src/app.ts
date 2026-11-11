@@ -1,9 +1,6 @@
 import { Hono } from 'hono';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { VisionProvider } from './providers/types';
-import { TAX_EXTRACTION_PROMPT, INSURANCE_EXTRACTION_PROMPT } from './prompts';
-import { StopFallback, withFallback } from './providers';
 import type { CadLookupFn } from './adapters/types';
 import {
   ExtractBodySchema,
@@ -24,10 +21,8 @@ import { leadRoutes, type LeadGatewayConfig } from './routes/leads';
 import { ExtractorError, type Extractor, type ExtractKind } from './extractor';
 
 export interface AppOptions {
-  /** Legacy AI document reading; used only when `extractor` is not set. */
-  visionProviders: VisionProvider[];
-  /** Private Docling document reader. When set, no AI is used for documents. */
-  extractor?: Extractor | null;
+  /** The private Docling document reader (no AI). null = reading unavailable. */
+  extractor: Extractor | null;
   /** Origins allowed to call the analysis API from a browser. */
   allowedOrigins?: string[];
   /** Origins allowed to call /api/leads/* (the embeddable form). */
@@ -44,22 +39,14 @@ export interface AppOptions {
    */
   leadTurnstile?: TurnstileVerifier | null;
   sessionSecret?: string;
-  /** Max billable provider attempts per UTC day. 0 disables (tests only). */
-  aiDailyCallCap?: number;
-  aiMaxConcurrency?: number;
+  /** Max document reads per UTC day (CPU-bound). 0 disables (tests only). */
+  extractDailyCap?: number;
+  extractMaxConcurrency?: number;
   leadGateway?: LeadGatewayConfig | null;
   exposeApiDocs?: boolean;
 }
 
 const DEFAULT_ORIGINS = ['http://localhost:3000', 'http://localhost:5173'];
-
-function cleanJsonResponse(raw: string): string {
-  return raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```$/, '')
-    .trim();
-}
 
 function requireJson(): MiddlewareHandler {
   return async (c, next) => {
@@ -81,7 +68,6 @@ async function readJson(c: Context): Promise<{ ok: true; body: unknown } | { ok:
 
 export function createApp(opts: AppOptions): Hono {
   const {
-    visionProviders,
     allowedOrigins = DEFAULT_ORIGINS,
     cadLookupFn,
     internalProxyToken,
@@ -90,8 +76,8 @@ export function createApp(opts: AppOptions): Hono {
   } = opts;
   const leadOrigins = Array.from(new Set([...(opts.leadAllowedOrigins ?? []), ...allowedOrigins]));
   const store = opts.store ?? new MemoryStore();
-  const budget = new DailyBudget(store, opts.aiDailyCallCap ?? 400);
-  const gate = new ConcurrencyGate(opts.aiMaxConcurrency ?? 4, 1);
+  const budget = new DailyBudget(store, opts.extractDailyCap ?? 400);
+  const gate = new ConcurrencyGate(opts.extractMaxConcurrency ?? 4, 1);
   const signer = new SessionSigner(opts.sessionSecret);
   const sessionRequired = !!turnstile;
 
@@ -178,9 +164,9 @@ export function createApp(opts: AppOptions): Hono {
     },
   );
 
-  // --- Paid AI routes ------------------------------------------------------
+  // --- Document reading (CPU-heavy, so guarded like a paid route) -----------
   const sessionKey = (c: Context) => sessionIdOf(c);
-  const paid = (perSessionMax: number, name: string): MiddlewareHandler[] => [
+  const docGuards = (perSessionMax: number, name: string): MiddlewareHandler[] => [
     bodyLimit({ maxSize: 10.5 * 1024 * 1024, onError: (c) => apiError(c, 413, 'payload_too_large', 'That file is too large. Please upload a file under 7 MB.') }),
     requireJson(),
     requireSession(signer, sessionRequired),
@@ -189,70 +175,41 @@ export function createApp(opts: AppOptions): Hono {
     concurrencyLimit(gate),
   ];
 
-  // Each provider ATTEMPT spends budget, so fallbacks are metered too.
-  const metered = <T>(fns: Array<() => Promise<T>>) =>
-    fns.map((fn) => async () => {
-      if (!(await budget.take())) throw new StopFallback('budget_exhausted');
-      return fn();
-    });
-
-  function providerFailure(c: Context, label: string, err: unknown) {
-    if (err instanceof StopFallback && err.code === 'budget_exhausted') {
-      return apiError(c, 503, 'temporarily_unavailable', 'Document analysis is temporarily unavailable. Please try again later or enter your values manually.');
-    }
-    logFailure(c, label, err);
-    return apiError(c, 503, 'ai_unavailable', 'Our document reader is unavailable right now. Please try again shortly or enter your values manually.');
-  }
-
-  async function runExtraction(c: Context, label: string, prompt: string) {
+  async function runExtraction(c: Context, kind: ExtractKind) {
+    const label = `extract-${kind}`;
     const body = await readJson(c);
     if (!body.ok) return apiError(c, 400, 'invalid_json', 'Invalid JSON body.');
     const parsed = ExtractBodySchema.safeParse(body.body);
     if (!parsed.success) {
       return apiError(c, 400, 'invalid_request', parsed.error.issues[0]?.message ?? 'Invalid request.');
     }
-    const { base64, mimeType } = parsed.data;
-    if (opts.extractor) {
-      const kind: ExtractKind = label === 'extract-tax' ? 'tax' : 'insurance';
-      try {
-        return { raw: await opts.extractor(kind, Buffer.from(base64, 'base64')) };
-      } catch (err) {
-        logFailure(c, label, err);
-        const e = err instanceof ExtractorError ? err : new ExtractorError(502, 'unknown');
-        if (e.status === 415) {
-          return apiError(c, 415, 'unsupported_media_type', 'Please upload a PDF or a photo (JPG, PNG, WEBP or HEIC).');
-        }
-        if (e.status === 413) {
-          return apiError(c, 413, 'payload_too_large', 'That file is too large. Please upload a file under 7 MB.');
-        }
-        if (e.status === 422) {
-          return apiError(c, 422, 'unreadable_document', 'We could not read that file. Please try a clearer copy or enter your values manually.');
-        }
-        return apiError(c, 503, 'reader_unavailable', 'Our document reader is busy right now. Please try again in a minute or enter your values manually.');
-      }
-    }
-    if (mimeType === 'application/pdf' && visionProviders.length === 0) {
+    if (!opts.extractor) {
       return apiError(c, 503, 'reader_unavailable', 'Document reading is unavailable right now. Please enter your values manually.');
     }
-    let content: string;
-    try {
-      content = await withFallback(
-        metered(visionProviders.map((p) => () => p.extract(prompt, base64, mimeType))),
-        label,
-      );
-    } catch (err) {
-      return providerFailure(c, label, err);
+    if (!(await budget.take())) {
+      return apiError(c, 503, 'temporarily_unavailable', 'Document reading is temporarily unavailable. Please try again later or enter your values manually.');
     }
     try {
-      return { raw: JSON.parse(cleanJsonResponse(content)) as unknown };
-    } catch {
-      return apiError(c, 422, 'unreadable_response', 'We could not read that document. Please try again or enter your values manually.');
+      return { raw: await opts.extractor(kind, Buffer.from(parsed.data.base64, 'base64')) };
+    } catch (err) {
+      logFailure(c, label, err);
+      const e = err instanceof ExtractorError ? err : new ExtractorError(502, 'unknown');
+      if (e.status === 415) {
+        return apiError(c, 415, 'unsupported_media_type', 'Please upload a PDF or a photo (JPG, PNG, WEBP or HEIC).');
+      }
+      if (e.status === 413) {
+        return apiError(c, 413, 'payload_too_large', 'That file is too large. Please upload a file under 7 MB.');
+      }
+      if (e.status === 422) {
+        return apiError(c, 422, 'unreadable_document', 'We could not read that file. Please try a clearer copy or enter your values manually.');
+      }
+      return apiError(c, 503, 'reader_unavailable', 'Our document reader is busy right now. Please try again in a minute or enter your values manually.');
     }
   }
 
-  app.use('/api/extract-tax', ...paid(8, 'extract'));
+  app.use('/api/extract-tax', ...docGuards(8, 'extract'));
   app.post('/api/extract-tax', async (c) => {
-    const r = await runExtraction(c, 'extract-tax', TAX_EXTRACTION_PROMPT);
+    const r = await runExtraction(c, 'tax');
     if (r instanceof Response) return r;
     const out = parseTaxExtraction(r.raw);
     if (out.kind === 'wrong_document') {
@@ -264,9 +221,9 @@ export function createApp(opts: AppOptions): Hono {
     return c.json(out.data);
   });
 
-  app.use('/api/extract-insurance', ...paid(8, 'extract'));
+  app.use('/api/extract-insurance', ...docGuards(8, 'extract'));
   app.post('/api/extract-insurance', async (c) => {
-    const r = await runExtraction(c, 'extract-insurance', INSURANCE_EXTRACTION_PROMPT);
+    const r = await runExtraction(c, 'insurance');
     if (r instanceof Response) return r;
     const out = parseInsuranceExtraction(r.raw);
     if (out.kind === 'wrong_document') {

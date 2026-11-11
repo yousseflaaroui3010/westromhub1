@@ -1,5 +1,5 @@
 // MIRROR of src/lib/ruleEngine.ts (frontend). The server recomputes the
-// analysis itself so a client cannot feed the AI a fabricated status or
+// analysis itself so a client cannot feed the templates a fabricated status or
 // context. ruleEngine.parity.test.ts fails if the two files drift.
 
 export type AnalysisStatus = 'AUTOMATIC_REDUCTION' | 'PROTEST_RECOMMENDED' | 'NO_ACTION' | 'CONTACT_WESTROM' | 'AMBIGUOUS';
@@ -66,7 +66,7 @@ export function runRuleEngine(data: PropertyData): AnalysisResult {
     }
   }
 
-  // Round to 4 decimal places so the AI sees clean percentages (e.g. -0.7183 not -0.718340405336327)
+  // Round to 4 decimal places so the templates get clean percentages (e.g. -0.7183 not -0.718340405336327)
   const r = (n: number) => Math.round(n * 10000) / 10000;
   return { status, yoyIncreasePct: r(yoyIncreasePct), marketGapPct: marketGapPct !== null ? r(marketGapPct) : null, data };
 }

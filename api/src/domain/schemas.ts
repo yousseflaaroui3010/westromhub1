@@ -62,15 +62,15 @@ export const PropertyLookupQuerySchema = z.object({
   county: z.string().trim().min(1).max(60),
 });
 
-// --- Model OUTPUT validation -------------------------------------------------
-// A vision model reading a hostile document can return anything. Keep only
-// well-formed fields; drop the rest. Never pass model text through unchecked.
+// --- Reader OUTPUT validation ------------------------------------------------
+// The reader sees hostile documents. Keep only well-formed fields; drop the
+// rest. Never pass document-derived text through unchecked.
 
 const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e]/g;
 const cleanText = (max: number) =>
   z.string().transform((s) => s.replace(CONTROL_CHARS, ' ').replace(/\s+/g, ' ').trim()).pipe(z.string().min(1).max(max));
 
-// Models sometimes emit "284,500" or "$284500" despite instructions.
+// Accept "284,500" / "$284500" as well as plain numbers.
 const lenientMoney = z.union([
   z.number(),
   z.string().transform((s) => Number(s.replace(/[$,\s]/g, ''))),

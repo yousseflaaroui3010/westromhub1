@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { VisionProvider } from './providers/types';
+import type { Extractor } from './extractor';
 import { createApp, type AppOptions } from './app';
 import { MemoryStore } from './security/store';
 import { ConcurrencyGate, DailyBudget } from './security/limits';
 import { SessionSigner } from './security/session';
 import { redact } from './http/errors';
 
-const vision: VisionProvider = { name: 'v', extract: vi.fn() };
+const reader = vi.fn<Extractor>();
 
 function build(extra: Partial<AppOptions> = {}) {
   return createApp({
-    visionProviders: [vision],
+    extractor: reader,
     allowedOrigins: ['https://wgcassetguide.com'],
-    aiDailyCallCap: 0,
+    extractDailyCap: 0,
     ...extra,
   });
 }
@@ -27,7 +27,7 @@ function req(app: ReturnType<typeof build>, path: string, init: { method?: strin
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(vision.extract).mockResolvedValue('{"currentValue":1}');
+  reader.mockResolvedValue({ currentValue: 100000 });
 });
 
 describe('internal proxy token', () => {
@@ -125,9 +125,9 @@ describe('MemoryStore', () => {
   });
 });
 
-describe('daily AI budget', () => {
+describe('daily document-read cap', () => {
   it('refuses paid calls with a generic 503 once the cap is spent', async () => {
-    const app = build({ aiDailyCallCap: 2 });
+    const app = build({ extractDailyCap: 2 });
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const codes: number[] = [];
     for (let i = 0; i < 3; i++) {
@@ -136,7 +136,7 @@ describe('daily AI budget', () => {
       if (res.status === 503) expect((await res.json() as Record<string, string>).code).toBe('temporarily_unavailable');
     }
     expect(codes).toEqual([200, 200, 503]);
-    expect(vi.mocked(vision.extract)).toHaveBeenCalledTimes(2);
+    expect(reader).toHaveBeenCalledTimes(2);
   });
 
   it('counts each fallback attempt', async () => {
@@ -167,7 +167,7 @@ describe('concurrency gate', () => {
 
   it('rejects a second simultaneous paid request from the same client', async () => {
     let release!: () => void;
-    vi.mocked(vision.extract).mockImplementation(() => new Promise((r) => { release = () => r('{"currentValue":1}'); }));
+    reader.mockImplementation(() => new Promise((r) => { release = () => r({ currentValue: 100000 }); }));
     const app = build();
     const first = req(app, '/api/extract-tax', { body: { base64: 'dGVzdA==' }, headers: { 'X-Real-IP': '203.0.113.30' } });
     await new Promise((r) => setTimeout(r, 10));
@@ -188,7 +188,7 @@ describe('bot challenge sessions', () => {
     const res = await req(app, '/api/extract-tax', { body: { base64: 'dGVzdA==' } });
     expect(res.status).toBe(401);
     expect((await res.json() as Record<string, string>).code).toBe('session_required');
-    expect(vi.mocked(vision.extract)).not.toHaveBeenCalled();
+    expect(reader).not.toHaveBeenCalled();
   });
 
   it('issues a session for a valid challenge and accepts it', async () => {

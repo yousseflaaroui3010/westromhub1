@@ -158,7 +158,7 @@ server {
         return 429 '{"error":"Too many requests. Please wait a minute and try again.","code":"rate_limited"}';
     }
 
-    # Paid AI routes: tight per-IP rate, one in-flight request per IP.
+    # Document reading (CPU-heavy): tight per-IP rate, two in-flight per IP.
     location ~ ^/api/(extract-tax|extract-insurance)$ {
         limit_req  zone=api_ai burst=4 nodelay;
         limit_conn api_conn 2;
