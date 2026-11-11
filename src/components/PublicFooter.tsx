@@ -32,14 +32,19 @@ export function PublicFooter() {
       <div className="container-page py-14">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
-            <img
-              src="/logo-white.svg"
-              alt="Westrom Group"
-              width={400}
-              height={250}
-              loading="lazy"
-              className="-ml-3 h-20 w-auto"
-            />
+            {/* The official westromgroup.com logo (same file as the header). Its
+                lettering is black, so it sits on a white tile on the dark footer
+                rather than being recolored. */}
+            <div className="inline-flex rounded-xl bg-white px-4 py-3">
+              <img
+                src="/westrom-logo.webp"
+                alt="Westrom Group, Real Estate & Property Management"
+                width={2048}
+                height={1186}
+                loading="lazy"
+                className="h-[4.5rem] w-auto"
+              />
+            </div>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/70">
               Family-owned property management for Dallas–Fort Worth rental owners.
             </p>
