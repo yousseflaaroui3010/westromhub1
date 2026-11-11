@@ -126,6 +126,15 @@ server {
         try_files $uri =404;
     }
 
+    # Embeddable widgets keep a fixed URL (westromgroup.com loads them by
+    # name), so they must not be cached for long: with no header, Cloudflare
+    # held them for 4h and a fix took hours to reach visitors (2026-11-11).
+    location ~ ^/(embed|guarantees|site-nav)\.js$ {
+        add_header Cache-Control "public, max-age=300" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        try_files $uri =404;
+    }
+
     # Vite's content-hashed bundles never change; cache them hard.
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable" always;
