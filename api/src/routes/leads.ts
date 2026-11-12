@@ -20,8 +20,12 @@
  *
  * No-oracle rule (G-3, wgc-lead-pipeline): every bot-signal rejection on the
  * submit route returns the same {ok:true} body a real submission gets.
- * Infrastructure failures return 503 so the widget offers a retry; retries
- * reuse the same submission_id, which WF-1 dedupes.
+ *
+ * Accept, then deliver (2026-11-12): an accepted lead is saved in the private
+ * database FIRST (kept permanently), then handed to n8n. If n8n answers in
+ * time the visitor sees the estimate as before; if not, the lead stays queued
+ * and the worker (src/worker.ts) retries until it is delivered. A 503 is only
+ * returned when the lead could not be stored AND could not be delivered.
  */
 import { Hono } from 'hono';
 import type { Context } from 'hono';
@@ -33,15 +37,24 @@ import { rateLimit } from '../security/limits';
 import { getClientIp } from '../security/clientIp';
 import type { TurnstileVerifier } from '../security/session';
 import { apiError, logFailure } from '../http/errors';
+import type { LeadStore } from '../leads/store';
+import { deliverLead, resolveSecret, UpstreamReply, type SecretValue } from '../leads/deliver';
+import { issueToken, verifyToken } from '../leads/tokens';
 
 export interface LeadGatewayConfig {
   /** n8n webhook base, e.g. https://<n8n-host>/webhook/<hook-id> (no trailing slash). */
   baseUrl: string;
-  /** Shared secret n8n checks on WF-0 and WF-1 (env WGC_GATEWAY_SECRET there). */
-  secret: string;
+  /** Shared secret n8n checks on WF-0 and WF-1 (X-WGC-Gateway). From the private DB. */
+  secret: SecretValue;
   fetchImpl?: typeof fetch;
   dailySubmitCap?: number;
   dailyGuideEmailCap?: number;
+  /** Durable lead store (private Postgres). null = forward directly (legacy). */
+  store?: LeadStore | null;
+  /** Key the API signs/verifies render tokens with (private DB). */
+  tokenKey?: SecretValue | null;
+  /** Who issues render tokens: 'n8n' (proxy WF-0, until WF-1 trusts the gateway) or 'api'. */
+  tokenIssuer?: 'n8n' | 'api';
 }
 
 const SILENT_OK = { ok: true } as const;
@@ -71,23 +84,6 @@ const LeadSchema = z.object({
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-// What we accept back from n8n and relay to the browser (estimate card).
-const UpstreamReply = z.object({
-  ok: z.literal(true),
-  estimate: z.object({
-    low: z.number(),
-    high: z.number(),
-    comps: z.array(z.object({
-      zip: z.string().max(10),
-      beds: z.union([z.string(), z.number()]).optional(),
-      sqft: z.union([z.string(), z.number()]).optional(),
-      ago_days: z.number().nullable().optional(),
-      rent: z.number(),
-    }).passthrough()).max(10).default([]),
-    meta: z.record(z.string(), z.unknown()).optional(),
-  }).optional(),
-}).passthrough();
-
 function originAllowed(c: Context, allowed: string[]): boolean {
   const origin = c.req.header('origin');
   return !!origin && allowed.includes(origin);
@@ -106,25 +102,40 @@ export function leadRoutes(opts: {
   const guideCap = gateway?.dailyGuideEmailCap ?? 150;
 
   // Sanity: a gateway with a short secret is a misconfiguration, not a feature.
-  if (gateway && gateway.secret.length < 32) {
+  if (gateway && typeof gateway.secret === 'string' && gateway.secret.length < 32) {
     throw new Error('N8N_GATEWAY_SECRET must be at least 32 characters');
   }
+  const leadStore = gateway?.store ?? null;
+  const issuer = gateway?.tokenIssuer ?? 'n8n';
 
-  const upstreamHeaders = (c: Context): Record<string, string> => ({
-    'X-WGC-Gateway': gateway!.secret,
-    'X-WGC-Client-IP': getClientIp(c),
-    'X-WGC-Client-UA': (c.req.header('user-agent') ?? '').slice(0, 400),
-  });
+  const upstreamHeaders = async (c: Context): Promise<Record<string, string>> => {
+    const secret = await resolveSecret(gateway!.secret);
+    if (!secret || secret.length < 32) throw new Error('gateway secret unavailable');
+    return {
+      'X-WGC-Gateway': secret,
+      'X-WGC-Client-IP': getClientIp(c),
+      'X-WGC-Client-UA': (c.req.header('user-agent') ?? '').slice(0, 400),
+    };
+  };
 
   r.get(
     '/token',
     rateLimit(store, { name: 'lead-token', max: 20, windowMs: 10 * 60_000 }),
     async (c) => {
       if (!gateway) return apiError(c, 503, 'unavailable', 'The form is temporarily unavailable.');
+      // The API mints tokens itself once n8n trusts the gateway: the form then
+      // works even while n8n is down (leads queue until it is back).
+      if (issuer === 'api' && gateway.tokenKey) {
+        const key = await resolveSecret(gateway.tokenKey);
+        if (key) {
+          c.header('Cache-Control', 'no-store');
+          return c.text(issueToken(key));
+        }
+      }
       try {
         const res = await doFetch(`${gateway.baseUrl}/token`, {
           method: 'GET',
-          headers: upstreamHeaders(c),
+          headers: await upstreamHeaders(c),
           signal: AbortSignal.timeout(6_000),
         });
         const text = (await res.text()).trim();
@@ -223,11 +234,49 @@ export function leadRoutes(opts: {
         fill_ms: lead.fill_ms ?? null,
       };
 
+      // Was this token minted (and is it still valid) by this API? Tokens from
+      // n8n WF-0 are forwarded unverified and n8n checks them, as before.
+      let tokenVerified = false;
+      if (gateway.tokenKey) {
+        const key = await resolveSecret(gateway.tokenKey);
+        tokenVerified = !!key && verifyToken(key, lead.token);
+      }
+      const userAgent = (c.req.header('user-agent') ?? '').slice(0, 400);
+
+      // 1. Save first. A lead we have stored is never lost.
+      if (leadStore) {
+        try {
+          const row = await leadStore.insert({ submissionId: lead.submission_id, tokenVerified, payload: forward, clientIp: ip, userAgent });
+          if (!row) {
+            // A retry of a lead we already have: answer as it was answered.
+            const prev = await leadStore.get(lead.submission_id);
+            const reply = prev?.status === 'delivered' ? UpstreamReply.safeParse(prev.reply) : null;
+            return c.json(reply?.success ? reply.data : SILENT_OK);
+          }
+          // 2. Fast path: deliver now so the visitor sees the estimate.
+          try {
+            const reply = await deliverLead(gateway, row, 8_000);
+            await leadStore.markDelivered(row.submission_id, reply);
+            return c.json(reply);
+          } catch (err) {
+            logFailure(c, 'leads/deliver', err);
+            await leadStore.markFailed(row.submission_id, 1, err instanceof Error ? err.message : 'error');
+            await leadStore.notify().catch(() => {});
+            console.warn('[leads] stored; n8n not reachable, the worker will deliver it');
+            return c.json(SILENT_OK);
+          }
+        } catch (err) {
+          // The database itself failed: fall through to direct delivery.
+          logFailure(c, 'leads/store', err);
+        }
+      }
+
+      // Legacy / fallback: deliver directly (no queue).
       try {
         const res = await doFetch(`${gateway.baseUrl}/lead`, {
           method: 'POST',
-          headers: { ...upstreamHeaders(c), 'Content-Type': 'application/json' },
-          body: JSON.stringify(forward),
+          headers: { ...(await upstreamHeaders(c)), 'Content-Type': 'application/json' },
+          body: JSON.stringify(tokenVerified ? { ...forward, gateway_verified: true } : forward),
           signal: AbortSignal.timeout(9_000),
         });
         if (!res.ok) throw new Error(`lead upstream HTTP ${res.status}`);

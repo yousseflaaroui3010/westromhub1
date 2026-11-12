@@ -102,6 +102,27 @@ was deleted; no AI keys are set anywhere. The daily cap and concurrency gate
 now bound document reads (`EXTRACT_DAILY_CAP`, `EXTRACT_MAX_CONCURRENCY`;
 the old `AI_*` names are still read as a fallback).
 
+## Leads: accept, then deliver (2026-11-12)
+
+Every accepted lead is written to the private Postgres (`lead` table, kept
+permanently; owner decision, supersedes wgc-lead-pipeline ADR-5) before it
+is handed to n8n WF-1. If n8n answers within 8 s the visitor sees the
+estimate as before; otherwise the visitor still gets the normal success
+answer, the lead stays `pending`, and the `worker` service (`node
+dist/worker.js`, same image as the API) retries with backoff (30 s doubling
+to hourly) until delivered. After 30 attempts it is marked `dead` and logged
+as an error; it is never deleted. Rows are claimed with `FOR UPDATE SKIP
+LOCKED` leases, so any number of API replicas and workers can share the
+queue; WF-1 also dedupes on submission_id. If the database itself is down,
+the API falls back to delivering directly.
+
+Render tokens: the API can mint and verify them itself (`lead_token_key` in
+`app_secret`), so the form keeps working while n8n is down. This is switched
+on with `LEAD_TOKEN_ISSUER=api` only after WF-1 is imported with Header Auth
+"WGC gateway" (value = `app_secret.n8n_gateway_secret`), because WF-1 then
+trusts `gateway_verified` leads that waited in the queue past the 2 h token
+window.
+
 ## Railway configuration (2026-11-11)
 
 - frontend + api: serverless (sleep after idle), healthchecks (`/`, `/health`),
