@@ -98,6 +98,9 @@ const TaxExtractionShape = {
   county: cleanText(100),
   currentValue: lenientMoney,
   priorValue: lenientMoney,
+  // The notice's own tax year, so the form labels the values with the years
+  // printed on the notice (a 2025 notice uploaded in 2026 is still 2025/2024).
+  taxYear: z.number().int().min(2015).max(2100),
 };
 
 const InsuranceExtractionShape = {

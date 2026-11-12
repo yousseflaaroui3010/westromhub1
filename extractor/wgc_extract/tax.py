@@ -32,6 +32,11 @@ PRIOR_RE = re.compile(r"\b(last year|prior year|previous year|prior|certified|\b
 CURRENT_RE = re.compile(r"\b(current year|current|proposed|this year|new value|preliminary)")
 NOTICE_YEAR_RES = [
     re.compile(r"\b(20[1-4]\d)\s+(?:notice of (?:appraised|appraisal)|appraisal notice|notice of value|proposed)"),
+    # "2025 PROPERTY VALUE NOTICE" (Tarrant), "2025 Real Property Appraisal Notice"
+    re.compile(r"\b(20[1-4]\d)\s+(?:real\s+)?(?:property\s+)?(?:tax\s+)?(?:value|appraisal|valuation)\s+notice\b"),
+    # "official notice of the 2024 property tax appraisal" (Fort Bend, Harris letters)
+    re.compile(r"\bnotice of the\s+(20[1-4]\d)\s+(?:property tax\s+)?apprais"),
+    re.compile(r"\bproposed\s+(20[1-4]\d)\s+apprais"),
     re.compile(r"\b(?:tax|appraisal)\s*year[:\s]+(20[1-4]\d)\b"),
     re.compile(r"\bnotice of appraised value\D{0,20}(20[1-4]\d)\b"),
 ]
@@ -61,6 +66,12 @@ TAX_DOC_RE = re.compile(r"apprais|notice of (?:appraised )?value|appraisal distr
 
 MIN_VALUE, MAX_VALUE = 5_000, 200_000_000
 
+# A value printed on a line naming a component of the total ("200,000 LAND",
+# "350,000 IMPR", "Ag Land 12,000") is a breakdown row, not the market or
+# appraised total under the same column header.
+# (?<![a-z]) not \b: OCR often glues the word to the number ("350,000IMPR").
+COMPONENT_RE = re.compile(r"(?<![a-z])(land|impr|imprv|improvements?|buildings?|structures?|ag|timber|taxable|exempt\w*|homestead cap)\b")
+
 
 @dataclass
 class Cand:
@@ -85,8 +96,17 @@ def notice_year(doc: Document) -> Optional[int]:
             m = rx.search(t)
             if m:
                 return int(m.group(1))
-    # Fallback: the latest year printed in a value label or a short header
-    # (not in running text, where deadlines and law dates appear).
+    # Fallback 1: the latest year named in a value label ("2025 Market Value",
+    # "2024 Appraised Value"): a notice labels this year's and last year's
+    # values, never next year's. Running text is skipped: legal notes name
+    # future tax years ("for the 2024, 2025, and 2026 tax years").
+    label_years = [
+        int(y) for l in doc.lines if l.page == 1 and not is_sentence(l, 8) and KIND_RE.search(norm(l.text))
+        for y in YEAR_RE.findall(norm(l.text)) if 2015 <= int(y) <= 2040
+    ]
+    if label_years:
+        return max(label_years)
+    # Fallback 2: the latest year printed in a short header.
     years: Counter[int] = Counter()
     for l in doc.lines:
         t = norm(l.text)
@@ -219,8 +239,9 @@ def value_candidates(doc: Document, year: Optional[int]) -> list[Cand]:
             out.extend(merged)
             continue
         hits = sorted(
-            values_near(doc, line, m.end(), lambda s: [v for v in money_values(s) if MIN_VALUE <= v <= MAX_VALUE],
-                        max_below_lines=7),
+            (h for h in values_near(doc, line, m.end(), lambda s: [v for v in money_values(s) if MIN_VALUE <= v <= MAX_VALUE],
+                                    max_below_lines=7)
+             if h.line is line or not COMPONENT_RE.search(norm(h.line.text))),
             key=lambda h: h.distance,
         )
         if own:
@@ -241,7 +262,24 @@ def value_candidates(doc: Document, year: Optional[int]) -> list[Cand]:
     return out
 
 
-def pick_values(cands: list[Cand]) -> tuple[Optional[int], Optional[int]]:
+def _resolve_market_vs_appraised(best: dict, support: Counter, period: str) -> None:
+    """Appraised value can never exceed market value for the same year (the
+    homestead cap only lowers it). If it does, one of the two cells was
+    misread (OCR turned 460,000 into 400000): keep the value printed more
+    often on the notice, and drop both when that does not settle it."""
+    m, a = best.get(("market", period)), best.get(("appraised", period))
+    if not (m and a) or a.value <= m.value:
+        return
+    sm, sa = support[m.value], support[a.value]
+    if sa > sm:
+        del best[("market", period)]
+    elif sm > sa:
+        del best[("appraised", period)]
+    else:
+        del best[("market", period)], best[("appraised", period)]
+
+
+def pick_values(cands: list[Cand], support: Optional[Counter] = None) -> tuple[Optional[int], Optional[int]]:
     best: dict[tuple[str, str], Cand] = {}
     values: dict[tuple[str, str], set[int]] = {}
     for c in cands:
@@ -252,6 +290,8 @@ def pick_values(cands: list[Cand]) -> tuple[Optional[int], Optional[int]]:
     for k, vs in values.items():
         if len(vs) > 1:
             del best[k]  # contradictory readings of the same cell: unknown
+    for period in ("cur", "prior"):
+        _resolve_market_vs_appraised(best, support or Counter(), period)
     get = lambda kind, period: best[(kind, period)].value if (kind, period) in best else None  # noqa: E731
     mc, mp, ac, ap = get("market", "cur"), get("market", "prior"), get("appraised", "cur"), get("appraised", "prior")
     if mc and mp:
@@ -319,7 +359,8 @@ def find_county(doc: Document) -> Optional[str]:
 def extract_tax(doc: Document) -> dict:
     text = norm(doc.text)
     year = notice_year(doc)
-    cur, prior = pick_values(value_candidates(doc, year))
+    support = Counter(v for l in doc.lines for v in money_values(norm(l.text)))
+    cur, prior = pick_values(value_candidates(doc, year), support)
     out: dict = {}
     address = find_address(doc)
     county = find_county(doc)
