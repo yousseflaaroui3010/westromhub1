@@ -128,7 +128,7 @@ API service:
 | `SESSION_SECRET` | with Turnstile | ≥ 32 chars, so sessions survive restarts |
 | `LEAD_REQUIRE_TURNSTILE` | later | `true` only after the widget carries `data-turnstile-sitekey` everywhere |
 | `EXTRACTOR_URL` | recommended | `http://${{extractor.RAILWAY_PRIVATE_DOMAIN}}:8080`. Document reading via the private Docling service (no AI). Unset = legacy AI vision chain |
-| `EXTRACTOR_TOKEN` | recommended | `${{shared.EXTRACTOR_TOKEN}}`, same value on the extractor service |
+| `DATABASE_URL` | recommended | `${{Postgres.DATABASE_URL}}`, the project's private Postgres (no TCP proxy). Holds the API↔extractor token in `app_secret`, generated on first use; it is never a variable. Same reference on the extractor |
 | `REDIS_URL` | recommended | Railway Redis in this project, so limits survive restarts |
 | `EXTRACT_DAILY_CAP` | no | Default 400 document reads per UTC day (`AI_DAILY_CALL_CAP` still read as a fallback) |
 | `LEAD_DAILY_SUBMIT_CAP` / `LEAD_DAILY_GUIDE_EMAIL_CAP` | no | Defaults 300 / 150 |

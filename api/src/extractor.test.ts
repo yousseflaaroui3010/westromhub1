@@ -92,4 +92,15 @@ describe('httpExtractor', () => {
     await expect(httpExtractor('http://x', undefined, { sleep: async () => {} })('tax', Buffer.from('a'))).rejects.toMatchObject({ status: 504 });
     expect(t).toHaveBeenCalledTimes(1);
   });
+
+  it('loads the token from a secret source and fails closed when it cannot', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ annualPremium: 1200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await httpExtractor('http://x', async () => 'from-db')('insurance', Buffer.from('a'));
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>)['X-Extractor-Token']).toBe('from-db');
+    fetchMock.mockClear();
+    await expect(httpExtractor('http://x', async () => undefined)('tax', Buffer.from('a'))).rejects.toMatchObject({ status: 503, code: 'secret_unavailable' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
