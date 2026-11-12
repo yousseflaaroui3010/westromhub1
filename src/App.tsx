@@ -1,4 +1,4 @@
-import { useEffect, Suspense, lazy } from 'react';
+import { useEffect, Suspense } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { PublicHeader } from './components/PublicHeader';
 import { PublicFooter } from './components/PublicFooter';
@@ -6,9 +6,11 @@ import { HomeView } from './components/HomeView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { NotFoundView } from './components/NotFoundView';
 
-const TaxView = lazy(() => import('./components/TaxView').then(m => ({ default: m.TaxView })));
-const InsuranceView = lazy(() => import('./components/InsuranceView').then(m => ({ default: m.InsuranceView })));
-const PrivacyView = lazy(() => import('./components/PrivacyView').then(m => ({ default: m.PrivacyView })));
+import { lazyPage } from './lib/lazyPage';
+
+const TaxView = lazyPage(() => import('./components/TaxView').then(m => ({ default: m.TaxView })));
+const InsuranceView = lazyPage(() => import('./components/InsuranceView').then(m => ({ default: m.InsuranceView })));
+const PrivacyView = lazyPage(() => import('./components/PrivacyView').then(m => ({ default: m.PrivacyView })));
 
 export type ViewState = 'home' | 'taxes' | 'insurance';
 
