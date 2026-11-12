@@ -26,7 +26,7 @@ describe('document reading through the extractor (no AI)', () => {
     const ex = vi.fn<Extractor>(async () => ({ currentValue: 300000, priorValue: '240,000', county: 'Tarrant County', taxYear: 2026, junk: '<b>' }));
     const res = await post(app(ex), '/api/extract-tax', { base64: PDF_B64, mimeType: 'application/pdf' });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ currentValue: 300000, priorValue: 240000, county: 'Tarrant County' });
+    expect(await res.json()).toEqual({ currentValue: 300000, priorValue: 240000, county: 'Tarrant County', taxYear: 2026 });
     expect(ex).toHaveBeenCalledWith('tax', expect.any(Buffer));
     expect(Buffer.from(ex.mock.calls[0][1]).toString()).toBe('%PDF-1.4 test');
   });
