@@ -101,3 +101,44 @@ def test_insurance_iso_form_numbers():
 
 def test_insurance_refuses_other_documents():
     assert extract_insurance(doc((50, 40, "Move-out inspection"), (50, 60, "Kitchen: stains"))) == {"error": "not_an_insurance_document"}
+
+
+def test_tax_tarrant_grid_year_land_impr_and_legal_text():
+    """Tarrant's 2025 notice: title year, not the 2026 in the legal note; the
+    TOTAL row, not LAND/IMPR (OCR glues the word to the number)."""
+    d = doc(
+        (210, 34, "2025 PROPERTY VALUE NOTICE"),
+        (66, 57, "TARRANT APPRAISAL DISTRICT"),
+        (35, 257, "2024 Market Value For Questions Please Call:"), (237, 257, "2025 Market Value"), (336, 257, "2025 Appraised Value"),
+        (65, 268, "460,000"), (258, 268, "200,000LAND"),
+        (22, 278, "2024 Appraised Value"), (258, 280, "350,000IMPR"),
+        (65, 291, "460,000"), (259, 292, "550,000TOTAL"), (360, 292, "550,000 TOTAL"),
+        (12, 463, "\"Under Section 23.231, Tax Code, for the 2024, 2025, and 2026 tax years, the appraised value of real property"),
+    )
+    out = extract_tax(d)
+    assert out["taxYear"] == 2025
+    assert out["currentValue"] == 550000 and out["priorValue"] == 460000
+
+
+def test_tax_appraised_above_market_is_a_misread():
+    """Appraised can never exceed market for the same year. When OCR turns
+    460,000 into 400000, trust the value the notice repeats; never report the
+    misread one."""
+    d = doc(
+        (210, 34, "2025 PROPERTY VALUE NOTICE"),
+        (35, 100, "2024 Market Value"), (35, 111, "400000"),
+        (200, 100, "2024 Appraised Value"), (200, 111, "460,000"),
+        (35, 140, "2025 Market Value"), (35, 151, "550,000"),
+        (200, 140, "2025 Appraised Value"), (200, 151, "550,000"),
+        (35, 200, "2024 Taxable Value"), (35, 211, "460,000"), (35, 222, "460,000"),
+    )
+    out = extract_tax(d)
+    assert out["currentValue"] == 550000 and out["priorValue"] == 460000
+    # No tie-breaker on the page: leave it empty rather than guess.
+    d2 = doc(
+        (210, 34, "2025 PROPERTY VALUE NOTICE"),
+        (35, 100, "2024 Market Value"), (35, 111, "400000"),
+        (200, 100, "2024 Appraised Value"), (200, 111, "460,000"),
+        (35, 140, "2025 Market Value"), (35, 151, "550,000"),
+    )
+    assert "priorValue" not in extract_tax(d2)

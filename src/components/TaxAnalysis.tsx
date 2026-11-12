@@ -119,6 +119,7 @@ function CountySteps({ county, searchUrl, countyLabel, houseNumber, streetName, 
 
 export function TaxAnalysis({ aside }: { aside?: ReactNode } = {}) {
   const [formData, setFormData] = useState<PropertyData>(DEFAULT_FORM);
+  const [noticeYear, setNoticeYear] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [taxResult, setTaxResult] = useState<AnalysisResult | null>(null);
   const [recommendationHtml, setRecommendationHtml] = useState('');
@@ -252,6 +253,7 @@ export function TaxAnalysis({ aside }: { aside?: ReactNode } = {}) {
       priorValue: extracted.priorValue ?? formDataRef.current.priorValue,
     };
     suppressLookupRef.current = true; // prevent the address-change lookup from overwriting these values
+    setNoticeYear(extracted.taxYear ?? null);
     setFormData(newData);
     setLookupState('idle');
     void runAnalysis(newData);
@@ -302,7 +304,9 @@ export function TaxAnalysis({ aside }: { aside?: ReactNode } = {}) {
     AMBIGUOUS: "We can't fully assess this yet",
   } as const;
 
-  const year = new Date().getFullYear();
+  const thisYear = new Date().getFullYear();
+  // Label the values with the notice's own years when a notice was uploaded.
+  const year = noticeYear ?? thisYear;
   const lookupFilled = (field: 'current' | 'prior') =>
     lookupState === 'both_found' || (field === 'prior' && lookupState === 'prior_only');
 
@@ -444,13 +448,13 @@ export function TaxAnalysis({ aside }: { aside?: ReactNode } = {}) {
             {lookupState === 'both_found' && (
               <div className="flex items-center gap-2 rounded-xl border border-teal-200 bg-success-soft px-4 py-3 text-sm text-success" role="status">
                 <CheckCircle className="h-4 w-4 shrink-0" />
-                Found your {year} and {year - 1} values. Check them against your notice, then analyze.
+                Found your {thisYear} and {thisYear - 1} values. Check them against your notice, then analyze.
               </div>
             )}
             {lookupState === 'prior_only' && (
               <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-warning-soft px-4 py-3 text-sm text-warning" role="status">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                Found your {year - 1} value. Enter your {year} value from your notice below.
+                Found your {thisYear - 1} value. Enter your {thisYear} value from your notice below.
               </div>
             )}
             {lookupState === 'not_found' && formData.county && (() => {
@@ -481,12 +485,22 @@ export function TaxAnalysis({ aside }: { aside?: ReactNode } = {}) {
                       houseNumber={houseNumber}
                       streetName={streetName}
                       addrHint={addrHint}
-                      year={year}
+                      year={thisYear}
                     />
                   </ol>
                 </div>
               );
             })()}
+
+            {noticeYear !== null && noticeYear < thisYear && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-warning-soft px-4 py-3 text-sm text-warning" role="status">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  This is your {noticeYear} notice, so the values below are for {noticeYear} and {noticeYear - 1}.
+                  To protest this year, upload your {thisYear} notice.
+                </span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               {([

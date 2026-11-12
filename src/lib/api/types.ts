@@ -3,6 +3,8 @@ export interface TaxExtraction {
   county?: string;
   currentValue?: number;
   priorValue?: number;
+  /** Tax year printed on the uploaded notice. */
+  taxYear?: number;
   error?: string;
 }
 
