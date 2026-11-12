@@ -5,6 +5,9 @@ import { serve } from '@hono/node-server';
 import type { AddressInfo } from 'net';
 import { httpExtractor } from './extractor';
 import { cachedSecret, getOrCreateSecret } from './security/secretStore';
+import { connect, migrate, withRetry } from './db';
+import { pgLeadStore } from './leads/store';
+import { dbEstimator } from './estimator/indexCache';
 import { createApp } from './app';
 import { createLookupFn } from './adapters/index';
 import { createStore } from './security/store';
@@ -54,14 +57,31 @@ async function main() {
   if (!env.TURNSTILE_SECRET_KEY) console.warn('SECURITY: TURNSTILE_SECRET_KEY unset; no bot challenge on document uploads or the lead form.');
   if (!env.REDIS_URL) console.warn('NOTICE: REDIS_URL unset; rate limits and the daily document-read cap are per-process and reset on restart.');
 
-  const leadGateway = env.N8N_LEAD_WEBHOOK_BASE && env.N8N_GATEWAY_SECRET
+  // Lead gateway. With DATABASE_URL, leads are stored first and delivered by
+  // the worker if n8n is unavailable; the gateway secret and the token key
+  // live in the private database (the secret is seeded once from
+  // N8N_GATEWAY_SECRET if that is still set, so n8n keeps matching).
+  const sql = env.DATABASE_URL ? connect(env.DATABASE_URL) : null;
+  if (sql) void withRetry(() => migrate(sql), 'migrate', 10).catch((e) => console.error(`[db] migration failed: ${e instanceof Error ? e.name : 'error'}`));
+  const dbSecret = (name: string, initial?: string) =>
+    cachedSecret(() => getOrCreateSecret(env.DATABASE_URL as string, name, initial), name);
+  const gatewaySecret = env.DATABASE_URL ? dbSecret('n8n_gateway_secret', env.N8N_GATEWAY_SECRET) : env.N8N_GATEWAY_SECRET;
+  const leadGateway = env.N8N_LEAD_WEBHOOK_BASE && gatewaySecret
     ? {
         baseUrl: env.N8N_LEAD_WEBHOOK_BASE.replace(/\/+$/, ''),
-        secret: env.N8N_GATEWAY_SECRET,
+        secret: gatewaySecret,
         dailySubmitCap: int(env.LEAD_DAILY_SUBMIT_CAP, 300),
         dailyGuideEmailCap: int(env.LEAD_DAILY_GUIDE_EMAIL_CAP, 150),
+        store: sql ? pgLeadStore(sql) : null,
+        tokenKey: env.DATABASE_URL ? dbSecret('lead_token_key') : null,
+        // 'api' only once n8n WF-1 trusts gateway-verified tokens.
+        tokenIssuer: env.LEAD_TOKEN_ISSUER === 'api' ? ('api' as const) : ('n8n' as const),
+        estimator: sql ? dbEstimator(sql) : null,
       }
     : null;
+  if (leadGateway) {
+    console.log(`Lead gateway: store=${leadGateway.store ? 'postgres' : 'none (direct)'} tokens=${leadGateway.tokenIssuer}`);
+  }
   if (!leadGateway) console.warn('NOTICE: N8N_LEAD_WEBHOOK_BASE / N8N_GATEWAY_SECRET unset; /api/leads/* returns 503.');
 
   const store = await createStore(env.REDIS_URL);

@@ -102,6 +102,44 @@ was deleted; no AI keys are set anywhere. The daily cap and concurrency gate
 now bound document reads (`EXTRACT_DAILY_CAP`, `EXTRACT_MAX_CONCURRENCY`;
 the old `AI_*` names are still read as a fallback).
 
+## Leads: accept, then deliver (2026-11-12)
+
+Every accepted lead is written to the private Postgres (`lead` table, kept
+permanently; owner decision, supersedes wgc-lead-pipeline ADR-5) before it
+is handed to n8n WF-1. If n8n answers within 8 s the visitor sees the
+estimate as before; otherwise the visitor still gets the normal success
+answer, the lead stays `pending`, and the `worker` service (`node
+dist/worker.js`, same image as the API) retries with backoff (30 s doubling
+to hourly) until delivered. After 30 attempts it is marked `dead` and logged
+as an error; it is never deleted. Rows are claimed with `FOR UPDATE SKIP
+LOCKED` leases, so any number of API replicas and workers can share the
+queue; WF-1 also dedupes on submission_id. If the database itself is down,
+the API falls back to delivering directly.
+
+Render tokens: the API can mint and verify them itself (`lead_token_key` in
+`app_secret`), so the form keeps working while n8n is down. This is switched
+on with `LEAD_TOKEN_ISSUER=api` only after WF-1 is imported with Header Auth
+"WGC gateway" (value = `app_secret.n8n_gateway_secret`), because WF-1 then
+trusts `gateway_verified` leads that waited in the queue past the 2 h token
+window.
+
+## Rental estimate from Rentvine (2026-11-12)
+
+The `worker` service syncs active leases from Rentvine (corporation
+`westromgroup`) at start when the data is over 20 h old and nightly at 03:17
+America/Chicago; `NOTIFY rentvine_sync` runs it on demand. Its own client:
+no connection to any other app. The key is read from this project's private
+Postgres (`app_secret` rows `rentvine_api_key`, `rentvine_api_secret`, added
+by a person in Railway's database view); it is never a variable. Read-only,
+one request every 3 s, at most 40 pages; 429/5xx back off, 401/403 stop.
+Only zip, beds, baths, sqft, rent, lease start date and an opaque unit id are
+kept (`segment_index`); unchanged data is not rewritten; a partial read never
+replaces a good index. Outcomes are in `rentvine_status`.
+
+The API computes the estimate itself from that index (cached 10 min in
+memory), so visitors get it even while n8n is down; n8n's estimate (RentCast)
+is used only when ours has no data for the segment.
+
 ## Railway configuration (2026-11-11)
 
 - frontend + api: serverless (sleep after idle), healthchecks (`/`, `/health`),

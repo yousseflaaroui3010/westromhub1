@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node --dns-result-order=ipv4first dist/index.js",
     "lint": "tsc --noEmit && eslint src",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "test:coverage": "vitest run --coverage"
   },
   "keywords": [],

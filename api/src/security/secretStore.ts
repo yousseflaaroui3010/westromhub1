@@ -22,14 +22,18 @@ export const SECRET_LOCK_ID = 727270101;
 
 export type SecretSource = () => Promise<string | undefined>;
 
-/** Reads (creating on first use) one secret row. Throws on DB failure. */
-export async function getOrCreateSecret(databaseUrl: string, name: string): Promise<string> {
+/**
+ * Reads (creating on first use) one secret row. Throws on DB failure.
+ * `initial` seeds the row on first use (e.g. moving an existing secret out of
+ * an environment variable); otherwise a random 32-byte value is generated.
+ */
+export async function getOrCreateSecret(databaseUrl: string, name: string, initial?: string): Promise<string> {
   const sql = postgres(databaseUrl, { max: 1, connect_timeout: 10, idle_timeout: 5, onnotice: () => {} });
   try {
     const value = await sql.begin(async (tx) => {
       await tx`SELECT pg_advisory_xact_lock(${SECRET_LOCK_ID})`;
       await tx.unsafe(SCHEMA);
-      await tx`INSERT INTO app_secret (name, value) VALUES (${name}, ${randomBytes(32).toString('hex')})
+      await tx`INSERT INTO app_secret (name, value) VALUES (${name}, ${initial && initial.length >= 32 ? initial : randomBytes(32).toString('hex')})
                ON CONFLICT (name) DO NOTHING`;
       const rows = await tx<{ value: string }[]>`SELECT value FROM app_secret WHERE name = ${name}`;
       return rows[0]?.value;

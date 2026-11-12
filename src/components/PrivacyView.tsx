@@ -5,7 +5,7 @@ import { useEffect, type ReactNode } from 'react';
 // the wgc-lead-pipeline repository. If a data flow changes, update this page in
 // the same pull request. Reviewed wording from counsel replaces this text as-is.
 
-const UPDATED = 'November 11, 2026';
+const UPDATED = 'November 12, 2026';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -48,7 +48,7 @@ export function PrivacyView() {
             the county appraisal district or a property-data provider (ATTOM).
           </p>
           <p>
-            We do not save your uploaded documents, addresses or results in a database. Our servers keep short
+            We do not save your uploaded documents, addresses or tax and insurance results in a database. Our servers keep short
             technical logs (such as your IP address, the time of the request and an error reference) for security
             and troubleshooting. These logs do not contain your documents or addresses.
           </p>
@@ -66,7 +66,10 @@ export function PrivacyView() {
             you the guide, create a lead in our customer-management system (LeadSimple) so a team member can follow up,
             and notify our team by email. Emails are delivered by our email provider (Brevo). The form is processed
             by our workflow automation service (n8n), which keeps records of each run for a limited period and then
-            deletes them automatically.
+            deletes them automatically. We also keep a copy of every form submission (ZIP code, square footage,
+            bedrooms and, if you asked for the guide, your email address and consent record) in our own private
+            database, so a request is never lost if one of these services is briefly unavailable. We keep it until
+            you ask us to delete it.
           </p>
         </Section>
 
