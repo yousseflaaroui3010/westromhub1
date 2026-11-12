@@ -43,7 +43,7 @@ NOTICE_YEAR_RES = [
 
 ADDRESS_LABEL_RE = re.compile(
     r"\b(situs(?: address)?|property (?:address|location)|location(?: address)?|physical address|"
-    r"property site address|site address)\b\s*:?\s*"
+    r"property site address|site address|(?:property )?description (?:and|&) (?:address|location))\b\s*:?\s*"
 )
 ADDRESS_LABEL_RE_CI = re.compile(ADDRESS_LABEL_RE.pattern, re.I)
 NOT_SITUS_RE = re.compile(r"\b(mailing|owner'?s? address|owner name|mail to|remit)")
