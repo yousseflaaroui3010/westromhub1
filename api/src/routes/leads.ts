@@ -58,6 +58,8 @@ export interface LeadGatewayConfig {
   tokenIssuer?: 'n8n' | 'api';
   /** Own-data estimator (index from Rentvine, in the private DB). */
   estimator?: EstimateSource | null;
+  /** Pipeline health for uptime monitoring (counts and ages only). */
+  health?: (() => Promise<{ ok: boolean }>) | null;
 }
 
 const SILENT_OK = { ok: true } as const;
@@ -120,6 +122,20 @@ export function leadRoutes(opts: {
       'X-WGC-Client-UA': (c.req.header('user-agent') ?? '').slice(0, 400),
     };
   };
+
+  // Uptime monitor target: 200 when leads flow, 503 when they are stuck
+  // (queued > 90 min, any lead failed for good in 24 h, Rentvine stale > 48 h).
+  r.get('/health', rateLimit(store, { name: 'lead-health', max: 60, windowMs: 60 * 60_000 }), async (c) => {
+    c.header('Cache-Control', 'no-store');
+    if (!gateway?.health) return c.json({ ok: false, reason: 'not configured' }, 503);
+    try {
+      const h = await gateway.health();
+      return c.json(h, h.ok ? 200 : 503);
+    } catch (err) {
+      logFailure(c, 'leads/health', err);
+      return c.json({ ok: false, reason: 'database unavailable' }, 503);
+    }
+  });
 
   r.get(
     '/token',

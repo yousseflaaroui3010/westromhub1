@@ -32,6 +32,12 @@ CREATE TABLE IF NOT EXISTS lead (
 CREATE INDEX IF NOT EXISTS lead_due ON lead (next_attempt_at) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS lead_received ON lead (received_at DESC);
 ALTER TABLE lead ADD COLUMN IF NOT EXISTS estimate jsonb;
+CREATE UNLOGGED TABLE IF NOT EXISTS rate_counter (
+  key       text PRIMARY KEY,
+  count     integer NOT NULL,
+  reset_at  timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rate_counter_expiry ON rate_counter (reset_at);
 ` + INDEX_SCHEMA;
 
 export function connect(url: string, max = 5): Sql {

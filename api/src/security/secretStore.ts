@@ -38,8 +38,11 @@ export async function getOrCreateSecret(databaseUrl: string, name: string, initi
       const rows = await tx<{ value: string }[]>`SELECT value FROM app_secret WHERE name = ${name}`;
       return rows[0]?.value;
     });
-    if (!value) throw new Error('secret row missing');
-    return value;
+    // Trim: a value pasted into the database view can carry a stray space or
+    // newline, and HTTP clients strip those from headers anyway.
+    const v = value?.trim();
+    if (!v) throw new Error('secret row missing');
+    return v;
   } finally {
     await sql.end({ timeout: 5 }).catch(() => {});
   }

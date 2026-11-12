@@ -6,11 +6,11 @@ import type { AddressInfo } from 'net';
 import { httpExtractor } from './extractor';
 import { cachedSecret, getOrCreateSecret } from './security/secretStore';
 import { connect, migrate, withRetry } from './db';
-import { pgLeadStore } from './leads/store';
+import { pgLeadStore, leadHealth } from './leads/store';
 import { dbEstimator } from './estimator/indexCache';
 import { createApp } from './app';
 import { createLookupFn } from './adapters/index';
-import { createStore } from './security/store';
+import { createStore, PgStore } from './security/store';
 import { cloudflareTurnstileVerifier } from './security/session';
 
 const env = process.env;
@@ -77,6 +77,7 @@ async function main() {
         // 'api' only once n8n WF-1 trusts gateway-verified tokens.
         tokenIssuer: env.LEAD_TOKEN_ISSUER === 'api' ? ('api' as const) : ('n8n' as const),
         estimator: sql ? dbEstimator(sql) : null,
+        health: sql ? () => leadHealth(sql) : null,
       }
     : null;
   if (leadGateway) {
@@ -84,7 +85,9 @@ async function main() {
   }
   if (!leadGateway) console.warn('NOTICE: N8N_LEAD_WEBHOOK_BASE / N8N_GATEWAY_SECRET unset; /api/leads/* returns 503.');
 
-  const store = await createStore(env.REDIS_URL);
+  // Rate-limit counters must be shared when more than one API copy runs:
+  // Redis if configured, else the private Postgres, else per-process memory.
+  const store = env.REDIS_URL ? await createStore(env.REDIS_URL) : sql ? new PgStore(sql) : await createStore(undefined);
 
   const app = createApp({
     extractor,
