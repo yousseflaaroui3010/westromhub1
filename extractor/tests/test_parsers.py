@@ -142,3 +142,47 @@ def test_tax_appraised_above_market_is_a_misread():
         (35, 140, "2025 Market Value"), (35, 151, "550,000"),
     )
     assert "priorValue" not in extract_tax(d2)
+
+
+def test_tax_address_under_description_label_skips_legal_line_and_mailing():
+    """Tarrant: 'Property Description and Address', legal line, then street;
+    the taxpayer's mailing block elsewhere is never the property address."""
+    d = doc(
+        (66, 57, "TARRANT APPRAISAL DISTRICT"),
+        (72, 176, "TAXPAYER"), (74, 185, "9 OWNER WAY"), (72, 195, "ARLINGTON, TX 76010"),
+        (394, 129, "Property Description and Address"),
+        (393, 139, "SUBDIVISION ADDITION BLOCK 2 LOT 9G"),
+        (394, 149, "1234 MAIN BLVD"),
+        (35, 257, "2025 Market Value"), (35, 268, "550,000"),
+    )
+    assert extract_tax(d)["address"] == "1234 MAIN BLVD"
+
+
+def test_insurance_coinsurance_is_not_the_deductible():
+    """TWIA: 'Coins % | Deductible %' columns read as one cell '80% 1%'."""
+    d = doc(
+        (200, 20, "Residential Declarations Page"), (200, 32, "Texas Windstorm Insurance Association"),
+        (60, 290, "COVERAGES - Windstorm and Hail Only"),
+        (326, 353, "Coins"), (360, 360, "Deductible"), (480, 353, "Premium"),
+        (75, 389, "A Property Description: Single Family Dwelling"), (329, 389, "80% 1% $"),
+        (93, 470, "Item #1-A forms: 320 220"),
+    )
+    out = extract_insurance(d)
+    assert out.get("windHailDeductible") == "1%"
+    assert "annualPremium" not in out
+
+
+def test_insurance_all_peril_amount_first_and_ale_is_not_rent():
+    d = doc(
+        (20, 20, "Homeowners Declarations Page"),
+        (20, 100, "Total Premium for the premium period"), (20, 112, "TOTAL $1,390"),
+        (20, 200, "Coverage A - Dwelling protection (structure)"), (257, 200, "$200,000"),
+        (60, 212, "• $1,000 all peril deductibl e"),
+        (20, 260, "Coverage C - Personal property protection"), (257, 260, "$100,000"),
+        (60, 272, "• $500 deductible"),
+        (20, 300, "Coverage D - Loss of Use - Additional living expense"), (257, 300, "$20,000"),
+    )
+    out = extract_insurance(d)
+    assert out.get("aopDeductible") == "$1,000"
+    assert "hasLossOfRent" not in out
+    assert out.get("annualPremium") == 1390

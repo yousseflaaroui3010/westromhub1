@@ -28,8 +28,9 @@ CONDO_RENTERS_RE = re.compile(r"\b(condominium unit ?owners?|renters|tenant)\b")
 
 # --- deductibles ---------------------------------------------------------------
 WIND_RE = re.compile(r"\b(wind(?:storm)?\s*(?:/|&|and|or|-)?\s*hail|windstorm|named storm|hurricane|wind/hail)\b")
-AOP_RE = re.compile(r"\b(all other (?:perils?|losses|causes)|\baop\b|all (?:covered )?(?:perils|losses)|other perils|other than wind)")
-DEDUCT_RE = re.compile(r"\bdeduct(?:ible|ibles)?\b")
+AOP_RE = re.compile(r"\b(all other (?:perils?|losses|causes)|\baop\b|all (?:covered )?(?:perils?|losses)|other perils|other than wind)")
+# "deductibl e" / "deductibIe": OCR splits and misreads the word.
+DEDUCT_RE = re.compile(r"\bdeduct(?:ib\w*)?\b")
 WINDSTORM_ONLY_RE = re.compile(r"windstorm and hail only|wind(?:storm)? (?:and|&) hail (?:only|policy)|twia|texas windstorm")
 
 # --- premium -----------------------------------------------------------------
@@ -41,6 +42,10 @@ PREMIUM_LABELS = [
     (re.compile(r"\bpremium\b"), 5),
 ]
 NOT_PREMIUM_RE = re.compile(r"\b(minimum earned|installment|down ?payment|per (?:month|installment)|monthly|balance|paid to date|deposit)\b")
+# Form / edition numbers ("Item #1-A forms: 320 220") read like money after OCR.
+FORM_NUMBERS_RE = re.compile(r"\bforms?\b(?! of payment)|\bedition\b|\bendorsement (?:no|number)")
+# A rental home's annual premium; larger numbers are limits or form numbers.
+MAX_PREMIUM = 100_000
 
 # --- coverages -----------------------------------------------------------------
 RENT_RE = re.compile(r"\b(fair rental value|loss of rents?|rental income|rents? loss|loss of use|rental value)\b")
@@ -76,9 +81,14 @@ def policy_type(doc: Document) -> Optional[str]:
     return None
 
 
+MAX_DEDUCT_PCT = 15.0
+
+
 def _ded_value(text: str) -> Optional[str]:
     """'2% ($6,400)' -> '2%'; '$1,000' -> '$1,000'."""
-    p = pct_values(text)
+    # Percentage deductibles run 0.25%-10% (wind/hail, hurricane, AOP). 80%,
+    # 90%, 100% are coinsurance, often printed in the same row ("80% 1%").
+    p = [v for v in pct_values(text) if 0.1 <= v <= MAX_DEDUCT_PCT]
     if p:
         v = p[0]
         return f"{v:g}%"
@@ -117,6 +127,10 @@ def _deductible_for(doc: Document, label_re: re.Pattern[str], exclude_re: Option
             end = dm.end()
         hits = values_near(doc, line, end, _ded_parse, max_right=420)
         h = first(hits)
+        # "$1,000 all peril deductible": the amount comes first on the line.
+        before = _ded_value(t[: m.start()]) if not h or h.how != "same" else None
+        if before and not re.search(r"[a-z]{3,}", t[: m.start()]):
+            h = Hit(line, before, 0.5, "same")
         if h and (best is None or h.distance < best.distance):
             best = h
     return best.value if best else None  # type: ignore[return-value]
@@ -147,11 +161,11 @@ def annual_premium(doc: Document) -> Optional[int]:
                 continue
             hits = values_near(
                 doc, line, m.end(),
-                lambda s: [v for v in money_values(s) if 50 <= v <= 500_000],
+                lambda s: [v for v in money_values(s) if 50 <= v <= MAX_PREMIUM],
                 directions=("same", "right", "below", "above"), max_right=480,
             )
             for h in sorted(hits, key=lambda h: h.distance):
-                if NOT_PREMIUM_RE.search(norm(h.line.text)) and h.line is not line:
+                if h.line is not line and (NOT_PREMIUM_RE.search(norm(h.line.text)) or FORM_NUMBERS_RE.search(norm(h.line.text))):
                     continue
                 key = (prio, h.distance, int(h.value))
                 if best is None or key[:2] < best[:2]:
@@ -160,12 +174,19 @@ def annual_premium(doc: Document) -> Optional[int]:
     return best[2] if best else None
 
 
+ALE_ONLY_RE = re.compile(r"living expenses?\b|\bale\b")
+
+
 def _coverage_flag(doc: Document, term_re: re.Pattern[str]) -> Optional[bool]:
     verdict: Optional[bool] = None
     for line, m in find_lines(doc, term_re):
         if is_sentence(line, 18):
             continue
         t = norm(line.text)
+        # Homeowners "Loss of Use - Additional living expense" pays the owner's
+        # hotel bills, not a landlord's lost rent: no verdict either way.
+        if m.group(0) == "loss of use" and ALE_ONLY_RE.search(t) and not re.search(r"rent", t):
+            continue
         # Status sits on this line or to its right on the same row.
         row = [t[m.end():]] + [
             norm(l.text) for l in doc.lines

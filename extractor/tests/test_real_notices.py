@@ -18,7 +18,7 @@ from wgc_extract.reader import read
 DIR = Path(__file__).parent / "fixtures" / "notices"
 
 CASES = {
-    "tarrant_2025_example.png": {"taxYear": 2025, "currentValue": 550000, "priorValue": 460000, "county": "Tarrant County"},
+    "tarrant_2025_example.png": {"taxYear": 2025, "currentValue": 550000, "priorValue": 460000, "county": "Tarrant County", "address": "1234 MAIN BLVD"},
     "fortbend_2024_letter.png": {"taxYear": 2024, "currentValue": 189581, "priorValue": None, "county": "Fort Bend County"},
     "williamson_2026_blank.png": {"currentValue": None, "priorValue": None},
 }
