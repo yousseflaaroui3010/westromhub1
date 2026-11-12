@@ -34,7 +34,7 @@ export async function deliverDue(store: LeadStore, up: Upstream, log = console):
         log.error(`[worker] LEAD UNDELIVERED after ${MAX_ATTEMPTS} attempts: ${row.submission_id} (kept in the database; needs a person)`);
       } else {
         out.failed += 1;
-        log.warn(`[worker] delivery attempt ${attempts} failed for ${row.submission_id.slice(0, 8)}; will retry`);
+        log.warn(`[worker] delivery attempt ${attempts} failed for ${row.submission_id.slice(0, 8)} (${err instanceof Error ? err.message : 'error'}); will retry`);
       }
     }
   }
@@ -103,6 +103,11 @@ async function main() {
     const slot = nightlySlot();
     if (slot.endsWith(' 03:17') && slot !== lastNightly) { lastNightly = slot; void rentvine('nightly'); }
   }, 30_000);
+  // Expired rate-limit counters (the API's shared limits) are swept here.
+  const sweep = setInterval(() => {
+    void sql`DELETE FROM rate_counter WHERE reset_at < now() - interval '1 hour'`.catch(() => {});
+  }, 10 * 60_000);
+
   // A person can trigger a sync right after adding the key: NOTIFY rentvine_sync.
   await sql.listen('rentvine_sync', () => { void rentvine('requested'); });
 
@@ -115,6 +120,7 @@ async function main() {
   const stop = async () => {
     clearInterval(timer);
     clearInterval(nightly);
+    clearInterval(sweep);
     await sql.end({ timeout: 5 }).catch(() => {});
     process.exit(0);
   };

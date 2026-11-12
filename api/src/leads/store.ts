@@ -98,3 +98,28 @@ export function pgLeadStore(sql: Sql): LeadStore {
     },
   };
 }
+
+export interface LeadHealth {
+  ok: boolean;
+  pending: number;
+  oldestPendingMinutes: number | null;
+  deadLast24h: number;
+  deliveredLast24h: number;
+  rentvineLastOkHoursAgo: number | null;
+}
+
+/** Counts and ages only (no lead data). ok=false when leads are stuck. */
+export async function leadHealth(sql: Sql): Promise<LeadHealth> {
+  const [l] = await sql<{ pending: number; oldest: number | null; dead: number; delivered: number }[]>`
+    SELECT count(*) FILTER (WHERE status = 'pending')::int AS pending,
+           (extract(epoch FROM now() - min(received_at) FILTER (WHERE status = 'pending')) / 60)::int AS oldest,
+           count(*) FILTER (WHERE status = 'dead' AND received_at > now() - interval '24 hours')::int AS dead,
+           count(*) FILTER (WHERE status = 'delivered' AND delivered_at > now() - interval '24 hours')::int AS delivered
+    FROM lead`;
+  const rv = await sql<{ h: number | null }[]>`
+    SELECT (extract(epoch FROM now() - last_ok_at) / 3600)::int AS h FROM rentvine_status WHERE id = 1`.catch(() => []);
+  const rentvineLastOkHoursAgo = rv[0]?.h ?? null;
+  const oldest = l.oldest ?? null;
+  const ok = (oldest == null || oldest < 90) && l.dead === 0 && (rentvineLastOkHoursAgo == null || rentvineLastOkHoursAgo < 48);
+  return { ok, pending: l.pending, oldestPendingMinutes: oldest, deadLast24h: l.dead, deliveredLast24h: l.delivered, rentvineLastOkHoursAgo };
+}

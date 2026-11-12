@@ -140,6 +140,22 @@ The API computes the estimate itself from that index (cached 10 min in
 memory), so visitors get it even while n8n is down; n8n's estimate (RentCast)
 is used only when ours has no data for the segment.
 
+## Two API copies, shared limits, uptime alert (2026-11-12)
+
+The API runs as two always-on replicas behind Railway's edge, so a crash or
+deploy never drops requests (it does not sleep: nginx reaches it over the
+private network, which refuses connections while a service is asleep; that
+caused 502s on the lead form on 2026-11-12). Rate-limit and abuse counters
+(per-IP limits, token-reuse cap, guide-email cooldown, daily caps) live in
+the private Postgres (`rate_counter`, UNLOGGED, one atomic upsert each), so
+the limits stay global across replicas; database trouble degrades to
+per-process limits, never to a failed request. The worker sweeps expired
+counters.
+
+`GET /api/leads/health` (counts and ages only) answers 503 when a lead has
+waited over 90 min, any lead failed for good in 24 h, or Rentvine has not
+synced in 48 h. A Sentry uptime monitor watches it.
+
 ## Railway configuration (2026-11-11)
 
 - frontend + api: serverless (sleep after idle), healthchecks (`/`, `/health`),

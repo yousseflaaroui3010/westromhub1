@@ -24,7 +24,7 @@ export interface CounterStore {
   hit(key: string, windowMs: number): Promise<HitResult>;
   /** Returns true if the key was newly set (claim succeeded), false if it existed. */
   setIfAbsent(key: string, ttlMs: number): Promise<boolean>;
-  readonly kind: 'memory' | 'redis';
+  readonly kind: 'memory' | 'redis' | 'postgres';
 }
 
 interface Entry { count: number; resetAt: number }
@@ -143,4 +143,56 @@ export async function createStore(redisUrl: string | undefined): Promise<Counter
     console.error('[store] Redis connect failed at boot, will retry:', err instanceof Error ? err.message : 'error');
   });
   return new RedisStore(client);
+}
+
+/**
+ * Counters in the private Postgres (UNLOGGED table: fast, and losing it on a
+ * crash only resets rate limits). Shared by every API replica, so limits stay
+ * global when more than one copy runs. Each operation is one atomic upsert.
+ * Database trouble degrades to per-process limits, never to a failed request.
+ */
+export class PgStore implements CounterStore {
+  readonly kind = 'postgres' as const;
+  private readonly fallback = new MemoryStore();
+  private warned = false;
+
+  constructor(private readonly sql: import('../db').Sql) {}
+
+  private degrade(err: unknown): void {
+    if (!this.warned) {
+      this.warned = true;
+      console.error('[store] Postgres counters unavailable, using per-process limits:', err instanceof Error ? err.name : 'error');
+      setTimeout(() => { this.warned = false; }, 60_000).unref();
+    }
+  }
+
+  async hit(key: string, windowMs: number): Promise<HitResult> {
+    try {
+      const secs = windowMs / 1000;
+      const rows = await this.sql<{ count: number; reset_at: Date }[]>`
+        INSERT INTO rate_counter (key, count, reset_at) VALUES (${key}, 1, now() + ${secs} * interval '1 second')
+        ON CONFLICT (key) DO UPDATE SET
+          count    = CASE WHEN rate_counter.reset_at <= now() THEN 1 ELSE rate_counter.count + 1 END,
+          reset_at = CASE WHEN rate_counter.reset_at <= now() THEN now() + ${secs} * interval '1 second' ELSE rate_counter.reset_at END
+        RETURNING count, reset_at`;
+      return { count: Number(rows[0].count), resetAt: rows[0].reset_at.getTime() };
+    } catch (err) {
+      this.degrade(err);
+      return this.fallback.hit(key, windowMs);
+    }
+  }
+
+  async setIfAbsent(key: string, ttlMs: number): Promise<boolean> {
+    try {
+      const rows = await this.sql`
+        INSERT INTO rate_counter (key, count, reset_at) VALUES (${key}, 1, now() + ${ttlMs / 1000} * interval '1 second')
+        ON CONFLICT (key) DO UPDATE SET count = 1, reset_at = EXCLUDED.reset_at
+          WHERE rate_counter.reset_at <= now()
+        RETURNING key`;
+      return rows.length === 1;
+    } catch (err) {
+      this.degrade(err);
+      return this.fallback.setIfAbsent(key, ttlMs);
+    }
+  }
 }
