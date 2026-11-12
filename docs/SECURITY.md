@@ -178,8 +178,8 @@ API service:
 | `LEAD_ALLOWED_ORIGINS` | no | Default `https://wgcassetguide.com,https://westromgroup.com,https://www.westromgroup.com` |
 | `N8N_LEAD_WEBHOOK_BASE` | yes | `https://main-production-bf72.up.railway.app/webhook/d043c102d78e` |
 | `N8N_GATEWAY_SECRET` | yes | ≥ 32 chars; same value as `WGC_GATEWAY_SECRET` on n8n |
-| `TURNSTILE_SECRET_KEY` | recommended | Cloudflare → Turnstile. Turns on challenge sessions for paid routes |
-| `SESSION_SECRET` | with Turnstile | ≥ 32 chars, so sessions survive restarts |
+| ~~`TURNSTILE_SECRET_KEY`~~ | **not a variable** | The Turnstile secret is a row in the private database: `app_secret` name `turnstile_secret_key`, added by a person in Railway's database view; restart the API after adding it. Absent = no challenge. (The variable is read only for local development.) |
+| ~~`SESSION_SECRET`~~ | **not a variable** | Generated on first use in `app_secret` (`session_secret`) and shared by both API copies, so a session issued by one copy is valid on the other. Delete the variable if it is still set |
 | `LEAD_REQUIRE_TURNSTILE` | later | `true` only after the widget carries `data-turnstile-sitekey` everywhere |
 | `EXTRACTOR_URL` | recommended | `http://${{extractor.RAILWAY_PRIVATE_DOMAIN}}:8080`. Document reading via the private Docling service (no AI). Unset = legacy AI vision chain |
 | `DATABASE_URL` | recommended | `${{Postgres.DATABASE_URL}}`, the project's private Postgres (no TCP proxy). Holds the API↔extractor token in `app_secret`, generated on first use; it is never a variable. Same reference on the extractor |
@@ -217,11 +217,14 @@ Each step is safe on its own. Stop at any step if a check fails.
    Publish both, then set `WGC_GATEWAY_SECRET` on n8n `main`. Setting it
    redeploys `main` and **wipes the estimator index**; re-seed right after. Confirm a direct
    `GET .../webhook/d043c102d78e/token` now returns an empty body.
-7. Turnstile: create a widget in Cloudflare for `wgcassetguide.com` (and
-   `westromgroup.com` if the form is embedded there). Set
-   `TURNSTILE_SECRET_KEY`, `SESSION_SECRET` and `VITE_TURNSTILE_SITE_KEY`. For
-   the lead form, add `data-turnstile-sitekey` to every embed, then set
-   `LEAD_REQUIRE_TURNSTILE=true`.
+7. Turnstile: create one widget in Cloudflare (Managed mode) with hostnames
+   `wgcassetguide.com`, `westromgroup.com` and `www.westromgroup.com`. Add the
+   SECRET key as an `app_secret` row named `turnstile_secret_key` (database
+   view, never a variable) and restart the API; its log then says
+   `Bot challenge: Turnstile on`. Set the public SITE key as
+   `VITE_TURNSTILE_SITE_KEY` on the frontend service (a build-time value) and
+   redeploy it. For the lead form, add `data-turnstile-sitekey` to every
+   embed, then set `LEAD_REQUIRE_TURNSTILE=true` on the API.
 8. AI provider keys: none are used any more (all removed from Railway on
    2026-11-11). Revoke the old OpenRouter / Groq / Google AI / Moonshot keys
    in those dashboards so they cannot be misused.

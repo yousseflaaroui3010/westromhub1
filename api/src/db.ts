@@ -67,6 +67,17 @@ export async function withRetry<T>(fn: () => Promise<T>, label: string, tries = 
 }
 
 /**
+ * Like readSecret, but a database failure THROWS instead of reading as
+ * "absent", so callers can retry rather than wrongly switch a control off.
+ * Run after migrate() (the table must exist).
+ */
+export async function readSecretStrict(sql: Sql, name: string): Promise<string | null> {
+  const rows = await sql<{ value: string }[]>`SELECT value FROM app_secret WHERE name = ${name}`;
+  const v = rows[0]?.value?.trim();
+  return v ? v : null;
+}
+
+/**
  * Read one secret a PERSON puts in app_secret (e.g. the Rentvine key, added in
  * Railway's database view). Never creates or generates it. null if absent.
  */

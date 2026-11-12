@@ -5,7 +5,7 @@ import { serve } from '@hono/node-server';
 import type { AddressInfo } from 'net';
 import { httpExtractor } from './extractor';
 import { cachedSecret, getOrCreateSecret } from './security/secretStore';
-import { connect, migrate, withRetry } from './db';
+import { connect, migrate, readSecretStrict, withRetry } from './db';
 import { pgLeadStore, leadHealth } from './leads/store';
 import { dbEstimator } from './estimator/indexCache';
 import { createApp } from './app';
@@ -50,11 +50,7 @@ async function main() {
 
   // Fail loudly on half-configured security, quietly on fully-unconfigured
   // (local dev). Every disabled control is named at boot so it is never silent.
-  if (env.TURNSTILE_SECRET_KEY && !env.SESSION_SECRET) {
-    console.warn('WARNING: SESSION_SECRET unset; sessions use a per-boot random key and expire on restart.');
-  }
   if (!env.INTERNAL_PROXY_TOKEN) console.warn('SECURITY: INTERNAL_PROXY_TOKEN unset; /api is reachable without going through nginx.');
-  if (!env.TURNSTILE_SECRET_KEY) console.warn('SECURITY: TURNSTILE_SECRET_KEY unset; no bot challenge on document uploads or the lead form.');
   if (!env.REDIS_URL) console.warn('NOTICE: REDIS_URL unset; rate limits and the daily document-read cap are per-process and reset on restart.');
 
   // Lead gateway. With DATABASE_URL, leads are stored first and delivered by
@@ -62,7 +58,31 @@ async function main() {
   // live in the private database (the secret is seeded once from
   // N8N_GATEWAY_SECRET if that is still set, so n8n keeps matching).
   const sql = env.DATABASE_URL ? connect(env.DATABASE_URL) : null;
-  if (sql) void withRetry(() => migrate(sql), 'migrate', 10).catch((e) => console.error(`[db] migration failed: ${e instanceof Error ? e.name : 'error'}`));
+  const migrated = sql ? withRetry(() => migrate(sql), 'migrate', 10) : null;
+  migrated?.catch((e) => console.error(`[db] migration failed: ${e instanceof Error ? e.name : 'error'}`));
+
+  // Bot check (Cloudflare Turnstile) and the session-signing key come from the
+  // private database (app_secret), never from variables:
+  //  - 'turnstile_secret_key': put there by a person; absent = no challenge.
+  //  - 'session_secret': generated on first use and shared by every API copy
+  //    (a per-copy key would reject sessions issued by the other copy).
+  // The *_KEY / SESSION_SECRET variables remain only for local development.
+  let turnstileSecret = env.TURNSTILE_SECRET_KEY || null;
+  let sessionSecret = env.SESSION_SECRET || undefined;
+  if (sql && migrated) {
+    try {
+      await migrated;
+      turnstileSecret = (await withRetry(() => readSecretStrict(sql, 'turnstile_secret_key'), 'turnstile key')) ?? turnstileSecret;
+      sessionSecret = await withRetry(() => getOrCreateSecret(env.DATABASE_URL as string, 'session_secret', env.SESSION_SECRET), 'session key');
+    } catch {
+      console.error('SECURITY: could not read secrets from the database at boot; running without the bot challenge until restart.');
+    }
+  }
+  if (turnstileSecret) console.log(`Bot challenge: Turnstile on (documents${env.LEAD_REQUIRE_TURNSTILE === 'true' ? ' + lead form' : ''})`);
+  else console.warn('SECURITY: no Turnstile secret (app_secret turnstile_secret_key); no bot challenge on document uploads or the lead form.');
+  if (turnstileSecret && !sessionSecret) {
+    console.warn('WARNING: no shared session key; sessions use a per-boot random key and only work on this copy.');
+  }
   const dbSecret = (name: string, initial?: string) =>
     cachedSecret(() => getOrCreateSecret(env.DATABASE_URL as string, name, initial), name);
   const gatewaySecret = env.DATABASE_URL ? dbSecret('n8n_gateway_secret', env.N8N_GATEWAY_SECRET) : env.N8N_GATEWAY_SECRET;
@@ -96,12 +116,12 @@ async function main() {
     cadLookupFn: createLookupFn(env.ATTOM_API_KEY),
     store,
     internalProxyToken: env.INTERNAL_PROXY_TOKEN || undefined,
-    turnstile: env.TURNSTILE_SECRET_KEY ? cloudflareTurnstileVerifier(env.TURNSTILE_SECRET_KEY) : null,
+    turnstile: turnstileSecret ? cloudflareTurnstileVerifier(turnstileSecret) : null,
     // Only after the widget build that sends Turnstile tokens is live everywhere.
-    leadTurnstile: env.TURNSTILE_SECRET_KEY && env.LEAD_REQUIRE_TURNSTILE === 'true'
-      ? cloudflareTurnstileVerifier(env.TURNSTILE_SECRET_KEY)
+    leadTurnstile: turnstileSecret && env.LEAD_REQUIRE_TURNSTILE === 'true'
+      ? cloudflareTurnstileVerifier(turnstileSecret)
       : null,
-    sessionSecret: env.SESSION_SECRET || undefined,
+    sessionSecret,
     extractDailyCap: int(env.EXTRACT_DAILY_CAP ?? env.AI_DAILY_CALL_CAP, 400),
     extractMaxConcurrency: int(env.EXTRACT_MAX_CONCURRENCY ?? env.AI_MAX_CONCURRENCY, 4),
     leadGateway,
