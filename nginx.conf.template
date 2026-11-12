@@ -144,6 +144,10 @@ server {
 
     location / {
         index index.html;
+        # Always revalidate the page shell, so a browser never keeps an old
+        # index.html that points at page files a new release removed.
+        # (expires, unlike add_header, keeps the server-level headers.)
+        expires -1;
         try_files $uri $uri/ /index.html;
     }
 

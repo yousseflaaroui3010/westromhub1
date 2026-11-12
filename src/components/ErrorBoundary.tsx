@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, Home, RefreshCw } from 'lucide-react';
+import { isStaleReleaseError } from '../lib/lazyPage';
 
 interface Props {
   children?: ReactNode;
@@ -46,7 +47,12 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button 
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[44px] min-w-[44px] bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-                onClick={() => this.setState({ hasError: false, error: undefined })}
+                onClick={() => {
+                  // A missing page file (new release) needs a real reload;
+                  // resetting would just ask for the same missing file again.
+                  if (isStaleReleaseError(this.state.error)) window.location.reload();
+                  else this.setState({ hasError: false, error: undefined });
+                }}
               >
                 <RefreshCw className="w-5 h-5" />
                 Try again
