@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import postgres from 'postgres';
 import { cachedSecret, getOrCreateSecret } from './secretStore';
+import { readSecretStrict } from '../db';
 
 const url = process.env.TEST_DATABASE_URL;
 
@@ -16,6 +17,21 @@ describe.skipIf(!url)('secret store (real Postgres)', () => {
     expect(vals[0]).toMatch(/^[0-9a-f]{64}$/);
     expect(await getOrCreateSecret(url as string, 'extractor_token')).toBe(vals[0]);
     expect(await getOrCreateSecret(url as string, 'another')).not.toBe(vals[0]);
+  });
+});
+
+describe.skipIf(!url)('readSecretStrict (real Postgres)', () => {
+  it('reads a person-added secret trimmed, null when absent, and throws when the database fails', async () => {
+    const sql = postgres(url as string, { max: 1, onnotice: () => {} });
+    await getOrCreateSecret(url as string, 'unrelated');
+    await sql`DELETE FROM app_secret WHERE name = 'turnstile_secret_key'`;
+    expect(await readSecretStrict(sql, 'turnstile_secret_key')).toBeNull();
+    await sql`INSERT INTO app_secret (name, value) VALUES ('turnstile_secret_key', ' 0x4AAA-test \n')`;
+    expect(await readSecretStrict(sql, 'turnstile_secret_key')).toBe('0x4AAA-test');
+    await sql`DELETE FROM app_secret WHERE name = 'turnstile_secret_key'`;
+    await sql.end();
+    // A closed pool stands in for an unreachable database: it must not read as "absent".
+    await expect(readSecretStrict(sql, 'turnstile_secret_key')).rejects.toThrow();
   });
 });
 
