@@ -40,6 +40,7 @@ import { apiError, logFailure } from '../http/errors';
 import type { LeadStore } from '../leads/store';
 import { deliverLead, resolveSecret, UpstreamReply, type SecretValue } from '../leads/deliver';
 import { issueToken, verifyToken } from '../leads/tokens';
+import type { EstimateSource } from '../estimator/indexCache';
 
 export interface LeadGatewayConfig {
   /** n8n webhook base, e.g. https://<n8n-host>/webhook/<hook-id> (no trailing slash). */
@@ -55,6 +56,8 @@ export interface LeadGatewayConfig {
   tokenKey?: SecretValue | null;
   /** Who issues render tokens: 'n8n' (proxy WF-0, until WF-1 trusts the gateway) or 'api'. */
   tokenIssuer?: 'n8n' | 'api';
+  /** Own-data estimator (index from Rentvine, in the private DB). */
+  estimator?: EstimateSource | null;
 }
 
 const SILENT_OK = { ok: true } as const;
@@ -243,27 +246,42 @@ export function leadRoutes(opts: {
       }
       const userAgent = (c.req.header('user-agent') ?? '').slice(0, 400);
 
+      // Estimate from our own Rentvine lease index, so the visitor gets it even
+      // if n8n is down. n8n's estimate (RentCast fallback) is used only when
+      // ours has no data for the segment.
+      let ownEstimate: unknown = null;
+      try {
+        ownEstimate = (await gateway.estimator?.estimate({ zip: lead.zip, sqft: lead.sqft, beds: lead.bedrooms ?? null })) ?? null;
+      } catch (err) {
+        logFailure(c, 'leads/estimate', err);
+      }
+      const answer = (reply: { ok: true; estimate?: unknown } | null) => {
+        const estimate = ownEstimate ?? reply?.estimate;
+        const parsed = UpstreamReply.safeParse({ ...(reply ?? {}), ok: true, ...(estimate ? { estimate } : {}) });
+        return parsed.success ? parsed.data : SILENT_OK;
+      };
+
       // 1. Save first. A lead we have stored is never lost.
       if (leadStore) {
         try {
-          const row = await leadStore.insert({ submissionId: lead.submission_id, tokenVerified, payload: forward, clientIp: ip, userAgent });
+          const row = await leadStore.insert({ submissionId: lead.submission_id, tokenVerified, payload: forward, clientIp: ip, userAgent, estimate: ownEstimate });
           if (!row) {
             // A retry of a lead we already have: answer as it was answered.
             const prev = await leadStore.get(lead.submission_id);
             const reply = prev?.status === 'delivered' ? UpstreamReply.safeParse(prev.reply) : null;
-            return c.json(reply?.success ? reply.data : SILENT_OK);
+            return c.json(answer(reply?.success ? reply.data : null));
           }
           // 2. Fast path: deliver now so the visitor sees the estimate.
           try {
             const reply = await deliverLead(gateway, row, 8_000);
             await leadStore.markDelivered(row.submission_id, reply);
-            return c.json(reply);
+            return c.json(answer(reply));
           } catch (err) {
             logFailure(c, 'leads/deliver', err);
             await leadStore.markFailed(row.submission_id, 1, err instanceof Error ? err.message : 'error');
             await leadStore.notify().catch(() => {});
             console.warn('[leads] stored; n8n not reachable, the worker will deliver it');
-            return c.json(SILENT_OK);
+            return c.json(answer(null));
           }
         } catch (err) {
           // The database itself failed: fall through to direct delivery.
@@ -281,7 +299,7 @@ export function leadRoutes(opts: {
         });
         if (!res.ok) throw new Error(`lead upstream HTTP ${res.status}`);
         const reply = UpstreamReply.safeParse(await res.json().catch(() => null));
-        return c.json(reply.success ? reply.data : SILENT_OK);
+        return c.json(answer(reply.success ? reply.data : null));
       } catch (err) {
         logFailure(c, 'leads/lead', err);
         return apiError(c, 503, 'unavailable', 'We could not send your request. Please try again.');

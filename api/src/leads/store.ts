@@ -34,6 +34,7 @@ export interface NewLead {
   payload: Record<string, unknown>;
   clientIp: string;
   userAgent: string;
+  estimate?: unknown;
 }
 
 /** Backoff after `attempts` failures: 30 s, 1, 2, 4, 8, 16, 32 min, then hourly. */
@@ -57,8 +58,9 @@ export function pgLeadStore(sql: Sql): LeadStore {
   return {
     async insert(l) {
       const rows = await sql<LeadRow[]>`
-        INSERT INTO lead (submission_id, token_verified, payload, client_ip, user_agent, next_attempt_at)
+        INSERT INTO lead (submission_id, token_verified, payload, client_ip, user_agent, estimate, next_attempt_at)
         VALUES (${l.submissionId}, ${l.tokenVerified}, ${sql.json(l.payload as never)}, ${l.clientIp}, ${l.userAgent},
+                ${l.estimate ? sql.json(l.estimate as never) : null},
                 now() + ${LEASE_MS / 1000} * interval '1 second')
         ON CONFLICT (submission_id) DO NOTHING
         RETURNING *`;

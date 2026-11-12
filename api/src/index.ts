@@ -7,6 +7,7 @@ import { httpExtractor } from './extractor';
 import { cachedSecret, getOrCreateSecret } from './security/secretStore';
 import { connect, migrate, withRetry } from './db';
 import { pgLeadStore } from './leads/store';
+import { dbEstimator } from './estimator/indexCache';
 import { createApp } from './app';
 import { createLookupFn } from './adapters/index';
 import { createStore } from './security/store';
@@ -75,6 +76,7 @@ async function main() {
         tokenKey: env.DATABASE_URL ? dbSecret('lead_token_key') : null,
         // 'api' only once n8n WF-1 trusts gateway-verified tokens.
         tokenIssuer: env.LEAD_TOKEN_ISSUER === 'api' ? ('api' as const) : ('n8n' as const),
+        estimator: sql ? dbEstimator(sql) : null,
       }
     : null;
   if (leadGateway) {

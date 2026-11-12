@@ -123,6 +123,23 @@ on with `LEAD_TOKEN_ISSUER=api` only after WF-1 is imported with Header Auth
 trusts `gateway_verified` leads that waited in the queue past the 2 h token
 window.
 
+## Rental estimate from Rentvine (2026-11-12)
+
+The `worker` service syncs active leases from Rentvine (corporation
+`westromgroup`) at start when the data is over 20 h old and nightly at 03:17
+America/Chicago; `NOTIFY rentvine_sync` runs it on demand. Its own client:
+no connection to any other app. The key is read from this project's private
+Postgres (`app_secret` rows `rentvine_api_key`, `rentvine_api_secret`, added
+by a person in Railway's database view); it is never a variable. Read-only,
+one request every 3 s, at most 40 pages; 429/5xx back off, 401/403 stop.
+Only zip, beds, baths, sqft, rent, lease start date and an opaque unit id are
+kept (`segment_index`); unchanged data is not rewritten; a partial read never
+replaces a good index. Outcomes are in `rentvine_status`.
+
+The API computes the estimate itself from that index (cached 10 min in
+memory), so visitors get it even while n8n is down; n8n's estimate (RentCast)
+is used only when ours has no data for the segment.
+
 ## Railway configuration (2026-11-11)
 
 - frontend + api: serverless (sleep after idle), healthchecks (`/`, `/health`),

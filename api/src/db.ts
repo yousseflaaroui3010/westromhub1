@@ -3,12 +3,18 @@
 // so the API and the worker can both run them at boot.
 
 import postgres from 'postgres';
+import { INDEX_SCHEMA } from './rentvine/sync';
 
 export type Sql = ReturnType<typeof postgres>;
 
 const MIGRATION_LOCK_ID = 727270102;
 
 const SCHEMA = `
+CREATE TABLE IF NOT EXISTS app_secret (
+  name        text PRIMARY KEY,
+  value       text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS lead (
   submission_id   uuid PRIMARY KEY,
   received_at     timestamptz NOT NULL DEFAULT now(),
@@ -25,7 +31,8 @@ CREATE TABLE IF NOT EXISTS lead (
 );
 CREATE INDEX IF NOT EXISTS lead_due ON lead (next_attempt_at) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS lead_received ON lead (received_at DESC);
-`;
+ALTER TABLE lead ADD COLUMN IF NOT EXISTS estimate jsonb;
+` + INDEX_SCHEMA;
 
 export function connect(url: string, max = 5): Sql {
   return postgres(url, { max, idle_timeout: 30, connect_timeout: 10, onnotice: () => {} });
@@ -50,5 +57,19 @@ export async function withRetry<T>(fn: () => Promise<T>, label: string, tries = 
       await new Promise((r) => setTimeout(r, delay));
       delay = Math.min(delay * 2, 15_000);
     }
+  }
+}
+
+/**
+ * Read one secret a PERSON puts in app_secret (e.g. the Rentvine key, added in
+ * Railway's database view). Never creates or generates it. null if absent.
+ */
+export async function readSecret(sql: Sql, name: string): Promise<string | null> {
+  try {
+    const rows = await sql<{ value: string }[]>`SELECT value FROM app_secret WHERE name = ${name}`;
+    const v = rows[0]?.value?.trim();
+    return v ? v : null;
+  } catch {
+    return null; // table not created yet
   }
 }
