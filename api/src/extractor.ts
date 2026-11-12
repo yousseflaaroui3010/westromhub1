@@ -22,13 +22,25 @@ export interface ExtractorOptions {
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-export function httpExtractor(baseUrl: string, token: string | undefined, opts: ExtractorOptions = {}): Extractor {
+/**
+ * `token` is a fixed string (tests, local dev), a SecretSource that loads it
+ * from the private database, or undefined (no auth; local dev only). When a
+ * SecretSource cannot load the token we refuse to call rather than call
+ * unauthenticated: the extractor would reject the request anyway.
+ */
+export function httpExtractor(
+  baseUrl: string,
+  token: string | (() => Promise<string | undefined>) | undefined,
+  opts: ExtractorOptions = {},
+): Extractor {
   const base = baseUrl.replace(/\/+$/, '');
   const timeoutMs = opts.timeoutMs ?? 100_000;
   const wakeWindowMs = opts.wakeWindowMs ?? 60_000;
   const sleep = opts.sleep ?? wait;
 
   return async (kind, bytes) => {
+    const secret = typeof token === 'function' ? await token() : token;
+    if (typeof token === 'function' && !secret) throw new ExtractorError(503, 'secret_unavailable');
     const body = new Blob([new Uint8Array(bytes)]);
     const started = Date.now();
     let delay = 1_000;
@@ -39,7 +51,7 @@ export function httpExtractor(baseUrl: string, token: string | undefined, opts: 
           method: 'POST',
           headers: {
             'Content-Type': 'application/octet-stream',
-            ...(token ? { 'X-Extractor-Token': token } : {}),
+            ...(secret ? { 'X-Extractor-Token': secret } : {}),
           },
           body,
           signal: AbortSignal.timeout(timeoutMs),

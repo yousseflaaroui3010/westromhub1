@@ -35,6 +35,16 @@ jobs:
   # --- API: type check, lint, test ---
   api:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:test@localhost:5432/postgres
     defaults:
       run:
         working-directory: api
@@ -61,6 +71,16 @@ jobs:
   # --- Document reader (Docling + rules, no AI) ---
   extractor:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:test@localhost:5432/postgres
     defaults:
       run:
         working-directory: extractor
@@ -86,8 +106,8 @@ jobs:
           path: ~/.cache/huggingface
           key: docling-models-${{ hashFiles('extractor/requirements.txt') }}
 
-      - name: Parser unit tests
-        run: python -m pytest -q tests/test_parsers.py
+      - name: Parser unit tests + shared-token store (real Postgres)
+        run: python -m pytest -q tests/test_parsers.py tests/test_secrets.py
 
       - name: End-to-end corpus (text-layer PDFs, zero wrong values)
         run: python -m pytest -q tests/test_corpus.py

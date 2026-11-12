@@ -71,10 +71,12 @@ public model notice form, which the corpus fills in.
 
 | Variable | Default | |
 |---|---|---|
-| `EXTRACTOR_TOKEN` | (none) | Shared secret; must equal the API's `EXTRACTOR_TOKEN` |
+| `DATABASE_URL` | (none) | The project's **private** Postgres. The shared token with the API is created there on first use (`app_secret` table) and never lives in a variable. With it set, the service **refuses all requests until the token is loaded** |
+| `EXTRACTOR_TOKEN` | (none) | Local-dev fallback only, used when `DATABASE_URL` is unset |
 | `EXTRACT_CONCURRENCY` | 1 | Parallel conversions (CPU-bound) |
 | `EXTRACT_TIMEOUT_S` | 75 | Per request |
 | `EXTRACT_MAX_PAGES` | 4 | Pages read per document |
 | `EXTRACT_MAX_BYTES` | 12 MB | |
 
-On the API: `EXTRACTOR_URL=http://extractor.railway.internal:8080` and the same `EXTRACTOR_TOKEN`.
+On the API: `EXTRACTOR_URL=http://extractor.railway.internal:8080` and the same `DATABASE_URL`.
+Rotate the token: `DELETE FROM app_secret WHERE name = 'extractor_token';` then restart both services.

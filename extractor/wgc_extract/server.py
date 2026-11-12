@@ -27,7 +27,13 @@ from .reader import read, warm_up
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(levelname)s %(name)s %(message)s")
 log = logging.getLogger("wgc_extract.server")
 
-TOKEN = os.environ.get("EXTRACTOR_TOKEN", "")
+# The shared token lives in the project's private Postgres (DATABASE_URL),
+# created on first use by whichever service starts first. With a database
+# configured we FAIL CLOSED until it is loaded. EXTRACTOR_TOKEN is a
+# local-dev fallback; with neither set, requests are unauthenticated (dev).
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+TOKEN = "" if DATABASE_URL else os.environ.get("EXTRACTOR_TOKEN", "")
+_token_lock = threading.Lock()
 MAX_BYTES = int(os.environ.get("EXTRACT_MAX_BYTES", str(12 * 1024 * 1024)))
 TIMEOUT_S = float(os.environ.get("EXTRACT_TIMEOUT_S", "75"))
 # Docling is CPU-bound; more parallel conversions only make each one slower.
@@ -38,10 +44,36 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 _ready = threading.Event()
 
 
+def _load_token() -> bool:
+    """Load the token from the database; retried until it works."""
+    global TOKEN
+    if TOKEN or not DATABASE_URL:
+        return bool(TOKEN)
+    with _token_lock:
+        if TOKEN:
+            return True
+        try:
+            from .secrets import get_or_create_secret
+
+            TOKEN = get_or_create_secret(DATABASE_URL, "extractor_token")
+            log.info("shared token loaded from the database")
+            return True
+        except Exception as e:  # noqa: BLE001 - never log connection details
+            log.warning("could not load the shared token from the database (%s); refusing requests", type(e).__name__)
+            return False
+
+
 @app.on_event("startup")
 def _startup() -> None:
-    if not TOKEN:
-        log.warning("EXTRACTOR_TOKEN is not set: requests are not authenticated (dev only)")
+    if DATABASE_URL:
+        def load() -> None:
+            for delay in (0, 2, 4, 8, 15, 30, 60):
+                time.sleep(delay)
+                if _load_token():
+                    return
+        threading.Thread(target=load, daemon=True).start()
+    elif not TOKEN:
+        log.warning("no DATABASE_URL or EXTRACTOR_TOKEN: requests are not authenticated (dev only)")
 
     def warm() -> None:
         t = time.time()
@@ -64,6 +96,8 @@ def health() -> dict:
 
 
 async def _handle(request: Request, kind: str) -> JSONResponse:
+    if DATABASE_URL and not TOKEN and not await asyncio.to_thread(_load_token):
+        return _err(503, "not_ready")  # fail closed: never serve without the token
     if TOKEN and not hmac.compare_digest(request.headers.get("x-extractor-token", ""), TOKEN):
         return _err(403, "forbidden")
     body = await request.body()

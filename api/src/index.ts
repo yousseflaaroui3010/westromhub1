@@ -4,6 +4,7 @@ dotenv.config({ quiet: true });
 import { serve } from '@hono/node-server';
 import type { AddressInfo } from 'net';
 import { httpExtractor } from './extractor';
+import { cachedSecret, getOrCreateSecret } from './security/secretStore';
 import { createApp } from './app';
 import { createLookupFn } from './adapters/index';
 import { createStore } from './security/store';
@@ -22,11 +23,18 @@ function int(v: string | undefined, fallback: number): number {
 }
 
 async function main() {
-  // Document reading: the private Docling service (no AI).
-  const extractor = env.EXTRACTOR_URL ? httpExtractor(env.EXTRACTOR_URL, env.EXTRACTOR_TOKEN || undefined) : null;
+  // Document reading: the private Docling service (no AI). Its shared token
+  // lives in the project's private Postgres, not in a variable; it is created
+  // on first use and loaded lazily (the database may be asleep at boot).
+  const extractorToken = env.DATABASE_URL
+    ? cachedSecret(() => getOrCreateSecret(env.DATABASE_URL as string, 'extractor_token'), 'extractor_token')
+    : env.EXTRACTOR_TOKEN || undefined;
+  const extractor = env.EXTRACTOR_URL ? httpExtractor(env.EXTRACTOR_URL, extractorToken) : null;
   if (extractor) {
     console.log(`Document reader: extractor at ${new URL(env.EXTRACTOR_URL as string).host} (no AI)`);
-    if (!env.EXTRACTOR_TOKEN) console.warn('WARNING: EXTRACTOR_TOKEN unset; extractor calls are unauthenticated.');
+    if (!extractorToken) console.warn('WARNING: no DATABASE_URL (or EXTRACTOR_TOKEN); extractor calls are unauthenticated.');
+    // Warm the token so the first upload does not wait for it.
+    if (typeof extractorToken === 'function') void extractorToken();
   } else {
     console.warn('WARNING: EXTRACTOR_URL unset; /api/extract-* return 503 (owners can still type values in).');
   }

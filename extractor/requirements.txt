@@ -13,3 +13,4 @@ pillow-heif==1.8.1
 numpy==2.5.4
 fastapi==0.162.4
 uvicorn==0.54.0
+pg8000==1.31.6
