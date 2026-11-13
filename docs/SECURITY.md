@@ -183,15 +183,16 @@ API service:
 | `LEAD_REQUIRE_TURNSTILE` | later | `true` only after the widget carries `data-turnstile-sitekey` everywhere |
 | `EXTRACTOR_URL` | recommended | `http://${{extractor.RAILWAY_PRIVATE_DOMAIN}}:8080`. Document reading via the private Docling service (no AI). Unset = legacy AI vision chain |
 | `DATABASE_URL` | recommended | `${{Postgres.DATABASE_URL}}`, the project's private Postgres (no TCP proxy). Holds the API↔extractor token in `app_secret`, generated on first use; it is never a variable. Same reference on the extractor |
-| `REDIS_URL` | recommended | Railway Redis in this project, so limits survive restarts |
-| `EXTRACT_DAILY_CAP` | no | Default 400 document reads per UTC day (`AI_DAILY_CALL_CAP` still read as a fallback) |
+| `REDIS_URL` | no | Not used: with `DATABASE_URL` the rate-limit counters are shared by every API copy in Postgres (`rate_counter`) |
+| `EXTRACT_DAILY_CAP` | no | Default 400 document reads per UTC day |
 | `LEAD_DAILY_SUBMIT_CAP` / `LEAD_DAILY_GUIDE_EMAIL_CAP` | no | Defaults 300 / 150 |
 
 Frontend service: `INTERNAL_PROXY_TOKEN` (same value), `API_UPSTREAM`
 (unchanged), and optionally `VITE_TURNSTILE_SITE_KEY` (a public key, baked into
-the build). `OLLAMA_BASE_URL`, `TEXT_MODEL`, `VISION_MODEL` and
-`VITE_API_BASE_URL` are unused and can be deleted. So can `ESTATED_API_KEY`,
-`OLLAMA_BASE_URL`, `TEXT_MODEL` and `VISION_MODEL` on the API service.
+the build). `VITE_API_BASE_URL` must NOT be set in production: the site calls
+its own `/api` (deleted 2026-11-13; the API has no public address). The old
+AI variables (`OLLAMA_BASE_URL`, `TEXT_MODEL`, `VISION_MODEL`, `ESTATED_API_KEY`,
+`AI_DAILY_CALL_CAP`) are gone and no longer read.
 
 n8n `main`: `WGC_GATEWAY_SECRET` (step 6 below).
 

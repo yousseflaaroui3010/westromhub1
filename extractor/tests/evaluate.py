@@ -135,7 +135,7 @@ def run(args) -> dict:
             print(f"{'PASS' if not bad else 'FAIL'} real/{name:18} pdf  {bad if bad else ''}", flush=True)
             rows.append(dict(case=f"real/{name}", variant="pdf", bad=bad))
         for name in WRONG_DOCS:
-            for p in [real / name, HERE.parents[2] / "westrom_security_deposit/test/fixtures/pdf" / name]:
+            for p in [real / name]:
                 if p.exists():
                     doc = read(p.read_bytes())
                     t, i = extract_tax(doc), extract_insurance(doc)

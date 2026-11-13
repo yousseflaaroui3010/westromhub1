@@ -51,7 +51,9 @@ async function main() {
   // Fail loudly on half-configured security, quietly on fully-unconfigured
   // (local dev). Every disabled control is named at boot so it is never silent.
   if (!env.INTERNAL_PROXY_TOKEN) console.warn('SECURITY: INTERNAL_PROXY_TOKEN unset; /api is reachable without going through nginx.');
-  if (!env.REDIS_URL) console.warn('NOTICE: REDIS_URL unset; rate limits and the daily document-read cap are per-process and reset on restart.');
+  if (!env.REDIS_URL && !env.DATABASE_URL) {
+    console.warn('NOTICE: no REDIS_URL or DATABASE_URL; rate limits and the daily document-read cap are per-process and reset on restart.');
+  }
 
   // Lead gateway. With DATABASE_URL, leads are stored first and delivered by
   // the worker if n8n is unavailable; the gateway secret and the token key
@@ -122,8 +124,8 @@ async function main() {
       ? cloudflareTurnstileVerifier(turnstileSecret)
       : null,
     sessionSecret,
-    extractDailyCap: int(env.EXTRACT_DAILY_CAP ?? env.AI_DAILY_CALL_CAP, 400),
-    extractMaxConcurrency: int(env.EXTRACT_MAX_CONCURRENCY ?? env.AI_MAX_CONCURRENCY, 4),
+    extractDailyCap: int(env.EXTRACT_DAILY_CAP, 400),
+    extractMaxConcurrency: int(env.EXTRACT_MAX_CONCURRENCY, 4),
     leadGateway,
     exposeApiDocs: env.EXPOSE_API_DOCS === 'true',
   });

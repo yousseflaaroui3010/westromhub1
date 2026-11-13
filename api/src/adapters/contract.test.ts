@@ -14,37 +14,22 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { lookupTad } from './tad';
 
 const RUN = process.env.INTEGRATION === 'true';
 const TIMEOUT = 15_000;
 
 // ─── TAD (Tarrant Appraisal District — tad.org) ──────────────────────────────
+// No live contract: tad.org sits behind a Cloudflare bot challenge (403 to any
+// server), so the TAD adapter is disabled on purpose and Tarrant owners upload
+// their notice instead (read by the extractor; see extractor/tests/
+// test_real_notices.py). This guards that the adapter stays off rather than
+// half-working against a page it cannot reach.
 
-describe.skipIf(!RUN)('TAD contract — tad.org', () => {
-  it('search page returns 200', async () => {
-    const res = await fetch('https://www.tad.org/Property/PropertySearch', {
-      signal: AbortSignal.timeout(TIMEOUT),
-    });
-    expect(res.status).toBe(200);
-  }, TIMEOUT);
-
-  it('search page contains ASP.NET ViewState (PACS requires it for POST)', async () => {
-    const res = await fetch('https://www.tad.org/Property/PropertySearch', {
-      signal: AbortSignal.timeout(TIMEOUT),
-    });
-    const html = await res.text();
-    expect(html).toContain('__VIEWSTATE');
-  }, TIMEOUT);
-
-  it('search page contains expected address field names (StreetNumber + StreetName)', async () => {
-    const res = await fetch('https://www.tad.org/Property/PropertySearch', {
-      signal: AbortSignal.timeout(TIMEOUT),
-    });
-    const html = await res.text();
-    // These are the field names the tad.ts adapter POSTs — if these change, update tad.ts
-    expect(html).toContain('StreetNumber');
-    expect(html).toContain('StreetName');
-  }, TIMEOUT);
+describe('TAD adapter (disabled by design)', () => {
+  it('returns null so the lookup falls back to ATTOM / the notice upload', async () => {
+    expect(await lookupTad('1234 Main Blvd, Fort Worth, TX 76118')).toBeNull();
+  });
 });
 
 // ─── DCAD (Dallas Central Appraisal District — dallascad.org) ────────────────
