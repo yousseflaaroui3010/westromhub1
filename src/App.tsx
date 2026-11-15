@@ -11,6 +11,8 @@ import { lazyPage } from './lib/lazyPage';
 const TaxView = lazyPage(() => import('./components/TaxView').then(m => ({ default: m.TaxView })));
 const InsuranceView = lazyPage(() => import('./components/InsuranceView').then(m => ({ default: m.InsuranceView })));
 const PrivacyView = lazyPage(() => import('./components/PrivacyView').then(m => ({ default: m.PrivacyView })));
+// Owner portfolio page: a MOCKUP with invented data, its own look, outside the hub's header and footer.
+const PortfolioPreview = lazyPage(() => import('./portfolio/PortfolioPreview'));
 
 export type ViewState = 'home' | 'taxes' | 'insurance';
 
@@ -27,7 +29,10 @@ export default function App() {
     else if (view === 'insurance') navigate('/insurance');
   };
 
+  const isPortfolio = location.pathname.startsWith('/portfolio-preview');
+
   useEffect(() => {
+    if (isPortfolio) return; // that page sets its own title
     let title = 'Westrom Owner Advisory Hub';
     let description = 'Self-service resources to help Texas rental property owners optimize property taxes and insurance.';
     
@@ -48,7 +53,17 @@ export default function App() {
     if (metaDesc) {
       metaDesc.setAttribute('content', description);
     }
-  }, [location.pathname]);
+  }, [location.pathname, isPortfolio]);
+
+  if (isPortfolio) {
+    return (
+      <ErrorBoundary resetKey={location.pathname}>
+        <Suspense fallback={<div style={{ minHeight: '100vh', background: '#05070c' }} aria-busy="true" />}>
+          <PortfolioPreview />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
