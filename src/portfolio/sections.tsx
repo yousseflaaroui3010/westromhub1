@@ -1,217 +1,218 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import {
-  ArrowUpRight, Bell, CalendarDays, Check, Download, Eye, FileText, KeyRound, Lock, Mail, PawPrint, Phone,
-  Quote, Receipt, ScanSearch, ShieldCheck, Sparkles, TrendingUp, Wallet, Wrench, X,
-} from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ArrowUpRight, Check, Download, Lock, Mail, Phone, X } from 'lucide-react';
 import { ROLE_LABEL, ROLE_PERMISSIONS, tenantLabel, type Membership, type Permission, type Role } from './access';
-import type { Doc, FeedItem, Home, Portfolio, Unit, UnitStatus } from './data';
-import { HouseArt, HouseBlueprint, XRay } from './HouseArt';
-import {
-  CountUp, Reveal, SectionHead, daysFromToday, fmtDate, fmtMonth, leaseEndShort, leaseProgress, money, shortMoney,
-} from './ui';
+import type { Home, Portfolio, Unit, UnitStatus } from './data';
+import { BlobReveal, HouseArt, HouseBlueprint } from './HouseArt';
+import { Reveal, daysFromToday, fmtDate, fmtMonth, leaseEndShort, money, reducedMotion } from './ui';
 
 type Perms = ReadonlySet<Permission>;
 
-const STATUS: Record<UnitStatus, { label: string; tone: string }> = {
-  occupied: { label: 'Occupied', tone: 'ok' },
-  renewal: { label: 'Renewal out', tone: 'warn' },
-  vacant: { label: 'For rent', tone: 'live' },
-  'make-ready': { label: 'Make-ready', tone: 'warn' },
-};
-
+const STATUS: Record<UnitStatus, string> = { occupied: 'Leased', renewal: 'Renewal offered', vacant: 'For rent', 'make-ready': 'Getting ready' };
+const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 const homeRent = (h: Home) => h.units.reduce((s, u) => s + u.rentCents, 0);
-const leasedUnits = (h: Home) => h.units.filter((u) => u.lease);
 
 function factsFor(h: Home, perms: Perms) {
-  const u = h.units[0];
-  const lease = u.lease;
+  const lease = h.units[0].lease;
   return {
     beds: h.beds, baths: h.baths, sqft: h.sqft, yearBuilt: h.yearBuilt,
-    rent: perms.has('tenancy:view') || perms.has('market:view') ? shortMoney(homeRent(h)) : undefined,
+    rent: perms.has('tenancy:view') || perms.has('market:view') ? money(homeRent(h)) : undefined,
     leaseEnd: perms.has('tenancy:view') && lease ? (lease.monthToMonth ? 'MONTH-TO-MONTH' : leaseEndShort(lease.end)) : undefined,
   };
 }
 
-/* ───────────────────────────── Hero ───────────────────────────── */
-
-export function Hero({ portfolio, firstName, perms, role }: { portfolio: Portfolio; firstName: string; perms: Perms; role: Role }) {
-  const ref = useRef<HTMLElement>(null);
-  const featured = portfolio.homes[0];
-  const doors = portfolio.homes.reduce((s, h) => s + h.units.length, 0);
-  const occupied = portfolio.homes.reduce((s, h) => s + leasedUnits(h).length, 0);
-  const rent = portfolio.homes.reduce((s, h) => s + homeRent(h), 0);
-  const paidYear = portfolio.ledger.reduce((s, m) => s + m.paidCents, 0);
-  const hour = 19;
-  const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const prospect = portfolio.stage === 'prospect';
-  const words = (prospect ? featured.address.split(' ').slice(1, 3).join(' ') : portfolio.shortName).toUpperCase().split(' ');
-  const offsets = words.map((_, i) => words.slice(0, i).join('').length);
-
-  const move = (e: ReactPointerEvent<HTMLElement>) => {
-    const b = ref.current?.getBoundingClientRect();
-    if (!b || !ref.current) return;
-    ref.current.style.setProperty('--mx', `${((e.clientX - b.left) / b.width) * 100}%`);
-    ref.current.style.setProperty('--my', `${((e.clientY - b.top) / b.height) * 100}%`);
-  };
-
+function HomePicture({ home, perms, intro, label, className }: { home: Home; perms: Perms; intro?: boolean; label?: string; className?: string }) {
   return (
-    <section ref={ref} className="pf-hero" onPointerMove={move} id="top">
-      <div className="pf-hero-grid" aria-hidden />
-      <div className="pf-hero-inner">
-        <div className="pf-hero-copy">
-          <p className="pf-eyebrow">
-            <span className="pf-dot" /> {prospect ? 'Prepared for you' : `Owner portfolio · since ${portfolio.since}`}
-            <span className="pf-eyebrow-role">{ROLE_LABEL[role]}</span>
-          </p>
-          <p className="pf-greet">{greet}, {firstName}.</p>
-          <h1 className="pf-mega" aria-label={prospect ? featured.address : portfolio.name}
-            style={{ ['--len' as string]: Math.max(...words.map((w) => w.length)) }}>
-            {words.map((w, wi) => (
-              <span key={wi} className="pf-word" aria-hidden>
-                {w.split('').map((ch, ci) => <span key={ci} style={{ ['--i' as string]: offsets[wi] + ci }}>{ch}</span>)}
-              </span>
-            ))}
-          </h1>
-          <p className="pf-hero-sub">
-            {prospect
-              ? <>This is the page you would keep for as long as we manage <b>{featured.address}</b>. Look around: the numbers below are for your home.</>
-              : <>{portfolio.name}: {portfolio.homes.length} {portfolio.homes.length === 1 ? 'property' : 'properties'}, {doors} doors. Everything we do for you, in one place.</>}
-          </p>
-          {!prospect && (
-            <dl className="pf-stats">
-              {perms.has('homes:view') && <div><dt>Doors</dt><dd><CountUp value={doors} format={(n) => String(Math.round(n))} /></dd></div>}
-              {perms.has('tenancy:view') && <div><dt>Leased</dt><dd><CountUp value={occupied} format={(n) => `${Math.round(n)}/${doors}`} /></dd></div>}
-              {perms.has('tenancy:view') && <div><dt>Monthly rent</dt><dd><CountUp value={rent} format={(n) => money(n)} /></dd></div>}
-              {perms.has('money:view') && <div><dt>Paid to you · 1 yr</dt><dd><CountUp value={paidYear} format={(n) => money(n)} /></dd></div>}
-            </dl>
-          )}
-          {prospect && (
-            <dl className="pf-stats">
-              <div><dt>Estimated rent</dt><dd>{shortMoney(featured.marketLowCents)}–{shortMoney(featured.marketHighCents).replace('$', '')}</dd></div>
-              <div><dt>Our fee</dt><dd>10%</dd></div>
-              <div><dt>Typical days to lease</dt><dd>21</dd></div>
-            </dl>
-          )}
-        </div>
-        {perms.has('homes:view') ? (
-          <div className="pf-hero-visual">
-            <XRay
-              className="pf-hero-xray"
-              hint="Hover the house · tap on mobile"
-              art={<HouseArt style={featured.style} palette={featured.palette} />}
-              blueprint={<HouseBlueprint style={featured.style} facts={factsFor(featured, perms)} />}
-            />
-            <p className="pf-hero-caption"><span>{featured.address}</span><span>{featured.city}, TX {featured.zip}</span></p>
-          </div>
-        ) : (
-          <div className="pf-hero-visual pf-hero-ledger">
-            <Receipt aria-hidden />
-            <p>Statements, ledger and tax documents for <b>{portfolio.name}</b>.</p>
-            <p className="pf-muted">Your access covers the money and the paperwork, not the tenants.</p>
-          </div>
-        )}
-      </div>
-      <a href="#homes" className="pf-scrollcue" aria-label="Scroll down"><span /></a>
+    <BlobReveal
+      className={className}
+      intro={intro}
+      label={label}
+      base={<HouseArt style={home.style} palette={home.palette} photo={home.photo} />}
+      reveal={<HouseBlueprint style={home.style} facts={factsFor(home, perms)} />}
+    />
+  );
+}
+
+function Chapter({ kicker, title, children, id, tone = 'paper', className = '' }: {
+  kicker: string; title?: ReactNode; children: ReactNode; id: string; tone?: 'paper' | 'navy'; className?: string;
+}) {
+  return (
+    <section id={id} data-tone={tone} className={`pf-chapter ${className}`}>
+      <Reveal className="pf-chapter-in">
+        <p className="pf-kicker">{kicker}</p>
+        {title && <h2 className="pf-title">{title}</h2>}
+        {children}
+      </Reveal>
     </section>
   );
 }
 
-/* ───────────────────────────── Homes ───────────────────────────── */
+/* ── Hero ─────────────────────────────────────────────── */
 
-function TiltCard({ home, perms, onOpen, i }: { home: Home; perms: Perms; onOpen: () => void; i: number }) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const move = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (e.pointerType !== 'mouse' || !ref.current) return;
-    const b = ref.current.getBoundingClientRect();
-    const x = (e.clientX - b.left) / b.width - 0.5;
-    const y = (e.clientY - b.top) / b.height - 0.5;
-    ref.current.style.setProperty('--ry', `${x * 10}deg`);
-    ref.current.style.setProperty('--rx', `${-y * 8}deg`);
-    ref.current.style.setProperty('--gx', `${(x + 0.5) * 100}%`);
-    ref.current.style.setProperty('--gy', `${(y + 0.5) * 100}%`);
-  };
-  const reset = () => { ref.current?.style.setProperty('--ry', '0deg'); ref.current?.style.setProperty('--rx', '0deg'); };
-  const lead = home.units.find((u) => u.lease) ?? home.units[0];
-  const worst = home.units.find((u) => u.status !== 'occupied') ?? home.units[0];
-  const st = STATUS[worst.status];
+export function Hero({ portfolio, firstName, perms, role }: { portfolio: Portfolio; firstName: string; perms: Perms; role: Role }) {
+  const featured = portfolio.homes[0];
+  const prospect = portfolio.stage === 'prospect';
+  const word = portfolio.shortName;
+  const next = [...portfolio.keyDates].sort((a, b) => a.date.localeCompare(b.date))[0];
+  const paidYear = portfolio.ledger.reduce((s, m) => s + m.paidCents, 0);
   return (
-    <button ref={ref} className="pf-card" style={{ ['--i' as string]: i }} onPointerMove={move} onPointerLeave={reset} onClick={onOpen}
-      aria-label={`Open ${home.address}`}>
-      <div className="pf-card-media">
-        <HouseArt style={home.style} palette={home.palette} className="pf-card-art" />
-        <div className="pf-card-bp"><HouseBlueprint style={home.style} facts={factsFor(home, perms)} /></div>
-        <span className="pf-card-scan" aria-hidden />
-        {perms.has('tenancy:view') && <span className={`pf-pill pf-tone-${st.tone}`}>{home.units.length > 1 ? `${worst.label}: ` : ''}{st.label}</span>}
-      </div>
-      <div className="pf-card-body">
-        <p className="pf-card-city">{home.city} · {home.zip}</p>
-        <h3 className="pf-card-title">{home.address}</h3>
-        <p className="pf-card-facts">{home.beds} bd · {home.baths} ba · {home.sqft.toLocaleString()} sq ft{home.units.length > 1 ? ` · ${home.units.length} units` : ''}</p>
-        {perms.has('tenancy:view') && (
-          <div className="pf-card-foot">
-            <div>
-              <span className="pf-label">Rent</span>
-              <b className="pf-mono">{money(homeRent(home))}</b>
-            </div>
-            {lead.lease ? (
-              <div className="pf-ring-wrap">
-                <svg viewBox="0 0 36 36" className="pf-ring" aria-hidden>
-                  <circle cx="18" cy="18" r="15.5" className="pf-ring-bg" />
-                  <circle cx="18" cy="18" r="15.5" className="pf-ring-fg" style={{ strokeDasharray: `${(lead.lease.monthToMonth ? 1 : leaseProgress(lead.lease.start, lead.lease.end)) * 97.4} 97.4` }} />
-                </svg>
-                <span><span className="pf-label">Lease</span>{lead.lease.monthToMonth ? 'Month to month' : `Ends ${fmtDate(lead.lease.end, { month: 'short', year: 'numeric' })}`}</span>
-              </div>
-            ) : (
-              <div><span className="pf-label">Listing</span>{lead.listing ? `${lead.listing.showings} showings` : 'Getting ready'}</div>
-            )}
+    <section className="pf-hero" data-tone="paper" id="top">
+      <p className="pf-hero-eyebrow">
+        {prospect ? 'Prepared for you by Westrom' : `${portfolio.name} · with Westrom since ${portfolio.since}`}
+      </p>
+      <h1 className="pf-hero-word" aria-label={prospect ? featured.address : portfolio.name} style={{ ['--len' as string]: word.length }}>
+        {word.split('').map((ch, i) => <span key={i} style={{ ['--i' as string]: i }}>{ch === ' ' ? ' ' : ch}</span>)}
+      </h1>
+      <div className="pf-hero-arch">
+        {perms.has('homes:view') ? (
+          <HomePicture home={featured} perms={perms} intro className="pf-arch" label="Move over the house" />
+        ) : (
+          <div className="pf-arch pf-arch-ledger">
+            <span className="pf-kicker">Paid out, last 12 months</span>
+            <b>{money(paidYear)}</b>
+            <span>Statements, ledger and tax papers. Your access covers the money, not the tenants.</span>
           </div>
         )}
-        <span className="pf-card-open" aria-hidden><ArrowUpRight /></span>
       </div>
-    </button>
+      <p className="pf-hero-greet"><em>Good evening, {firstName}.</em> <span>{ROLE_LABEL[role]}</span></p>
+      {next && perms.has('alerts:view') && !prospect && (
+        <a className="pf-hero-next" href="#ahead">
+          <span className="pf-kicker">Next</span>
+          <b>{next.title}</b>
+          <span>{fmtDate(next.date, { month: 'long', day: 'numeric' })}</span>
+          <small>{next.detail.split(':')[0]}</small>
+        </a>
+      )}
+      <span className="pf-hero-scroll" aria-hidden>Scroll</span>
+    </section>
   );
 }
 
-export function Homes({ portfolio, perms, index, onOpen }: { portfolio: Portfolio; perms: Perms; index: number; onOpen: (h: Home) => void }) {
+/* ── Manifesto: the whole portfolio in one sentence ───── */
+
+function useScrollProgress<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (reducedMotion()) { el.style.setProperty('--p', '1'); return; }
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const b = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const p = Math.min(1, Math.max(0, (vh * 0.85 - b.top) / (b.height * 0.9)));
+      el.style.setProperty('--p', p.toFixed(3));
+    };
+    const on = () => { if (!raf) raf = requestAnimationFrame(update); };
+    update();
+    window.addEventListener('scroll', on, { passive: true });
+    window.addEventListener('resize', on);
+    return () => { window.removeEventListener('scroll', on); window.removeEventListener('resize', on); cancelAnimationFrame(raf); };
+  }, []);
+  return ref;
+}
+
+type Piece = string | { em: string };
+
+function Statement({ pieces }: { pieces: Piece[] }) {
+  const ref = useScrollProgress<HTMLParagraphElement>();
+  const words: { text: string; em: boolean }[] = [];
+  pieces.forEach((pc) => {
+    const em = typeof pc !== 'string';
+    (em ? pc.em : pc).split(' ').filter(Boolean).forEach((text) => words.push({ text, em }));
+  });
   return (
-    <Reveal as="section" className="pf-section" id="homes">
-      <SectionHead index={index} kicker="Homes" title={<>Your <em>portfolio</em>, door by door.</>}>
-        Hover a home to see its blueprint. Open it for the lease, payments and paperwork.
-      </SectionHead>
-      <div className="pf-track" role="list">
-        {portfolio.homes.map((h, i) => <div role="listitem" key={h.id}><TiltCard home={h} perms={perms} i={i} onOpen={() => onOpen(h)} /></div>)}
+    <p ref={ref} className="pf-statement" style={{ ['--n' as string]: words.length }}>
+      {words.map((w, i) => (
+        <span key={i} className={w.em ? 'is-em' : ''} style={{ ['--w' as string]: i }}>{w.text} </span>
+      ))}
+    </p>
+  );
+}
+
+export function Manifesto({ portfolio, perms }: { portfolio: Portfolio; perms: Perms }) {
+  const doors = portfolio.homes.reduce((s, h) => s + h.units.length, 0);
+  const counties = [...new Set(portfolio.homes.map((h) => h.county))];
+  const rent = portfolio.homes.reduce((s, h) => s + homeRent(h), 0);
+  const paid = portfolio.ledger.reduce((s, m) => s + m.paidCents, 0);
+  const pieces: Piece[] = [
+    `${NUM[portfolio.homes.length] ?? portfolio.homes.length} ${portfolio.homes.length === 1 ? 'home' : 'homes'}${doors !== portfolio.homes.length ? `, ${NUM[doors] ?? doors} doors,` : ''} across`,
+    { em: counties.length === 1 ? `${counties[0]} County.` : `${counties.join(' & ')} counties.` },
+  ];
+  if (perms.has('tenancy:view')) pieces.push({ em: money(rent) }, 'of rent every month.');
+  if (perms.has('money:view')) pieces.push('And', { em: money(paid) }, 'paid to you this year.');
+  return (
+    <section className="pf-manifesto" data-tone="navy" id="summary">
+      <p className="pf-kicker">Your portfolio, in one sentence</p>
+      <Statement pieces={pieces} />
+    </section>
+  );
+}
+
+export function ProspectManifesto({ portfolio }: { portfolio: Portfolio }) {
+  const h = portfolio.homes[0];
+  return (
+    <section className="pf-manifesto" data-tone="navy" id="summary">
+      <p className="pf-kicker">What we see</p>
+      <Statement pieces={[
+        `A ${NUM[h.beds]}-bedroom home in`, { em: h.city }, 'that should lease for', { em: `${money(h.marketLowCents)} to ${money(h.marketHighCents)}` },
+        'a month, in about', { em: 'three weeks.' },
+      ]} />
+    </section>
+  );
+}
+
+/* ── Homes ───────────────────────────────────────────── */
+
+function homeLine(h: Home, perms: Perms) {
+  if (!perms.has('tenancy:view')) return `${h.beds} bedrooms · ${h.sqft.toLocaleString()} sq ft`;
+  const u = h.units.find((x) => x.lease) ?? h.units[0];
+  if (h.units.length > 1) return h.units.map((x) => `${x.label} ${STATUS[x.status].toLowerCase()}`).join(' · ');
+  if (u.lease) return u.lease.monthToMonth ? `Leased month to month · ${money(u.rentCents)}` : `Leased to ${tenantLabel(u.lease.tenants[0], perms)} until ${fmtDate(u.lease.end, { month: 'long', year: 'numeric' })}`;
+  if (u.listing) return `For rent at ${money(u.listing.askingCents)} · ${u.listing.showings} showings so far`;
+  return STATUS[u.status];
+}
+
+export function Homes({ portfolio, perms, onOpen }: { portfolio: Portfolio; perms: Perms; onOpen: (h: Home) => void }) {
+  return (
+    <Chapter id="homes" kicker="The homes" title={<>Every door, <em>in plain sight.</em></>}>
+      <div className="pf-gallery">
+        {portfolio.homes.map((h, i) => (
+          <figure key={h.id} className={`pf-plate is-${i % 4}`}>
+            <figcaption className="pf-plate-cap">{h.city}, {h.yearBuilt}</figcaption>
+            <button className="pf-plate-btn" onClick={() => onOpen(h)} aria-label={`Open ${h.address}`}>
+              <HomePicture home={h} perms={perms} className="pf-plate-pic" />
+            </button>
+            <h3 className="pf-plate-title">{h.address}</h3>
+            <p className="pf-plate-line">{homeLine(h, perms)}</p>
+            <button className="pf-link" onClick={() => onOpen(h)}>Open <ArrowUpRight aria-hidden /></button>
+          </figure>
+        ))}
       </div>
-    </Reveal>
+    </Chapter>
   );
 }
 
 function Payments({ unit }: { unit: Unit }) {
   const months = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
   return (
-    <div className="pf-paydots" aria-label="Rent paid, last six months">
-      {unit.payments.map((p, i) => (
-        <span key={i} className={`pf-paydot is-${p}`} title={`${months[i]}: ${p === 'paid' ? 'paid on time' : p === 'late' ? 'paid late' : 'no lease'}`}>
-          <i />{months[i]}
-        </span>
-      ))}
+    <div className="pf-pay" aria-label="Rent, last six months">
+      {unit.payments.map((p, i) => <span key={i} className={`is-${p}`} title={`${months[i]}: ${p === 'paid' ? 'on time' : p === 'late' ? 'late' : 'no lease'}`}><i />{months[i]}</span>)}
     </div>
   );
 }
 
-function MarketBar({ home }: { home: Home }) {
+function MarketLine({ home }: { home: Home }) {
   const rent = home.units[0].rentCents;
-  const lo = home.marketLowCents * 0.9;
-  const hi = home.marketHighCents * 1.1;
-  const pos = (v: number) => `${((v - lo) / (hi - lo)) * 100}%`;
-  const verdict = rent < home.marketLowCents ? `Below market by ${money(home.marketLowCents - rent)}`
-    : rent > home.marketHighCents ? `Above market by ${money(rent - home.marketHighCents)}` : 'In the market range';
+  const lo = home.marketLowCents * 0.88, hi = home.marketHighCents * 1.12;
+  const at = (v: number) => `${((v - lo) / (hi - lo)) * 100}%`;
   return (
-    <div className="pf-mbar">
-      <div className="pf-mbar-track">
-        <span className="pf-mbar-band" style={{ left: pos(home.marketLowCents), width: `calc(${pos(home.marketHighCents)} - ${pos(home.marketLowCents)})` }} />
-        <span className="pf-mbar-pin" style={{ left: pos(rent) }}><b>{money(rent)}</b></span>
+    <div className="pf-market">
+      <div className="pf-market-track">
+        <span className="pf-market-band" style={{ left: at(home.marketLowCents), right: `calc(100% - ${at(home.marketHighCents)})` }} />
+        <span className="pf-market-pin" style={{ left: at(rent) }} />
       </div>
-      <div className="pf-mbar-legend"><span>{money(home.marketLowCents)}</span><span className="pf-mbar-verdict">{verdict}</span><span>{money(home.marketHighCents)}</span></div>
+      <p><span>{money(home.marketLowCents)}</span><b>{money(rent)} today</b><span>{money(home.marketHighCents)}</span></p>
     </div>
   );
 }
@@ -230,75 +231,55 @@ export function HomeDrawer({ home, portfolio, perms, onClose }: { home: Home; po
   return (
     <div className="pf-drawer-wrap" role="dialog" aria-modal="true" aria-label={home.address} onClick={onClose}>
       <aside className="pf-drawer" onClick={(e) => e.stopPropagation()}>
-        <button ref={closeRef} className="pf-iconbtn pf-drawer-close" onClick={onClose} aria-label="Close"><X /></button>
-        <XRay
-          className="pf-drawer-xray"
-          hint="Move over the photo"
-          art={<HouseArt style={home.style} palette={home.palette} />}
-          blueprint={<HouseBlueprint style={home.style} facts={factsFor(home, perms)} />}
-        />
+        <button ref={closeRef} className="pf-close" onClick={onClose} aria-label="Close"><X /></button>
+        <HomePicture home={home} perms={perms} className="pf-drawer-pic" label="Move over the picture" />
         <div className="pf-drawer-body">
-          <p className="pf-card-city">{home.city}, TX {home.zip} · {home.county} County</p>
+          <p className="pf-kicker">{home.city}, Texas · {home.county} County</p>
           <h3 className="pf-drawer-title">{home.address}</h3>
           <dl className="pf-facts">
-            <div><dt>Beds / baths</dt><dd>{home.beds} / {home.baths}</dd></div>
-            <div><dt>Size</dt><dd>{home.sqft.toLocaleString()} sq ft</dd></div>
-            <div><dt>Built</dt><dd>{home.yearBuilt}{home.yearBuilt < 1978 && <small> · lead paint addendum</small>}</dd></div>
-            <div><dt>HOA</dt><dd>{home.hoa ?? 'None'}</dd></div>
+            <div><dt>Bedrooms</dt><dd>{home.beds}</dd></div>
+            <div><dt>Baths</dt><dd>{home.baths}</dd></div>
+            <div><dt>Square feet</dt><dd>{home.sqft.toLocaleString()}</dd></div>
+            <div><dt>Built</dt><dd>{home.yearBuilt}</dd></div>
           </dl>
+          {home.hoa && <p className="pf-note">In {home.hoa}.</p>}
+          {home.yearBuilt < 1978 && <p className="pf-note">Built before 1978, so the lead-based paint addendum applies.</p>}
 
           {perms.has('tenancy:view') && home.units.map((u, i) => (
-            <div key={i} className="pf-unit">
-              <div className="pf-unit-head">
-                <h4>{u.label ?? 'The lease'}</h4>
-                <span className={`pf-pill pf-tone-${STATUS[u.status].tone}`}>{STATUS[u.status].label}</span>
-              </div>
+            <div key={i} className="pf-block">
+              <h4>{u.label ?? 'The lease'} <span>{STATUS[u.status]}</span></h4>
               {u.lease ? (
                 <>
-                  <p className="pf-unit-who">{u.lease.tenants.map((t) => tenantLabel(t, perms)).join(' & ')} · {money(u.rentCents)}/mo · deposit {money(u.lease.depositCents)}</p>
-                  <div className="pf-timeline">
-                    <span style={{ width: `${(u.lease.monthToMonth ? 1 : leaseProgress(u.lease.start, u.lease.end)) * 100}%` }} />
-                  </div>
-                  <div className="pf-timeline-legend">
-                    <span>{fmtDate(u.lease.start)}</span>
-                    <span>{u.lease.monthToMonth ? 'Month to month since ' + fmtDate(u.lease.end, { month: 'short', year: 'numeric' }) : `${fmtDate(u.lease.end)} · ${daysFromToday(u.lease.end)} days left`}</span>
-                  </div>
+                  <p>{u.lease.tenants.map((t) => tenantLabel(t, perms)).join(' and ')} · {money(u.rentCents)} a month · deposit {money(u.lease.depositCents)}</p>
+                  <p className="pf-muted">{u.lease.monthToMonth ? `Month to month since ${fmtDate(u.lease.end, { month: 'long', year: 'numeric' })}` : `${fmtDate(u.lease.start)} to ${fmtDate(u.lease.end)} · ${daysFromToday(u.lease.end)} days left`}</p>
                 </>
               ) : u.listing && perms.has('showings:view') ? (
-                <div className="pf-listing">
-                  <div><b className="pf-mono">{u.listing.daysOnMarket}</b><span>days listed</span></div>
-                  <div><b className="pf-mono">{u.listing.showings}</b><span>showings</span></div>
-                  <div><b className="pf-mono">{u.listing.applications}</b><span>applications</span></div>
-                  <div><b className="pf-mono">{money(u.listing.askingCents)}</b><span>asking</span></div>
-                  <p className="pf-quote"><Quote aria-hidden /> {u.listing.feedback}</p>
-                </div>
-              ) : <p className="pf-muted">No lease yet. We will post here when it is listed.</p>}
+                <>
+                  <p>Listed {u.listing.daysOnMarket} days at {money(u.listing.askingCents)}: {u.listing.showings} showings, {u.listing.applications} applications.</p>
+                  <blockquote>“{u.listing.feedback}”</blockquote>
+                </>
+              ) : <p className="pf-muted">No lease yet.</p>}
               {u.payments.length > 0 && <Payments unit={u} />}
             </div>
           ))}
 
           {perms.has('market:view') && (
-            <div className="pf-block">
-              <h4><TrendingUp aria-hidden /> Rent vs the market</h4>
-              <MarketBar home={home} />
-            </div>
+            <div className="pf-block"><h4>Rent against the market</h4><MarketLine home={home} /></div>
           )}
 
           {perms.has('feed:view') && home.workOrders.length > 0 && (
             <div className="pf-block">
-              <h4><Wrench aria-hidden /> Repairs and visits</h4>
-              <ul className="pf-wo">
-                {home.workOrders.map((w, i) => (
-                  <li key={i}><span className={`pf-wo-state is-${w.state}`}>{w.state}</span><span>{w.title}</span><span className="pf-mono">{w.costCents ? money(w.costCents) : '—'}</span><span className="pf-muted">{fmtDate(w.date, { month: 'short', day: 'numeric' })}</span></li>
-                ))}
-              </ul>
+              <h4>Repairs and visits</h4>
+              <ul className="pf-rows">{home.workOrders.map((w, i) => (
+                <li key={i}><span>{w.title}</span><span className="pf-muted">{w.state === 'done' ? 'Done' : w.state === 'open' ? 'In progress' : 'Booked'} · {fmtDate(w.date, { month: 'short', day: 'numeric' })}</span><b>{w.costCents ? money(w.costCents) : '—'}</b></li>
+              ))}</ul>
             </div>
           )}
 
           {perms.has('documents:view') && docs.length > 0 && (
             <div className="pf-block">
-              <h4><FileText aria-hidden /> Paperwork for this home</h4>
-              <ul className="pf-doclist">{docs.map((d) => <li key={d.name}><FileText aria-hidden /> {d.name}<span className="pf-muted">{fmtDate(d.date)}</span></li>)}</ul>
+              <h4>Papers for this home</h4>
+              <ul className="pf-rows">{docs.map((d) => <li key={d.name}><span>{d.name}</span><span className="pf-muted">{fmtDate(d.date)}</span><ArrowUpRight aria-hidden /></li>)}</ul>
             </div>
           )}
         </div>
@@ -307,317 +288,221 @@ export function HomeDrawer({ home, portfolio, perms, onClose }: { home: Home; po
   );
 }
 
-/* ───────────────────────────── Money ───────────────────────────── */
+/* ── Money ───────────────────────────────────────────── */
 
-export function Money({ portfolio, perms, index }: { portfolio: Portfolio; perms: Perms; index: number }) {
+export function Money({ portfolio, perms }: { portfolio: Portfolio; perms: Perms }) {
   const rows = portfolio.ledger;
-  const [sel, setSel] = useState(rows.length - 2); // the last full month
+  const [sel, setSel] = useState(rows.length - 2);
   const m = rows[sel];
-  const max = Math.max(...rows.map((r) => r.rentCents));
-  const total = rows.reduce((s, r) => s + r.paidCents, 0);
-  const W = 720, H = 220, bw = W / rows.length;
-  const steps = [
-    { label: 'Rent collected', v: m.rentCents, tone: 'in' },
-    { label: 'Management fee', v: -m.feesCents, tone: 'out' },
-    { label: 'Repairs & bills', v: -m.repairsCents, tone: 'out' },
-    { label: 'Paid to you', v: m.paidCents, tone: 'net' },
-  ];
-  let run = 0;
+  const max = Math.max(...rows.map((r) => r.paidCents));
+  const min = Math.min(...rows.map((r) => r.paidCents));
   return (
-    <Reveal as="section" className="pf-section" id="money">
-      <SectionHead index={index} kicker="Money" title={<>Where every <em>dollar</em> went.</>}>
-        From rent collected to the deposit in your account. Pick a month.
-      </SectionHead>
+    <Chapter id="money" kicker="The money" title={<>From rent collected <em>to your account.</em></>}>
       <div className="pf-money">
-        <div className="pf-panel pf-chart">
-          <div className="pf-chart-top">
-            <div><span className="pf-label">Paid to you, last 12 months</span><b className="pf-big"><CountUp value={total} format={(n) => money(n)} /></b></div>
-            <div className="pf-legend"><span className="is-paid">Paid to you</span><span className="is-cost">Fees & repairs</span></div>
-          </div>
-          <svg viewBox={`0 0 ${W} ${H + 28}`} className="pf-bars" role="img" aria-label="Monthly payouts">
-            {rows.map((r, i) => {
-              const hRent = (r.rentCents / max) * H;
-              const hPaid = (r.paidCents / max) * H;
-              const x = i * bw + bw * 0.18;
-              const w = bw * 0.64;
-              return (
-                <g key={r.month} className={`pf-bar ${i === sel ? 'is-sel' : ''}`} onClick={() => setSel(i)} style={{ ['--i' as string]: i }}>
-                  <rect x={i * bw} y={0} width={bw} height={H + 28} fill="transparent" />
-                  <rect x={x} y={H - hRent} width={w} height={hRent - hPaid} className="pf-bar-cost" rx="3" />
-                  <rect x={x} y={H - hPaid} width={w} height={hPaid} className="pf-bar-paid" rx="3" />
-                  <text x={x + w / 2} y={H + 20} textAnchor="middle" className="pf-bar-label">{fmtMonth(r.month).slice(0, 3)}</text>
-                </g>
-              );
-            })}
-          </svg>
+        <div className="pf-money-figure" key={m.month}>
+          <p className="pf-kicker">Paid to you · {fmtMonth(m.month, true)}</p>
+          <b className="pf-money-big">{money(m.paidCents)}</b>
+          <p className="pf-money-math">
+            <span>{money(m.rentCents)} collected</span>
+            <span>− {money(m.feesCents)} management, 10%</span>
+            <span>− {money(m.repairsCents)} repairs</span>
+          </p>
         </div>
-        <div className="pf-panel pf-flow" key={m.month}>
-          <span className="pf-label">{fmtMonth(m.month, true)}</span>
-          <ol>
-            {steps.map((s, i) => {
-              const start = s.tone === 'net' ? 0 : s.v < 0 ? run + s.v : run;
-              if (s.tone !== 'net') run += s.v;
-              const width = (Math.abs(s.v) / m.rentCents) * 100;
-              return (
-                <li key={s.label} style={{ ['--i' as string]: i }}>
-                  <span className="pf-flow-label">{s.label}</span>
-                  <span className="pf-flow-track"><span className={`pf-flow-bar is-${s.tone}`} style={{ left: `${(start / m.rentCents) * 100}%`, width: `${Math.max(width, 0.6)}%` }} /></span>
-                  <b className={`pf-mono is-${s.tone}`}>{s.v < 0 ? '−' : ''}{money(Math.abs(s.v))}</b>
-                </li>
-              );
-            })}
-          </ol>
-          <p className="pf-muted pf-small">Fees follow your agreement: 10% of rent collected. Repairs over $350 are approved by you first.</p>
+        <div className="pf-months" role="tablist" aria-label="Month">
+          {rows.map((r, i) => (
+            <button key={r.month} role="tab" aria-selected={i === sel} className={i === sel ? 'is-on' : ''} onClick={() => setSel(i)}>
+              <i style={{ height: `${28 + ((r.paidCents - min) / Math.max(1, max - min)) * 72}%` }} />
+              <span>{fmtMonth(r.month).slice(0, 3)}</span>
+            </button>
+          ))}
         </div>
-        <div className="pf-panel pf-statements">
-          <div className="pf-panel-head"><h3><Receipt aria-hidden /> Owner statements</h3>{!perms.has('statements:download') && <Lock aria-label="Locked" />}</div>
-          <ul>
-            {portfolio.statements.map((s) => (
+        <div className="pf-statements">
+          <p className="pf-kicker">Owner statements</p>
+          <ul className="pf-rows">
+            {portfolio.statements.slice(0, 4).map((s) => (
               <li key={s.id}>
                 <span>{fmtMonth(s.period, true)}</span>
-                <span className="pf-muted pf-mono">in {shortMoney(s.incomeCents)} · out {shortMoney(s.expenseCents)}</span>
-                <b className="pf-mono">{money(s.paidCents)}</b>
-                <button className="pf-iconbtn" disabled={!perms.has('statements:download')} aria-label={`Download ${fmtMonth(s.period, true)} statement`}><Download /></button>
+                <b>{money(s.paidCents)}</b>
+                <button className="pf-icon" disabled={!perms.has('statements:download')} aria-label={`Download ${fmtMonth(s.period, true)} statement`}>
+                  {perms.has('statements:download') ? <Download /> : <Lock />}
+                </button>
               </li>
             ))}
           </ul>
         </div>
       </div>
-    </Reveal>
+    </Chapter>
   );
 }
 
-/* ───────────────────────────── Updates ───────────────────────────── */
+/* ── Updates ─────────────────────────────────────────── */
 
-const FEED_ICON: Record<FeedItem['kind'], typeof Bell> = { update: Sparkles, payment: Wallet, repair: Wrench, showing: Eye, renewal: KeyRound, document: FileText };
-
-export function Updates({ portfolio, index }: { portfolio: Portfolio; index: number }) {
+export function Updates({ portfolio }: { portfolio: Portfolio }) {
+  const [latest, ...rest] = portfolio.feed;
   return (
-    <Reveal as="section" className="pf-section" id="updates">
-      <SectionHead index={index} kicker="Updates" title={<>The week, <em>without</em> the emails.</>}>
-        Your weekly owner update lands here too, with every repair, showing and renewal. You get a ping when something is new.
-      </SectionHead>
-      <ol className="pf-feed">
-        {portfolio.feed.map((f, i) => {
-          const Icon = FEED_ICON[f.kind];
-          return (
-            <li key={i} style={{ ['--i' as string]: i }} className={f.isNew ? 'is-new' : ''}>
-              <span className="pf-feed-icon"><Icon aria-hidden /></span>
-              <div>
-                <p className="pf-feed-meta">{fmtDate(f.date, { weekday: 'short', month: 'short', day: 'numeric' })}{f.isNew && <span className="pf-new">New</span>}</p>
-                <h4>{f.title}</h4>
-                <p>{f.body}</p>
-              </div>
-            </li>
+    <Chapter id="updates" kicker="This week" title={null}>
+      <div className="pf-update">
+        <p className="pf-update-date">{fmtDate(latest.date, { weekday: 'long', month: 'long', day: 'numeric' })}{latest.isNew && <span>New</span>}</p>
+        <p className="pf-update-text">{latest.body}</p>
+      </div>
+      <ul className="pf-earlier">
+        {rest.map((f, i) => (
+          <li key={i}>
+            <span className="pf-muted">{fmtDate(f.date, { month: 'short', day: 'numeric' })}</span>
+            <b>{f.title}</b>
+            <span>{f.body}</span>
+          </li>
+        ))}
+      </ul>
+    </Chapter>
+  );
+}
+
+/* ── Ahead ───────────────────────────────────────────── */
+
+export function Ahead({ portfolio }: { portfolio: Portfolio }) {
+  return (
+    <Chapter id="ahead" kicker="Ahead" title={<>Dates that <em>cost money</em> when missed.</>}>
+      <ol className="pf-ahead">
+        {portfolio.keyDates.map((d, i) => {
+          const body = (
+            <>
+              <b className="pf-ahead-days">{daysFromToday(d.date)}<small>days</small></b>
+              <span className="pf-ahead-title">{d.title}</span>
+              <span className="pf-muted">{fmtDate(d.date, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+              <span className="pf-muted">{d.detail}</span>
+            </>
           );
+          return <li key={i}>{d.href ? <a href={d.href}>{body}<ArrowUpRight className="pf-ahead-go" aria-hidden /></a> : <div>{body}</div>}</li>;
         })}
       </ol>
-    </Reveal>
+    </Chapter>
   );
 }
 
-/* ───────────────────────────── Key dates ───────────────────────────── */
+/* ── Papers ──────────────────────────────────────────── */
 
-export function KeyDates({ portfolio, index }: { portfolio: Portfolio; index: number }) {
-  const span = Math.max(...portfolio.keyDates.map((d) => daysFromToday(d.date)), 1);
+export function Papers({ portfolio }: { portfolio: Portfolio }) {
   return (
-    <Reveal as="section" className="pf-section" id="dates">
-      <SectionHead index={index} kicker="Ahead" title={<>Dates that <em>cost money</em> if missed.</>}>
-        Lease ends, inspections, insurance renewals and the May 15 tax protest deadline, counted down.
-      </SectionHead>
-      <div className="pf-panel pf-dates">
-        <div className="pf-dates-line" aria-hidden>
-          <span className="pf-dates-today">Today</span>
-          {portfolio.keyDates.map((d, i) => (
-            <span key={i} className={`pf-dates-mark is-${d.kind}`} style={{ left: `${(daysFromToday(d.date) / span) * 100}%` }} />
-          ))}
-        </div>
-        <ul>
-          {portfolio.keyDates.map((d, i) => {
-            const inner = (
-              <>
-                <span className={`pf-dates-chip is-${d.kind}`}>{daysFromToday(d.date)} days</span>
-                <span className="pf-dates-when">{fmtDate(d.date, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                <span className="pf-dates-what"><b>{d.title}</b>{d.detail}</span>
-                {d.href && <ArrowUpRight className="pf-dates-go" aria-hidden />}
-              </>
-            );
-            return <li key={i} style={{ ['--i' as string]: i }}>{d.href ? <a href={d.href}>{inner}</a> : <div>{inner}</div>}</li>;
-          })}
-        </ul>
-      </div>
-    </Reveal>
-  );
-}
-
-/* ───────────────────────────── Market ───────────────────────────── */
-
-export function Market({ portfolio, index }: { portfolio: Portfolio; index: number }) {
-  return (
-    <Reveal as="section" className="pf-section" id="market">
-      <SectionHead index={index} kicker="Market" title={<>Is your rent <em>right</em>?</>}>
-        Each home against what similar homes nearby lease for, from our own data across the doors we manage.
-      </SectionHead>
-      <div className="pf-panel pf-market">
-        {portfolio.homes.map((h) => (
-          <div key={h.id} className="pf-market-row">
-            <div><b>{h.address}</b><span className="pf-muted">{h.beds} bd · {h.sqft.toLocaleString()} sq ft · {h.zip}</span></div>
-            <MarketBar home={h} />
-          </div>
+    <Chapter id="papers" kicker="Papers" title={<>Every signature, <em>findable.</em></>}>
+      <ul className="pf-papers">
+        {portfolio.documents.map((d) => (
+          <li key={d.name}>
+            <button>
+              <span className="pf-papers-name">{d.name}</span>
+              <span className="pf-muted">{d.home ?? 'Whole portfolio'} · {fmtDate(d.date, { month: 'short', year: 'numeric' })}</span>
+              <ArrowUpRight aria-hidden />
+            </button>
+          </li>
         ))}
-      </div>
-    </Reveal>
+      </ul>
+    </Chapter>
   );
 }
 
-/* ───────────────────────────── Documents ───────────────────────────── */
-
-const DOC_TONE: Record<Doc['kind'], string> = { agreement: 'red', addendum: 'blue', lease: 'blue', inspection: 'amber', tax: 'green', statement: 'green', sample: 'blue' };
-
-export function Documents({ portfolio, index }: { portfolio: Portfolio; index: number }) {
-  return (
-    <Reveal as="section" className="pf-section" id="documents">
-      <SectionHead index={index} kicker="Documents" title={<>Every <em>signature</em>, findable.</>}>
-        Agreements, addenda, leases, inspections and tax forms, pulled from the Files we keep for you.
-      </SectionHead>
-      <div className="pf-docs">
-        {portfolio.documents.map((d, i) => (
-          <button key={d.name} className={`pf-doc is-${DOC_TONE[d.kind]}`} style={{ ['--i' as string]: i }}>
-            <span className="pf-doc-kind">{d.kind}</span>
-            <FileText className="pf-doc-icon" aria-hidden />
-            <b>{d.name}</b>
-            <span className="pf-muted">{d.home ?? 'Whole portfolio'} · {fmtDate(d.date)}</span>
-            <ArrowUpRight className="pf-doc-go" aria-hidden />
-          </button>
-        ))}
-      </div>
-    </Reveal>
-  );
-}
-
-/* ───────────────────────────── People & access ───────────────────────────── */
+/* ── Access ──────────────────────────────────────────── */
 
 const MATRIX: { perm: Permission; label: string }[] = [
-  { perm: 'homes:view', label: 'Homes & photos' },
-  { perm: 'tenancy:view', label: 'Leases & rent status' },
+  { perm: 'homes:view', label: 'Homes and photos' },
+  { perm: 'tenancy:view', label: 'Leases and rent status' },
   { perm: 'tenancy:names', label: 'Tenants’ full names' },
-  { perm: 'money:view', label: 'Ledger & cash flow' },
+  { perm: 'money:view', label: 'Ledger and payouts' },
   { perm: 'statements:download', label: 'Download statements' },
-  { perm: 'documents:view', label: 'Documents' },
-  { perm: 'feed:view', label: 'Weekly updates & repairs' },
-  { perm: 'showings:view', label: 'Showings & applications' },
-  { perm: 'alerts:view', label: 'Tax & insurance dates' },
+  { perm: 'documents:view', label: 'Papers' },
+  { perm: 'feed:view', label: 'Weekly updates and repairs' },
+  { perm: 'showings:view', label: 'Showings and applications' },
   { perm: 'members:manage', label: 'Invite or remove people' },
   { perm: 'portfolio:any', label: 'Open other portfolios' },
 ];
 const ROLES: Role[] = ['owner', 'accountant', 'prospect', 'staff'];
 
-export function People({ portfolio, members, perms, role, index }: { portfolio: Portfolio; members: Membership[]; perms: Perms; role: Role; index: number }) {
+export function Access({ portfolio, members, perms, role }: { portfolio: Portfolio; members: Membership[]; perms: Perms; role: Role }) {
   const mine = members.filter((m) => m.portfolioId === portfolio.id);
   return (
-    <Reveal as="section" className="pf-section" id="people">
-      <SectionHead index={index} kicker="Access" title={<>Who sees <em>what</em>.</>}>
-        Co-owners share one portfolio. Add your accountant and they see the money and the paperwork, never your tenants. Nobody sees a portfolio they are not on.
-      </SectionHead>
-      <div className="pf-people">
-        <div className="pf-panel">
-          <div className="pf-panel-head"><h3><ShieldCheck aria-hidden /> On this portfolio</h3></div>
-          <ul className="pf-members">
-            {mine.map((m) => (
-              <li key={m.email}>
-                <span className="pf-avatar">{m.email[0].toUpperCase()}</span>
-                <span><b>{m.email}</b><span className="pf-muted">{ROLE_LABEL[m.role]}</span></span>
-              </li>
-            ))}
-            <li className="pf-muted"><span className="pf-avatar is-w">W</span><span><b>Westrom team</b><span>Staff, as your manager</span></span></li>
-          </ul>
-          <button className="pf-btn" disabled={!perms.has('members:manage')}>
-            {perms.has('members:manage') ? <><Mail aria-hidden /> Invite your accountant</> : <><Lock aria-hidden /> Only owners can invite</>}
-          </button>
-        </div>
-        <div className="pf-panel pf-matrix-wrap">
+    <Chapter id="access" kicker="Access" title={<>Who sees <em>what.</em></>}>
+      <p className="pf-lede">Co-owners share one portfolio. An accountant sees the money and the papers, never the tenants. Nobody opens a portfolio they are not on.</p>
+      <div className="pf-access">
+        <ul className="pf-members">
+          {mine.map((m) => <li key={m.email}><b>{m.email}</b><span>{ROLE_LABEL[m.role]}</span></li>)}
+          <li><b>Your Westrom team</b><span>Staff</span></li>
+          <li><button className="pf-btn" disabled={!perms.has('members:manage')}>{perms.has('members:manage') ? <><Mail aria-hidden /> Invite your accountant</> : <><Lock aria-hidden /> Owners invite people</>}</button></li>
+        </ul>
+        <div className="pf-matrix-wrap">
           <table className="pf-matrix">
-            <thead><tr><th scope="col">Can…</th>{ROLES.map((r) => <th key={r} scope="col" className={r === role ? 'is-me' : ''}>{ROLE_LABEL[r]}{r === role && <small>you</small>}</th>)}</tr></thead>
+            <thead><tr><th scope="col"><span className="pf-sr">Permission</span></th>{ROLES.map((r) => <th key={r} scope="col" className={r === role ? 'is-me' : ''}>{ROLE_LABEL[r]}</th>)}</tr></thead>
             <tbody>
               {MATRIX.map((row) => (
                 <tr key={row.perm}>
                   <th scope="row">{row.label}</th>
-                  {ROLES.map((r) => (
-                    <td key={r} className={r === role ? 'is-me' : ''}>{ROLE_PERMISSIONS[r].includes(row.perm) ? <Check aria-label="yes" /> : <span className="pf-no" aria-label="no">·</span>}</td>
-                  ))}
+                  {ROLES.map((r) => <td key={r} className={r === role ? 'is-me' : ''}>{ROLE_PERMISSIONS[r].includes(row.perm) ? <Check aria-label="yes" /> : <span aria-label="no">—</span>}</td>)}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
-    </Reveal>
+    </Chapter>
   );
 }
 
-/* ───────────────────────────── Prospect ───────────────────────────── */
+/* ── Prospect ────────────────────────────────────────── */
 
 const SIX = [
-  { icon: FileText, title: 'The agreement', body: 'Read the full management agreement before you sign. No surprises, plain words.' },
-  { icon: Receipt, title: 'One simple plan', body: '10% of rent collected, $135 monthly minimum, 75% of first month for a new lease, $225 per renewal.' },
-  { icon: PawPrint, title: 'Pets', body: 'Pets are allowed case by case, with a pet guarantee that covers damage beyond the deposit.' },
-  { icon: ScanSearch, title: 'Screening', body: 'Income, rental history, credit and background, the same for every applicant.' },
-  { icon: Wrench, title: 'Repairs', body: 'Anything over $350 waits for your OK. Every invoice and photo lands on this page.' },
-  { icon: Quote, title: 'Owners say', body: '“I check one page instead of chasing emails. My statement explains itself.”' },
+  ['The agreement', 'Read the whole management agreement before you sign, in plain words.'],
+  ['One plan', '10% of rent collected, $135 monthly minimum, 75% of the first month for a new lease, $225 a renewal.'],
+  ['Pets', 'Case by case, backed by a pet guarantee that covers damage beyond the deposit.'],
+  ['Screening', 'Income, rental history, credit and background, the same for every applicant.'],
+  ['Repairs', 'Anything over $350 waits for your OK, and every invoice lands on this page.'],
+  ['Owners say', '“I check one page instead of chasing emails. My statement explains itself.”'],
 ];
 
-export function ProspectIntro({ portfolio, index }: { portfolio: Portfolio; index: number }) {
-  const home = portfolio.homes[0];
+export function SixThings() {
   return (
-    <>
-      <Reveal as="section" className="pf-section" id="homes">
-        <SectionHead index={index} kicker="Your home" title={<>What <em>{home.address.split(' ').slice(1).join(' ')}</em> could earn.</>}>
-          Based on homes we lease near {home.zip} with {home.beds} bedrooms and about {home.sqft.toLocaleString()} sq ft.
-        </SectionHead>
-        <div className="pf-panel pf-market"><div className="pf-market-row"><div><b>{home.address}</b><span className="pf-muted">Suggested list price {money(home.units[0].rentCents)}</span></div><MarketBar home={home} /></div></div>
-      </Reveal>
-      <Reveal as="section" className="pf-section" id="why">
-        <SectionHead index={index + 1} kicker="Working with us" title={<>Six things <em>to know</em>.</>} />
-        <div className="pf-six">
-          {SIX.map((s, i) => (
-            <article key={s.title} className="pf-six-card" style={{ ['--i' as string]: i }}>
-              <s.icon aria-hidden />
-              <h3>{s.title}</h3>
-              <p>{s.body}</p>
-            </article>
-          ))}
+    <Chapter id="why" kicker="Working with Westrom" title={<>Six things <em>to know.</em></>}>
+      <dl className="pf-six">{SIX.map(([t, b]) => <div key={t}><dt>{t}</dt><dd>{b}</dd></div>)}</dl>
+    </Chapter>
+  );
+}
+
+export function ProspectHome({ portfolio, perms, onOpen }: { portfolio: Portfolio; perms: Perms; onOpen: (h: Home) => void }) {
+  const h = portfolio.homes[0];
+  return (
+    <Chapter id="homes" kicker="Your home" title={<>{h.address.split(' ').slice(1).join(' ')}, <em>priced.</em></>}>
+      <div className="pf-prospect">
+        <button className="pf-plate-btn" onClick={() => onOpen(h)} aria-label={`Open ${h.address}`}><HomePicture home={h} perms={perms} className="pf-plate-pic" /></button>
+        <div>
+          <p className="pf-lede">Homes like yours near {h.zip} lease for {money(h.marketLowCents)} to {money(h.marketHighCents)}. We would list it at {money(h.units[0].rentCents)}.</p>
+          <MarketLine home={h} />
         </div>
-      </Reveal>
-    </>
+      </div>
+    </Chapter>
   );
 }
 
 export function ProspectCta({ portfolio }: { portfolio: Portfolio }) {
   return (
-    <Reveal as="section" className="pf-section pf-cta">
-      <h2 className="pf-h2">Sign once. <em>Keep this page.</em></h2>
-      <p className="pf-lede">The day you sign, this page turns into your owner portfolio for {portfolio.homes[0].address}: lease, rent, statements and every update.</p>
-      <div className="pf-cta-row">
-        <button className="pf-btn pf-btn-red"><FileText aria-hidden /> Review the agreement</button>
-        <a className="pf-btn" href={`tel:${portfolio.manager.phone}`}><Phone aria-hidden /> Call {portfolio.manager.name}</a>
-      </div>
-    </Reveal>
+    <section className="pf-chapter pf-cta" data-tone="paper">
+      <Reveal className="pf-chapter-in">
+        <h2 className="pf-title">Sign once. <em>Keep this page.</em></h2>
+        <p className="pf-lede">The day you sign, this page becomes your portfolio for {portfolio.homes[0].address}: the lease, the rent, every statement and update.</p>
+        <div className="pf-cta-row"><button className="pf-btn is-red">Read the agreement</button><span className="pf-muted">or call {portfolio.manager.name} at {portfolio.manager.phone}</span></div>
+      </Reveal>
+    </section>
   );
 }
 
-export function Contact({ portfolio }: { portfolio: Portfolio }) {
+/* ── Footer ──────────────────────────────────────────── */
+
+export function Footer({ portfolio }: { portfolio: Portfolio }) {
   return (
-    <footer className="pf-footer">
-      <div className="pf-footer-card">
-        <span className="pf-avatar is-big">{portfolio.manager.name[0]}</span>
-        <div>
-          <span className="pf-label">{portfolio.manager.title}</span>
-          <b>{portfolio.manager.name}</b>
-        </div>
-        <a className="pf-btn" href={`tel:${portfolio.manager.phone}`}><Phone aria-hidden /> {portfolio.manager.phone}</a>
-        <a className="pf-btn" href={`mailto:${portfolio.manager.email}`}><Mail aria-hidden /> Email</a>
+    <footer className="pf-footer" data-tone="navy">
+      <div className="pf-footer-row">
+        <div><p className="pf-kicker">{portfolio.manager.title}</p><b>{portfolio.manager.name}</b></div>
+        <div><p className="pf-kicker">Phone</p><b className="pf-select"><Phone aria-hidden /> {portfolio.manager.phone}</b></div>
+        <div><p className="pf-kicker">Email</p><b className="pf-select"><Mail aria-hidden /> {portfolio.manager.email}</b></div>
       </div>
-      <p className="pf-muted pf-small"><CalendarDays aria-hidden /> Westrom Group Company · Haslet, TX · Data refreshed from Rentvine every morning.</p>
+      <p className="pf-footer-mark" aria-hidden>Westrom</p>
+      <p className="pf-footer-small">Westrom Group Company · Haslet, Texas · Figures refreshed from Rentvine every morning.</p>
     </footer>
   );
 }

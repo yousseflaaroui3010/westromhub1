@@ -74,14 +74,3 @@ export function CountUp({ value, format, duration = 1400 }: { value: number; for
   }, [value, duration]);
   return <span ref={ref} className="pf-num">{format(shown)}</span>;
 }
-
-/** Section heading with a running index, e.g. "02 / HOMES". */
-export function SectionHead({ index, kicker, title, children }: { index: number; kicker: string; title: ReactNode; children?: ReactNode }) {
-  return (
-    <header className="pf-sechead">
-      <span className="pf-kicker"><b>{String(index).padStart(2, '0')}</b> / {kicker}</span>
-      <h2 className="pf-h2">{title}</h2>
-      {children && <p className="pf-lede">{children}</p>}
-    </header>
-  );
-}

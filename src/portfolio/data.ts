@@ -54,6 +54,8 @@ export interface Home {
   county: string;
   style: HouseStyle;
   palette: number;
+  /** Listing photo (Rentvine listing image or the home's Files). Drawn elevation when missing. */
+  photo?: string;
   beds: number;
   baths: number;
   sqft: number;
