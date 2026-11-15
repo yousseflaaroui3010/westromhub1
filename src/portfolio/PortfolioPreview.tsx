@@ -1,16 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Lock, ShieldCheck } from 'lucide-react';
-import '@fontsource-variable/bodoni-moda/opsz.css';
-import '@fontsource-variable/bodoni-moda/opsz-italic.css';
-import '@fontsource-variable/archivo/wdth.css';
-import './portfolio.css';
+import { Frame } from './Frame';
 import { ROLE_LABEL, permissionsFor, roleIn, visiblePortfolios } from './access';
 import { MEMBERSHIPS, PERSONAS, PORTFOLIOS, portfolioById, type Home } from './data';
 import {
   Access, Ahead, Footer, Hero, HomeDrawer, Homes, Manifesto, Money, Papers, ProspectCta, ProspectHome, ProspectManifesto, SixThings, Updates,
 } from './sections';
-import { PlatLines } from './PlatLines';
 
 const ALL_IDS = PORTFOLIOS.map((p) => p.id);
 
@@ -29,29 +25,11 @@ export default function PortfolioPreview() {
   const portfolio = role ? portfolioById(portfolioId) : null;
   const perms = permissionsFor(session, portfolioId, MEMBERSHIPS);
   const [open, setOpen] = useState<Home | null>(null);
-  const [menu, setMenu] = useState(false);
   const close = useCallback(() => setOpen(null), []);
-  const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.title = portfolio ? `${portfolio.name} · Westrom` : 'Owner portfolio · Westrom';
-    let meta = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
-    if (!meta) { meta = document.createElement('meta'); meta.name = 'robots'; document.head.appendChild(meta); }
-    meta.content = 'noindex, nofollow';
-    document.documentElement.classList.add('pf-html');
-    return () => document.documentElement.classList.remove('pf-html');
+    document.title = portfolio ? `${portfolio.name} · Westrom Group` : 'Owner portfolio · Westrom Group';
   }, [portfolio]);
-
-  // The whole page turns navy while a navy chapter holds the middle of the screen.
-  useEffect(() => {
-    const el = root.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((e) => { if (e.isIntersecting) el.dataset.tone = (e.target as HTMLElement).dataset.tone ?? 'paper'; });
-    }, { rootMargin: '-50% 0px -50% 0px' });
-    el.querySelectorAll('[data-tone]').forEach((s) => io.observe(s));
-    return () => io.disconnect();
-  }, [portfolioId, persona.key]);
 
   const go = (next: { as?: string; p?: string | null }) => {
     const q = new URLSearchParams(params);
@@ -59,7 +37,6 @@ export default function PortfolioPreview() {
     if (next.p === null) q.delete('p'); else if (next.p) q.set('p', next.p);
     setParams(q, { replace: true });
     setOpen(null);
-    setMenu(false);
     window.scrollTo({ top: 0 });
   };
 
@@ -75,24 +52,13 @@ export default function PortfolioPreview() {
       ] as const).filter(([perm]) => perms.has(perm)).map(([, id, label]) => ({ id, label }));
 
   return (
-    <div className="pf-root" ref={root} data-tone="paper">
-      <PlatLines />
-
-      <header className="pf-bar">
-        <a href="#top" className="pf-wordmark" aria-label="Westrom, top of page"><span>Westrom</span><b>{prospect ? 'Proposal' : 'Portfolio'}</b></a>
-        <div className="pf-bar-right">
-          <span className="pf-bar-me">{session.name}<small>{role ? ROLE_LABEL[role] : 'No access'}</small></span>
-          {portfolio && <button className="pf-menu-btn" aria-expanded={menu} aria-controls="pf-menu" onClick={() => setMenu((m) => !m)}><span /><span /><b className="pf-sr">Menu</b></button>}
-        </div>
-      </header>
-
-      {menu && portfolio && (
-        <nav className="pf-menu" id="pf-menu" aria-label="Sections">
-          <ol>{chapters.map((c, i) => <li key={c.id} style={{ ['--i' as string]: i }}><a href={`#${c.id}`} onClick={() => setMenu(false)}>{c.label}</a></li>)}</ol>
-          <p className="pf-muted">{portfolio.name}</p>
-        </nav>
-      )}
-
+    <Frame
+      label={prospect ? 'Proposal' : 'Owner portfolio'}
+      who={{ name: session.name, role: role ? ROLE_LABEL[role] : 'No access' }}
+      menu={portfolio ? chapters.map((c) => ({ label: c.label, href: `#${c.id}` })) : []}
+      footnote={portfolio?.name}
+      watchKey={`${portfolioId}:${persona.key}`}
+    >
       {!portfolio ? (
         <Denied name={portfolioById(portfolioId)?.name ?? 'This portfolio'} onBack={() => go({ p: null })} />
       ) : (
@@ -140,7 +106,7 @@ export default function PortfolioPreview() {
           <button className="pf-dock-try" onClick={() => go({ p: notMine })}><Lock aria-hidden /> Open {portfolioById(notMine)!.shortName}’s</button>
         ) : null}
       </aside>
-    </div>
+    </Frame>
   );
 }
 
@@ -149,7 +115,7 @@ function Denied({ name, onBack }: { name: string; onBack: () => void }) {
     <section className="pf-denied" data-tone="paper">
       <p className="pf-kicker">403 · Not your portfolio</p>
       <h1 className="pf-title">{name} <em>is private.</em></h1>
-      <p className="pf-lede">You can only open portfolios you are on. On the live site the server refuses this before a single figure leaves Westrom, and the attempt goes in the access log.</p>
+      <p className="pf-lede">You can only open portfolios you are on. On the live site the server refuses this before a single figure leaves Westrom Group, and the attempt goes in the access log.</p>
       <button className="pf-btn is-red" onClick={onBack}><ShieldCheck aria-hidden /> Back to my portfolio</button>
     </section>
   );

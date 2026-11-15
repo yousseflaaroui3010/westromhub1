@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { portalRoutes, type PortalDeps } from './portal/routes';
 import type { CadLookupFn } from './adapters/types';
 import {
   ExtractBodySchema,
@@ -43,6 +44,8 @@ export interface AppOptions {
   extractDailyCap?: number;
   extractMaxConcurrency?: number;
   leadGateway?: LeadGatewayConfig | null;
+  /** Owner portal (needs the database). Null or unset: /api/portal/* answers 404. */
+  portal?: (Omit<PortalDeps, 'store'> & { store?: CounterStore }) | null;
   exposeApiDocs?: boolean;
 }
 
@@ -132,7 +135,11 @@ export function createApp(opts: AppOptions): Hono {
   app.use('/api/*', requireInternalProxy(internalProxyToken));
 
   // Coarse per-IP ceiling across all API routes (route limits are tighter).
-  app.use('/api/*', rateLimit(store, { name: 'api', max: 120, windowMs: 15 * 60_000 }));
+  // Signed-in portal pages load a photo per home, so their GETs have their own,
+  // larger bucket; portal sign-in and invites keep tight limits of their own.
+  const coarse = rateLimit(store, { name: 'api', max: 120, windowMs: 15 * 60_000 });
+  const portalReads = rateLimit(store, { name: 'portal-read', max: 900, windowMs: 15 * 60_000 });
+  app.use('/api/*', (c, next) => (c.req.method === 'GET' && c.req.path.startsWith('/api/portal/') ? portalReads(c, next) : coarse(c, next)));
 
   // --- Session (bot challenge) ---------------------------------------------
   app.post(
@@ -316,6 +323,8 @@ export function createApp(opts: AppOptions): Hono {
   }
 
   // --- Lead form gateway ----------------------------------------------------
+  if (opts.portal) app.route('/api/portal', portalRoutes({ ...opts.portal, store: opts.portal.store ?? store }));
+
   app.route('/api/leads', leadRoutes({
     store,
     allowedOrigins: leadOrigins,

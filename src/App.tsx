@@ -13,6 +13,7 @@ const InsuranceView = lazyPage(() => import('./components/InsuranceView').then(m
 const PrivacyView = lazyPage(() => import('./components/PrivacyView').then(m => ({ default: m.PrivacyView })));
 // Owner portfolio page: a MOCKUP with invented data, its own look, outside the hub's header and footer.
 const PortfolioPreview = lazyPage(() => import('./portfolio/PortfolioPreview'));
+const RealPortfolio = lazyPage(() => import('./portfolio/RealPortfolio'));
 
 export type ViewState = 'home' | 'taxes' | 'insurance';
 
@@ -29,7 +30,7 @@ export default function App() {
     else if (view === 'insurance') navigate('/insurance');
   };
 
-  const isPortfolio = location.pathname.startsWith('/portfolio-preview');
+  const isPortfolio = location.pathname.startsWith('/portfolio-preview') || /^\/portfolio(\/|$)/.test(location.pathname);
 
   useEffect(() => {
     if (isPortfolio) return; // that page sets its own title
@@ -59,7 +60,7 @@ export default function App() {
     return (
       <ErrorBoundary resetKey={location.pathname}>
         <Suspense fallback={<div style={{ minHeight: '100vh', background: '#05070c' }} aria-busy="true" />}>
-          <PortfolioPreview />
+          {location.pathname.startsWith('/portfolio-preview') ? <PortfolioPreview /> : <RealPortfolio />}
         </Suspense>
       </ErrorBoundary>
     );

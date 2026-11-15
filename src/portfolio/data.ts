@@ -44,7 +44,7 @@ export interface Unit {
 }
 
 export interface WorkOrder { date: string; title: string; costCents: number; state: 'done' | 'open' | 'scheduled' }
-export interface Doc { name: string; kind: 'agreement' | 'addendum' | 'lease' | 'inspection' | 'tax' | 'statement' | 'sample'; date: string; home?: string }
+export interface Doc { name: string; kind: 'agreement' | 'addendum' | 'lease' | 'inspection' | 'tax' | 'statement' | 'sample'; date: string; home?: string; href?: string }
 
 export interface Home {
   id: string;
@@ -56,19 +56,19 @@ export interface Home {
   palette: number;
   /** Listing photo (Rentvine listing image or the home's Files). Drawn elevation when missing. */
   photo?: string;
-  beds: number;
-  baths: number;
-  sqft: number;
-  yearBuilt: number;
+  beds: number | null;
+  baths: number | null;
+  sqft: number | null;
+  yearBuilt: number | null;
   hoa: string | null;
-  marketLowCents: number;
-  marketHighCents: number;
+  marketLowCents: number | null;
+  marketHighCents: number | null;
   units: Unit[];
   workOrders: WorkOrder[];
 }
 
-export interface LedgerMonth { month: string; rentCents: number; feesCents: number; repairsCents: number; paidCents: number }
-export interface Statement { id: string; period: string; incomeCents: number; expenseCents: number; paidCents: number; reserveCents: number }
+export interface LedgerMonth { month: string; rentCents: number; feesCents: number; repairsCents: number; paidCents: number; /** Real statements give one expenses total. */ expensesCents?: number }
+export interface Statement { id: string; period: string; incomeCents: number; expenseCents: number; paidCents: number; reserveCents: number; href?: string }
 export interface FeedItem { date: string; kind: 'update' | 'payment' | 'repair' | 'showing' | 'renewal' | 'document'; title: string; body: string; isNew?: boolean }
 export interface KeyDate { date: string; title: string; detail: string; href?: string; kind: 'tax' | 'insurance' | 'lease' | 'inspection' }
 
@@ -85,6 +85,10 @@ export interface Portfolio {
   keyDates: KeyDate[];
   documents: Doc[];
   manager: { name: string; title: string; phone: string; email: string };
+  /** Set on portfolios read from Rentvine (not the invented demo ones). */
+  real?: boolean;
+  /** Owners on the Rentvine portfolio: sent to staff only, for invites. */
+  contacts?: { name: string; email: string | null; share: number | null }[];
 }
 
 const $ = (dollars: number) => Math.round(dollars * 100);

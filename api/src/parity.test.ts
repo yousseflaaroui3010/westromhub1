@@ -20,3 +20,11 @@ describe('frontend/API parity', () => {
     expect(COUNTY_PORTALS).toEqual(fe);
   });
 });
+
+describe('owner portal access parity', () => {
+  it('the API role table matches src/portfolio/access.ts', async () => {
+    const api = await import('./portal/access');
+    const web = await import('../../src/portfolio/access');
+    expect(api.ROLE_PERMISSIONS).toEqual(web.ROLE_PERMISSIONS);
+  });
+});

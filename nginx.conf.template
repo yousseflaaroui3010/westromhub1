@@ -63,6 +63,9 @@ limit_req_zone $client_ip zone=api_ai:10m     rate=6r/m;
 limit_req_zone $client_ip zone=api_leads:10m  rate=10r/m;
 # Everything else under /api (property lookup, session).
 limit_req_zone $client_ip zone=api_general:10m rate=30r/m;
+# Owner portal: a signed-in page loads one photo per home plus a few calls.
+# Sign-in, setup and invites have their own, much tighter limits in the API.
+limit_req_zone $client_ip zone=api_portal:10m  rate=120r/m;
 limit_conn_zone $client_ip zone=api_conn:10m;
 limit_req_status  429;
 limit_conn_status 429;
@@ -193,6 +196,16 @@ server {
         client_max_body_size 16k;
         proxy_read_timeout 20s;
         rewrite ^/hook/(token|lead)$ /api/leads/$1 break;
+        include /etc/nginx/conf.d/api-proxy.inc;
+    }
+
+    location /api/portal/ {
+        limit_req  zone=api_portal burst=40 nodelay;
+        limit_conn api_conn 8;
+        error_page 429 = @rate_limited;
+        client_max_body_size 16k;
+        # Documents and statements come from Rentvine through the API.
+        proxy_read_timeout 90s;
         include /etc/nginx/conf.d/api-proxy.inc;
     }
 
