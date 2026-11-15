@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { HouseStyle } from './data';
 
 // A home in two layers from one geometry: a daylight elevation (or the listing
@@ -63,12 +63,19 @@ function bbox(shapes: Shape[]) {
   return { x0, x1, y0 };
 }
 
-export interface HouseFacts { beds: number; baths: number; sqft: number; yearBuilt: number; rent?: string; leaseEnd?: string }
+export interface HouseFacts { beds: number | null; baths: number | null; sqft: number | null; yearBuilt: number | null; rent?: string; leaseEnd?: string }
 
 /** Daylight elevation, drawn like an architect's presentation sketch. */
 export function HouseArt({ style, palette, photo }: { style: HouseStyle; palette: number; photo?: string }) {
   const id = useId().replace(/:/g, '');
-  if (photo) return <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice"><image href={photo} width="400" height="300" preserveAspectRatio="xMidYMid slice" /></svg>;
+  const [broken, setBroken] = useState(false);
+  if (photo && !broken) {
+    return (
+      <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Listing photo of the home">
+        <image href={photo} width="400" height="300" preserveAspectRatio="xMidYMid slice" onError={() => setBroken(true)} />
+      </svg>
+    );
+  }
   const c = PALETTES[palette % PALETTES.length];
   const shapes = GEOMETRY[style];
   const fill = (k: Kind) =>
@@ -149,14 +156,14 @@ export function HouseBlueprint({ style, facts }: { style: HouseStyle; facts: Hou
       <g stroke="#e2574c" strokeWidth="1" fill="none">
         <line x1={x0} x2={x1} y1={G + 16} y2={G + 16} /><line x1={x0} x2={x0} y1={G + 10} y2={G + 22} /><line x1={x1} x2={x1} y1={G + 10} y2={G + 22} />
       </g>
-      {label((x0 + x1) / 2, G + 34, `${facts.sqft.toLocaleString()} SQ FT`, 'middle', 'is-red')}
+      {facts.sqft != null && label((x0 + x1) / 2, G + 34, `${facts.sqft.toLocaleString()} SQ FT`, 'middle', 'is-red')}
       <g stroke="#f2efe7" strokeOpacity="0.55" strokeWidth="0.8">
         <line x1={(x0 + x1) / 2} y1={y0} x2={(x0 + x1) / 2 - 44} y2={Math.max(16, y0 - 18)} />
         {win?.t === 'rect' && <line x1={win.x} y1={win.y} x2={22} y2={win.y - 20} />}
         {door?.t === 'rect' && facts.leaseEnd && <line x1={door.x + door.w} y1={door.y + 10} x2={384} y2={door.y - 6} />}
       </g>
-      {label((x0 + x1) / 2 - 48, Math.max(12, y0 - 22), `BUILT ${facts.yearBuilt}`, 'end')}
-      {win?.t === 'rect' && label(22, win.y - 24, `${facts.beds} BD · ${facts.baths} BA`)}
+      {facts.yearBuilt != null && label((x0 + x1) / 2 - 48, Math.max(12, y0 - 22), `BUILT ${facts.yearBuilt}`, 'end')}
+      {win?.t === 'rect' && facts.beds != null && label(22, win.y - 24, `${facts.beds} BD${facts.baths != null ? ` · ${facts.baths} BA` : ''}`)}
       {door?.t === 'rect' && facts.leaseEnd && label(384, door.y - 10, `LEASE TO ${facts.leaseEnd}`, 'end')}
       {facts.rent && label(384, 24, `RENT ${facts.rent}`, 'end')}
     </svg>

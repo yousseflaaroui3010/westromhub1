@@ -5,7 +5,8 @@ import { serve } from '@hono/node-server';
 import type { AddressInfo } from 'net';
 import { httpExtractor } from './extractor';
 import { cachedSecret, getOrCreateSecret } from './security/secretStore';
-import { connect, migrate, readSecretStrict, withRetry } from './db';
+import { connect, migrate, readSecret, readSecretStrict, withRetry } from './db';
+import { rentvineClient } from './rentvine/sync';
 import { pgLeadStore, leadHealth } from './leads/store';
 import { dbEstimator } from './estimator/indexCache';
 import { createApp } from './app';
@@ -15,6 +16,8 @@ import { cloudflareTurnstileVerifier } from './security/session';
 
 const env = process.env;
 const PORT = Number(env.PORT) || 3001;
+/** Portal reads share Rentvine's 100-a-minute limit with the worker and the staff dashboard. */
+const PORTAL_PACE_MS = 800;
 
 function list(v: string | undefined, fallback: string): string[] {
   return (v ?? fallback).split(',').map((o) => o.trim()).filter(Boolean);
@@ -111,6 +114,27 @@ async function main() {
   // Redis if configured, else the private Postgres, else per-process memory.
   const store = env.REDIS_URL ? await createStore(env.REDIS_URL) : sql ? new PgStore(sql) : await createStore(undefined);
 
+  // Owner portal: needs the database (accounts, sessions, Rentvine copies).
+  // Rentvine: the same key the worker uses (app_secret rentvine_api_key / _secret), read when needed.
+  const portal = sql ? (() => {
+    const corporationId = (env.RENTVINE_CORPORATION_ID || 'westromgroup').toLowerCase();
+    let client: ReturnType<typeof rentvineClient> | null = null;
+    let clientKey = '';
+    const estimator = dbEstimator(sql);
+    return {
+      sql,
+      rentvine: async () => {
+        const [apiKey, apiSecret] = await Promise.all([readSecret(sql, 'rentvine_api_key'), readSecret(sql, 'rentvine_api_secret')]);
+        if (!apiKey || !apiSecret) return null;
+        if (!client || clientKey !== apiKey) { client = rentvineClient({ apiKey, apiSecret, corporationId }, fetch, PORTAL_PACE_MS); clientKey = apiKey; }
+        return client;
+      },
+      estimate: async (q: { zip: string; sqft: number; beds: string | null }) => estimator.estimate(q),
+      setupCode: dbSecret('portal_setup_code'),
+    };
+  })() : null;
+  if (portal) console.log('Owner portal: on (/api/portal)');
+
   const app = createApp({
     extractor,
     allowedOrigins,
@@ -127,6 +151,7 @@ async function main() {
     extractDailyCap: int(env.EXTRACT_DAILY_CAP, 400),
     extractMaxConcurrency: int(env.EXTRACT_MAX_CONCURRENCY, 4),
     leadGateway,
+    portal,
     exposeApiDocs: env.EXPOSE_API_DOCS === 'true',
   });
 

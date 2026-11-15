@@ -106,6 +106,26 @@ export function rentvineClient(creds: RentvineCreds, fetchImpl: typeof fetch = f
   const rows = (answer: unknown): Obj[] =>
     Array.isArray(answer) ? answer as Obj[] : (answer && Array.isArray((answer as Obj).data) ? (answer as Obj).data as Obj[] : []);
   return {
+    get: (path: string, params: Record<string, string> = {}) => get(path, params),
+    /** Every page of a list, stopping at maxPages (a guard, not a target). */
+    async pages(path: string, params: Record<string, string>, maxPages: number): Promise<Obj[]> {
+      const out: Obj[] = [];
+      for (let page = 1; page <= maxPages; page++) {
+        const batch = rows(await get(path, { ...params, page: String(page), pageSize: String(PAGE_SIZE) }));
+        out.push(...batch);
+        if (batch.length < PAGE_SIZE) return out;
+      }
+      throw new Error(`Rentvine listed more than ${maxPages * PAGE_SIZE} rows for ${path}; stopped to be safe`);
+    },
+    /** A file's bytes (GET with the API key), e.g. files/{id}/download. */
+    async download(path: string): Promise<{ bytes: ArrayBuffer; type: string }> {
+      const wait = last + pace - Date.now();
+      if (wait > 0) await sleep(wait);
+      last = Date.now();
+      const res = await fetchImpl(base + path, { headers: { Authorization: auth }, signal: AbortSignal.timeout(60_000) });
+      if (!res.ok) throw new RentvineError(res.status, `Rentvine HTTP ${res.status}`);
+      return { bytes: await res.arrayBuffer(), type: res.headers.get('content-type') ?? 'application/octet-stream' };
+    },
     async ping(): Promise<void> { await get('properties', { page: '1', pageSize: '1' }); },
     async activeLeases(): Promise<Obj[]> {
       const out: Obj[] = [];

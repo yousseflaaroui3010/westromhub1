@@ -140,6 +140,52 @@ The API computes the estimate itself from that index (cached 10 min in
 memory), so visitors get it even while n8n is down; n8n's estimate (RentCast)
 is used only when ours has no data for the segment.
 
+## Owner portal (2026-11-16)
+
+`/portfolio` is a signed-in page that shows one owner portfolio read from
+Rentvine. It changes this project's data model: the private Postgres now
+holds **owner and tenant names, owner emails, addresses and statement
+amounts**, copied from Rentvine, plus portal accounts. `/portfolio-preview`
+stays a demo with invented data and no server calls.
+
+- **Accounts.** `portal_user` (scrypt N=2^15 password hashes), `portal_member`
+  (portfolio, person, role), `portal_session` (SHA-256 of a 32-byte token,
+  14 days), `portal_invite` (SHA-256 of a token, 7 days, used once),
+  `portal_audit` (sign-ins, failures, views, downloads, invites, refusals).
+- **First account.** `POST /api/portal/setup` takes the `portal_setup_code`
+  row from app_secret (generated on first use; read it in Railway's database
+  view) and makes one **westromgroup.com** staff account. It refuses once any
+  staff account exists. Everyone else joins through an invite link that staff
+  (or an owner, for their own portfolio, as owner or accountant) create and
+  send themselves; no email service is involved. The token is in the link's
+  `#fragment`, so it never reaches a server log.
+- **Sessions.** Cookie `wg_portal`: HttpOnly, SameSite=Lax, Path=/api/portal,
+  Secure behind HTTPS. Every POST must carry an allowed Origin (the CORS
+  check rejects others; a missing Origin is refused), which closes cross-site
+  requests. Sign-in failures answer one message whether or not the email
+  exists, and cost the same scrypt time either way.
+- **Limits.** Sign-in: 12 per IP per 15 min and 8 per email per hour. Setup:
+  5 per IP per hour. Invite accept: 10 per IP per hour. Portal reads have
+  their own bucket in the API (900 per 15 min) and in nginx
+  (`api_portal`, 120/min, burst 40), because a page loads a photo per home.
+- **Access.** Every portfolio route works out the person's role on THAT
+  portfolio (staff see all). `portal/view.ts` cuts the data down by role on
+  the server, from the same table as the page (`parity.test.ts` fails on any
+  drift): owners see tenants as "Jordan P."; accountants get money, papers
+  and tax dates and no homes or tenants at all; only staff get owner emails.
+- **Rentvine.** Read only, through this project's own key (app_secret
+  `rentvine_api_key` / `rentvine_api_secret`), one request at a time, 0.8 s
+  apart. Shared lists (portfolios, owners, properties, units, active leases)
+  are kept 6 hours in `portal_cache`; one portfolio is kept 24 hours in
+  `portal_snapshot` and re-read in the background when older. Staff can force
+  a re-read. Photos are fetched only from `https://cdn.rentvine.com/` and only
+  for a home in the person's portfolio; documents and statements only by an
+  id that is in that portfolio's snapshot.
+- **Removing someone.** "Remove" on the Access section deletes the membership
+  and cancels their pending invites. To lock an account entirely: `UPDATE
+  portal_user SET disabled_at = now() WHERE email = '...'` (sessions stop at
+  once). To end every session: `DELETE FROM portal_session`.
+
 ## Two API copies, shared limits, uptime alert (2026-11-12)
 
 The API runs as two always-on replicas behind Railway's edge, so a crash or

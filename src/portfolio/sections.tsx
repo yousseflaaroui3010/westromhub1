@@ -5,6 +5,9 @@ import type { Home, Portfolio, Unit, UnitStatus } from './data';
 import { BlobReveal, HouseArt, HouseBlueprint } from './HouseArt';
 import { Reveal, daysFromToday, fmtDate, fmtMonth, leaseEndShort, money, reducedMotion } from './ui';
 
+const dash = (n: number | null | undefined, f: (n: number) => string = String) => (n == null ? '—' : f(n));
+const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; };
+
 type Perms = ReadonlySet<Permission>;
 
 const STATUS: Record<UnitStatus, string> = { occupied: 'Leased', renewal: 'Renewal offered', vacant: 'For rent', 'make-ready': 'Getting ready' };
@@ -57,7 +60,7 @@ export function Hero({ portfolio, firstName, perms, role }: { portfolio: Portfol
   return (
     <section className="pf-hero" data-tone="paper" id="top">
       <p className="pf-hero-eyebrow">
-        {prospect ? 'Prepared for you by Westrom' : `${portfolio.name} · with Westrom since ${portfolio.since}`}
+        {prospect ? 'Prepared for you by Westrom Group' : `${portfolio.name}${portfolio.since ? ` · with Westrom Group since ${portfolio.since}` : ''}`}
       </p>
       <h1 className="pf-hero-word" aria-label={prospect ? featured.address : portfolio.name} style={{ ['--len' as string]: word.length }}>
         {word.split('').map((ch, i) => <span key={i} style={{ ['--i' as string]: i }}>{ch === ' ' ? ' ' : ch}</span>)}
@@ -73,7 +76,7 @@ export function Hero({ portfolio, firstName, perms, role }: { portfolio: Portfol
           </div>
         )}
       </div>
-      <p className="pf-hero-greet"><em>Good evening, {firstName}.</em> <span>{ROLE_LABEL[role]}</span></p>
+      <p className="pf-hero-greet"><em>{greeting()}, {firstName}.</em> <span>{ROLE_LABEL[role]}</span></p>
       {next && perms.has('alerts:view') && !prospect && (
         <a className="pf-hero-next" href="#ahead">
           <span className="pf-kicker">Next</span>
@@ -132,15 +135,16 @@ function Statement({ pieces }: { pieces: Piece[] }) {
 
 export function Manifesto({ portfolio, perms }: { portfolio: Portfolio; perms: Perms }) {
   const doors = portfolio.homes.reduce((s, h) => s + h.units.length, 0);
-  const counties = [...new Set(portfolio.homes.map((h) => h.county))];
+  const counties = [...new Set(portfolio.homes.map((h) => h.county).filter(Boolean))];
+  const cities = [...new Set(portfolio.homes.map((h) => h.city).filter(Boolean))];
   const rent = portfolio.homes.reduce((s, h) => s + homeRent(h), 0);
   const paid = portfolio.ledger.reduce((s, m) => s + m.paidCents, 0);
   const pieces: Piece[] = [
     `${NUM[portfolio.homes.length] ?? portfolio.homes.length} ${portfolio.homes.length === 1 ? 'home' : 'homes'}${doors !== portfolio.homes.length ? `, ${NUM[doors] ?? doors} doors,` : ''} across`,
-    { em: counties.length === 1 ? `${counties[0]} County.` : `${counties.join(' & ')} counties.` },
+    { em: counties.length === 1 ? `${counties[0]} County.` : counties.length > 1 ? `${counties.slice(0, 3).join(' & ')} counties.` : `${cities.slice(0, 3).join(' & ') || 'North Texas'}.` },
   ];
   if (perms.has('tenancy:view')) pieces.push({ em: money(rent) }, 'of rent every month.');
-  if (perms.has('money:view')) pieces.push('And', { em: money(paid) }, 'paid to you this year.');
+  if (perms.has('money:view') && portfolio.ledger.length) pieces.push('And', { em: money(paid) }, portfolio.ledger.length >= 12 ? 'paid to you this year.' : `paid to you in the last ${portfolio.ledger.length === 1 ? 'month' : `${portfolio.ledger.length} months`}.`);
   return (
     <section className="pf-manifesto" data-tone="navy" id="summary">
       <p className="pf-kicker">Your portfolio, in one sentence</p>
@@ -155,7 +159,7 @@ export function ProspectManifesto({ portfolio }: { portfolio: Portfolio }) {
     <section className="pf-manifesto" data-tone="navy" id="summary">
       <p className="pf-kicker">What we see</p>
       <Statement pieces={[
-        `A ${NUM[h.beds]}-bedroom home in`, { em: h.city }, 'that should lease for', { em: `${money(h.marketLowCents)} to ${money(h.marketHighCents)}` },
+        `A ${h.beds != null ? `${NUM[h.beds] ?? h.beds}-bedroom ` : ''}home in`, { em: h.city }, 'that should lease for', { em: `${money(h.marketLowCents ?? 0)} to ${money(h.marketHighCents ?? 0)}` },
         'a month, in about', { em: 'three weeks.' },
       ]} />
     </section>
@@ -165,7 +169,7 @@ export function ProspectManifesto({ portfolio }: { portfolio: Portfolio }) {
 /* ── Homes ───────────────────────────────────────────── */
 
 function homeLine(h: Home, perms: Perms) {
-  if (!perms.has('tenancy:view')) return `${h.beds} bedrooms · ${h.sqft.toLocaleString()} sq ft`;
+  if (!perms.has('tenancy:view')) return [h.beds != null && `${h.beds} bedrooms`, h.sqft != null && `${h.sqft.toLocaleString()} sq ft`].filter(Boolean).join(' · ');
   const u = h.units.find((x) => x.lease) ?? h.units[0];
   if (h.units.length > 1) return h.units.map((x) => `${x.label} ${STATUS[x.status].toLowerCase()}`).join(' · ');
   if (u.lease) return u.lease.monthToMonth ? `Leased month to month · ${money(u.rentCents)}` : `Leased to ${tenantLabel(u.lease.tenants[0], perms)} until ${fmtDate(u.lease.end, { month: 'long', year: 'numeric' })}`;
@@ -179,7 +183,7 @@ export function Homes({ portfolio, perms, onOpen }: { portfolio: Portfolio; perm
       <div className="pf-gallery">
         {portfolio.homes.map((h, i) => (
           <figure key={h.id} className={`pf-plate is-${i % 4}`}>
-            <figcaption className="pf-plate-cap">{h.city}, {h.yearBuilt}</figcaption>
+            <figcaption className="pf-plate-cap">{h.city}{h.yearBuilt ? `, ${h.yearBuilt}` : ''}</figcaption>
             <button className="pf-plate-btn" onClick={() => onOpen(h)} aria-label={`Open ${h.address}`}>
               <HomePicture home={h} perms={perms} className="pf-plate-pic" />
             </button>
@@ -204,15 +208,16 @@ function Payments({ unit }: { unit: Unit }) {
 
 function MarketLine({ home }: { home: Home }) {
   const rent = home.units[0].rentCents;
-  const lo = home.marketLowCents * 0.88, hi = home.marketHighCents * 1.12;
+  const low = home.marketLowCents ?? 0, high = home.marketHighCents ?? 0;
+  const lo = low * 0.88, hi = high * 1.12;
   const at = (v: number) => `${((v - lo) / (hi - lo)) * 100}%`;
   return (
     <div className="pf-market">
       <div className="pf-market-track">
-        <span className="pf-market-band" style={{ left: at(home.marketLowCents), right: `calc(100% - ${at(home.marketHighCents)})` }} />
+        <span className="pf-market-band" style={{ left: at(low), right: `calc(100% - ${at(high)})` }} />
         <span className="pf-market-pin" style={{ left: at(rent) }} />
       </div>
-      <p><span>{money(home.marketLowCents)}</span><b>{money(rent)} today</b><span>{money(home.marketHighCents)}</span></p>
+      <p><span>{money(low)}</span><b>{money(rent)} today</b><span>{money(high)}</span></p>
     </div>
   );
 }
@@ -237,13 +242,13 @@ export function HomeDrawer({ home, portfolio, perms, onClose }: { home: Home; po
           <p className="pf-kicker">{home.city}, Texas · {home.county} County</p>
           <h3 className="pf-drawer-title">{home.address}</h3>
           <dl className="pf-facts">
-            <div><dt>Bedrooms</dt><dd>{home.beds}</dd></div>
-            <div><dt>Baths</dt><dd>{home.baths}</dd></div>
-            <div><dt>Square feet</dt><dd>{home.sqft.toLocaleString()}</dd></div>
-            <div><dt>Built</dt><dd>{home.yearBuilt}</dd></div>
+            <div><dt>Bedrooms</dt><dd>{dash(home.beds)}</dd></div>
+            <div><dt>Baths</dt><dd>{dash(home.baths)}</dd></div>
+            <div><dt>Square feet</dt><dd>{dash(home.sqft, (n) => n.toLocaleString())}</dd></div>
+            <div><dt>Built</dt><dd>{dash(home.yearBuilt)}</dd></div>
           </dl>
           {home.hoa && <p className="pf-note">In {home.hoa}.</p>}
-          {home.yearBuilt < 1978 && <p className="pf-note">Built before 1978, so the lead-based paint addendum applies.</p>}
+          {home.yearBuilt != null && home.yearBuilt < 1978 && <p className="pf-note">Built before 1978, so the lead-based paint addendum applies.</p>}
 
           {perms.has('tenancy:view') && home.units.map((u, i) => (
             <div key={i} className="pf-block">
@@ -263,7 +268,7 @@ export function HomeDrawer({ home, portfolio, perms, onClose }: { home: Home; po
             </div>
           ))}
 
-          {perms.has('market:view') && (
+          {perms.has('market:view') && home.marketLowCents != null && (
             <div className="pf-block"><h4>Rent against the market</h4><MarketLine home={home} /></div>
           )}
 
@@ -292,7 +297,7 @@ export function HomeDrawer({ home, portfolio, perms, onClose }: { home: Home; po
 
 export function Money({ portfolio, perms }: { portfolio: Portfolio; perms: Perms }) {
   const rows = portfolio.ledger;
-  const [sel, setSel] = useState(rows.length - 2);
+  const [sel, setSel] = useState(Math.max(0, rows.length - (portfolio.real ? 1 : 2)));
   const m = rows[sel];
   const max = Math.max(...rows.map((r) => r.paidCents));
   const min = Math.min(...rows.map((r) => r.paidCents));
@@ -304,8 +309,9 @@ export function Money({ portfolio, perms }: { portfolio: Portfolio; perms: Perms
           <b className="pf-money-big">{money(m.paidCents)}</b>
           <p className="pf-money-math">
             <span>{money(m.rentCents)} collected</span>
-            <span>− {money(m.feesCents)} management, 10%</span>
-            <span>− {money(m.repairsCents)} repairs</span>
+            {m.expensesCents != null
+              ? <span>− {money(m.expensesCents)} fees, repairs and bills</span>
+              : <><span>− {money(m.feesCents)} management, 10%</span><span>− {money(m.repairsCents)} repairs</span></>}
           </p>
         </div>
         <div className="pf-months" role="tablist" aria-label="Month">
@@ -323,9 +329,11 @@ export function Money({ portfolio, perms }: { portfolio: Portfolio; perms: Perms
               <li key={s.id}>
                 <span>{fmtMonth(s.period, true)}</span>
                 <b>{money(s.paidCents)}</b>
-                <button className="pf-icon" disabled={!perms.has('statements:download')} aria-label={`Download ${fmtMonth(s.period, true)} statement`}>
-                  {perms.has('statements:download') ? <Download /> : <Lock />}
-                </button>
+                {s.href
+                  ? <a className="pf-icon" href={s.href} download aria-label={`Download ${fmtMonth(s.period, true)} statement`}><Download /></a>
+                  : <button className="pf-icon" disabled={!perms.has('statements:download')} aria-label={`Download ${fmtMonth(s.period, true)} statement`}>
+                      {perms.has('statements:download') ? <Download /> : <Lock />}
+                    </button>}
               </li>
             ))}
           </ul>
@@ -387,12 +395,17 @@ export function Papers({ portfolio }: { portfolio: Portfolio }) {
     <Chapter id="papers" kicker="Papers" title={<>Every signature, <em>findable.</em></>}>
       <ul className="pf-papers">
         {portfolio.documents.map((d) => (
-          <li key={d.name}>
-            <button>
-              <span className="pf-papers-name">{d.name}</span>
-              <span className="pf-muted">{d.home ?? 'Whole portfolio'} · {fmtDate(d.date, { month: 'short', year: 'numeric' })}</span>
-              <ArrowUpRight aria-hidden />
-            </button>
+          <li key={d.href ?? d.name}>
+            {(() => {
+              const inner = (
+                <>
+                  <span className="pf-papers-name">{d.name}</span>
+                  <span className="pf-muted">{d.home ?? 'Whole portfolio'}{d.date ? ` · ${fmtDate(d.date, { month: 'short', year: 'numeric' })}` : ''}</span>
+                  {d.href ? <Download aria-hidden /> : <ArrowUpRight aria-hidden />}
+                </>
+              );
+              return d.href ? <a href={d.href} download>{inner}</a> : <button>{inner}</button>;
+            })()}
           </li>
         ))}
       </ul>
@@ -424,7 +437,7 @@ export function Access({ portfolio, members, perms, role }: { portfolio: Portfol
       <div className="pf-access">
         <ul className="pf-members">
           {mine.map((m) => <li key={m.email}><b>{m.email}</b><span>{ROLE_LABEL[m.role]}</span></li>)}
-          <li><b>Your Westrom team</b><span>Staff</span></li>
+          <li><b>Your Westrom Group team</b><span>Staff</span></li>
           <li><button className="pf-btn" disabled={!perms.has('members:manage')}>{perms.has('members:manage') ? <><Mail aria-hidden /> Invite your accountant</> : <><Lock aria-hidden /> Owners invite people</>}</button></li>
         </ul>
         <div className="pf-matrix-wrap">
@@ -458,7 +471,7 @@ const SIX = [
 
 export function SixThings() {
   return (
-    <Chapter id="why" kicker="Working with Westrom" title={<>Six things <em>to know.</em></>}>
+    <Chapter id="why" kicker="Working with Westrom Group" title={<>Six things <em>to know.</em></>}>
       <dl className="pf-six">{SIX.map(([t, b]) => <div key={t}><dt>{t}</dt><dd>{b}</dd></div>)}</dl>
     </Chapter>
   );
@@ -471,7 +484,7 @@ export function ProspectHome({ portfolio, perms, onOpen }: { portfolio: Portfoli
       <div className="pf-prospect">
         <button className="pf-plate-btn" onClick={() => onOpen(h)} aria-label={`Open ${h.address}`}><HomePicture home={h} perms={perms} className="pf-plate-pic" /></button>
         <div>
-          <p className="pf-lede">Homes like yours near {h.zip} lease for {money(h.marketLowCents)} to {money(h.marketHighCents)}. We would list it at {money(h.units[0].rentCents)}.</p>
+          <p className="pf-lede">Homes like yours near {h.zip} lease for {money(h.marketLowCents ?? 0)} to {money(h.marketHighCents ?? 0)}. We would list it at {money(h.units[0].rentCents)}.</p>
           <MarketLine home={h} />
         </div>
       </div>
@@ -501,8 +514,8 @@ export function Footer({ portfolio }: { portfolio: Portfolio }) {
         <div><p className="pf-kicker">Phone</p><b className="pf-select"><Phone aria-hidden /> {portfolio.manager.phone}</b></div>
         <div><p className="pf-kicker">Email</p><b className="pf-select"><Mail aria-hidden /> {portfolio.manager.email}</b></div>
       </div>
-      <p className="pf-footer-mark" aria-hidden>Westrom</p>
-      <p className="pf-footer-small">Westrom Group Company · Haslet, Texas · Figures refreshed from Rentvine every morning.</p>
+      <p className="pf-footer-mark" aria-hidden>Westrom <span>Group</span></p>
+      <p className="pf-footer-small">Westrom Group · 1297 Avondale Haslet Road, Haslet, Texas · {portfolio.real ? 'Figures from Rentvine.' : 'Demo with invented figures.'}</p>
     </footer>
   );
 }

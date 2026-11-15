@@ -44,7 +44,7 @@ export const ROLE_LABEL: Readonly<Record<Role, string>> = {
   owner: 'Owner',
   accountant: 'Accountant',
   prospect: 'Prospective owner',
-  staff: 'Westrom staff',
+  staff: 'Westrom Group staff',
 };
 
 export interface Session {

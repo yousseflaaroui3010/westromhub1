@@ -4,6 +4,7 @@
 
 import postgres from 'postgres';
 import { INDEX_SCHEMA } from './rentvine/sync';
+import { PORTAL_SCHEMA } from './portal/schema';
 
 export type Sql = ReturnType<typeof postgres>;
 
@@ -38,7 +39,7 @@ CREATE UNLOGGED TABLE IF NOT EXISTS rate_counter (
   reset_at  timestamptz NOT NULL
 );
 CREATE INDEX IF NOT EXISTS rate_counter_expiry ON rate_counter (reset_at);
-` + INDEX_SCHEMA;
+` + INDEX_SCHEMA + PORTAL_SCHEMA;
 
 export function connect(url: string, max = 5): Sql {
   return postgres(url, { max, idle_timeout: 30, connect_timeout: 10, onnotice: () => {} });
