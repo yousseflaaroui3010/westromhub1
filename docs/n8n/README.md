@@ -7,11 +7,16 @@ other emails (Brevo, `BREVO_API_KEY` and `MAIL_FROM` on the n8n service).
 `wf5-portal-code.json` is that workflow. It lives here because the API calls
 it; the other workflows are in `wgc-lead-pipeline/n8n/workflows`.
 
-Import it once:
+**Installed 2026-11-16** in Westrom's n8n (main-production-bf72.up.railway.app)
+as workflow `aUgppmCsVqF8UaXY`, published, webhook `d043c102d78e/portal-code`,
+credential **X-WGC-Gateway** (the Header Auth credential WF-1 uses). A call
+without the gateway header answers 403.
+
+To import it again elsewhere:
 
 1. n8n → Workflows → Import from file → `wf5-portal-code.json`.
-2. Open **POST /portal-code**: Credential = **WGC gateway** (the Header Auth
-   credential WF-0 and WF-1 use). Check the path is `<hook id>/portal-code`
+2. Open **POST /portal-code**: Credential = the Header Auth credential WF-1 uses
+   (named **X-WGC-Gateway** in Westrom's n8n). Check the path is `<hook id>/portal-code`
    with the same hook id as WF-1's `<hook id>/lead`.
 3. **Publish** (top right). The API calls
    `N8N_LEAD_WEBHOOK_BASE + /portal-code` with `X-WGC-Gateway`.
