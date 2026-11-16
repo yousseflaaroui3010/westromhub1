@@ -331,7 +331,19 @@ function PortfolioPage({ id, me, who, onSignOut }: { id: string; me: Me; who: { 
         <section className="pf-chapter pf-notes" data-tone="paper"><div className="pf-chapter-in"><p className="pf-kicker">Staff only · what Rentvine did not send</p><ul>{answer.notes.map((n) => <li key={n}>{n}</li>)}</ul></div></section>
       )}
       <Footer portfolio={p} />
-      {open && <HomeDrawer home={open} portfolio={p} perms={perms} onClose={close} />}
+      {open && <HomeDrawer home={p.homes.find((h) => h.id === open.id) ?? open} portfolio={p} perms={perms} onClose={close}
+        photoTools={staff && !answer.preview ? {
+          add: async (file) => {
+            if (file.size > 8 * 1024 * 1024) return 'That picture is too large. Please use one under 8 MB.';
+            try {
+              const res = await fetch(`/api/portal/portfolios/${id}/photo/${encodeURIComponent(open.id)}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+              if (!res.ok) return ((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'The picture did not save. Please try again.';
+            } catch { return 'You seem to be offline. Check the connection and try again.'; }
+            setTick((t) => t + 1);
+            return null;
+          },
+          remove: async () => { await call(`/portfolios/${id}/photo/${encodeURIComponent(open.id)}/remove`, {}); setTick((t) => t + 1); },
+        } : undefined} />}
     </Frame>
   );
 }

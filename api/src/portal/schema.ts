@@ -61,6 +61,16 @@ CREATE TABLE IF NOT EXISTS portal_snapshot (
   started_at     timestamptz,
   fetched_at     timestamptz
 );
+-- A home's picture added by staff (the real photo when Rentvine has none), shown before Rentvine's.
+CREATE TABLE IF NOT EXISTS portal_photo (
+  portfolio_id   text NOT NULL,
+  home_id        text NOT NULL,
+  bytes          bytea NOT NULL,
+  type           text NOT NULL CHECK (type IN ('image/jpeg', 'image/png', 'image/webp', 'image/gif')),
+  uploaded_by    bigint REFERENCES portal_user(id) ON DELETE SET NULL,
+  uploaded_at    timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (portfolio_id, home_id)
+);
 CREATE TABLE IF NOT EXISTS portal_audit (
   id             bigserial PRIMARY KEY,
   at             timestamptz NOT NULL DEFAULT now(),

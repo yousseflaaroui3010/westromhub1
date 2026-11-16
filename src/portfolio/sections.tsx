@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowUpRight, Check, Download, Lock, Mail, Phone, X } from 'lucide-react';
 import { ROLE_LABEL, ROLE_PERMISSIONS, tenantLabel, type Membership, type Permission, type Role } from './access';
 import type { Home, Portfolio, Unit, UnitStatus } from './data';
@@ -29,7 +29,7 @@ function HomePicture({ home, perms, intro, label, className }: { home: Home; per
       className={className}
       intro={intro}
       label={label}
-      base={<HouseArt style={home.style} palette={home.palette} photo={home.photo} />}
+      base={<HouseArt key={home.photo ?? "art"} style={home.style} palette={home.palette} photo={home.photo} />}
       reveal={<HouseBlueprint style={home.style} facts={factsFor(home, perms)} />}
     />
   );
@@ -228,7 +228,43 @@ function MarketLine({ home }: { home: Home }) {
   );
 }
 
-export function HomeDrawer({ home, portfolio, perms, onClose }: { home: Home; portfolio: Portfolio; perms: Perms; onClose: () => void }) {
+/** Staff only: put the home's real picture on the page (from a file, a drop or a paste). Returns an error to show, or null. */
+export type PhotoTools = { add: (file: File) => Promise<string | null>; remove: () => Promise<void> };
+
+function PhotoAdder({ tools, own }: { tools: PhotoTools; own: boolean }) {
+  const [state, setState] = useState<{ busy: boolean; error: string | null; done: boolean }>({ busy: false, error: null, done: false });
+  const input = useRef<HTMLInputElement>(null);
+  const take = useCallback(async (file: File | null | undefined) => {
+    if (!file) return;
+    setState({ busy: true, error: null, done: false });
+    const error = await tools.add(file);
+    setState({ busy: false, error, done: !error });
+  }, [tools]);
+  useEffect(() => {
+    // Copy the picture (from Zillow, the listing or an email) and paste it anywhere on the panel.
+    const paste = (e: ClipboardEvent) => {
+      const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'));
+      if (item) { e.preventDefault(); void take(item.getAsFile()); }
+    };
+    document.addEventListener('paste', paste);
+    return () => document.removeEventListener('paste', paste);
+  }, [take]);
+  return (
+    <div className="pf-photo-add" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void take(e.dataTransfer.files[0]); }}>
+      <p className="pf-kicker">Staff · the home's picture</p>
+      <p className="pf-muted">Save the real photo (from the listing, Zillow or an inspection), then choose it, drop it here, or copy it and press Ctrl+V. Owners see it at once.</p>
+      <div className="pf-photo-add-row">
+        <button type="button" className="pf-btn" disabled={state.busy} onClick={() => input.current?.click()}>{state.busy ? 'Saving…' : own ? 'Replace the picture' : 'Add the real picture'}</button>
+        {own && !state.busy && <button type="button" className="pf-link-btn" onClick={() => { setState({ busy: false, error: null, done: false }); void tools.remove(); }}>Remove it</button>}
+      </div>
+      <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ''; }} />
+      {state.error && <p className="pf-error" role="alert">{state.error}</p>}
+      {state.done && <p className="pf-muted" role="status">Saved. This is now the home's picture.</p>}
+    </div>
+  );
+}
+
+export function HomeDrawer({ home, portfolio, perms, onClose, photoTools }: { home: Home; portfolio: Portfolio; perms: Perms; onClose: () => void; photoTools?: PhotoTools }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     closeRef.current?.focus();
@@ -257,6 +293,7 @@ export function HomeDrawer({ home, portfolio, perms, onClose }: { home: Home; po
             <a href={zillowUrl(home)} target="_blank" rel="noopener noreferrer">See it on Zillow</a>
             <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${home.address}, ${home.city}, TX ${home.zip}`)}`} target="_blank" rel="noopener noreferrer">Map</a>
           </p>
+          {photoTools && <PhotoAdder tools={photoTools} own={!!home.photo?.includes('?v=')} />}
           {home.hoa && <p className="pf-note">In {home.hoa}.</p>}
           {home.yearBuilt != null && home.yearBuilt < 1978 && <p className="pf-note">Built before 1978, so the lead-based paint addendum applies.</p>}
 

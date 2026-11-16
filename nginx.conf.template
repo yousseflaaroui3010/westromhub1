@@ -199,6 +199,16 @@ server {
         include /etc/nginx/conf.d/api-proxy.inc;
     }
 
+    # Staff adding a home's picture (the API checks staff, size and image type).
+    location ~ ^/api/portal/portfolios/[0-9]+/photo/[0-9]+$ {
+        limit_req  zone=api_portal burst=40 nodelay;
+        limit_conn api_conn 8;
+        error_page 429 = @rate_limited;
+        client_max_body_size 9m;
+        proxy_read_timeout 90s;
+        include /etc/nginx/conf.d/api-proxy.inc;
+    }
+
     location /api/portal/ {
         limit_req  zone=api_portal burst=40 nodelay;
         limit_conn api_conn 8;

@@ -47,6 +47,7 @@ const CODE_TRIES = 5;
 const LISTS_FRESH_MS = 6 * 3600_000;
 const SNAPSHOT_FRESH_MS = 24 * 3600_000;
 const MAX_IMAGE = 15 * 1024 * 1024;
+const MAX_UPLOAD = 8 * 1024 * 1024;
 
 /** The picture's type from its first bytes (Rentvine's downloads do not always say). */
 export function imageType(b: Uint8Array): string | null {
@@ -87,7 +88,11 @@ export function portalRoutes(deps: PortalDeps) {
     if (c.req.method === 'POST' && !c.req.header('Origin')) return apiError(c, 403, 'origin_required', 'Not allowed.');
     return next();
   });
-  app.use('*', bodyLimit({ maxSize: 8 * 1024, onError: (c) => apiError(c, 413, 'payload_too_large', 'Request too large.') }));
+  // A home's picture (staff) may be up to 8 MB; everything else is a small form.
+  const PHOTO_POST = /^\/api\/portal\/portfolios\/\d{1,12}\/photo\/\d{1,12}$/;
+  const small = bodyLimit({ maxSize: 8 * 1024, onError: (c) => apiError(c, 413, 'payload_too_large', 'Request too large.') });
+  const photoSized = bodyLimit({ maxSize: MAX_UPLOAD, onError: (c) => apiError(c, 413, 'payload_too_large', 'That picture is too large. Please use one under 8 MB.') });
+  app.use('*', (c, next) => (c.req.method === 'POST' && PHOTO_POST.test(c.req.path) ? photoSized(c, next) : small(c, next)));
 
   // Who is signed in (or null).
   app.use('*', async (c, next) => {
@@ -320,9 +325,11 @@ export function portalRoutes(deps: PortalDeps) {
     }
     if (snap.state !== 'building' && snap.fetched_at && (now() - snap.fetched_at.getTime() > SNAPSHOT_FRESH_MS || snap.data?.v !== SNAPSHOT_VERSION)) rebuild(id);
     await audit(c, preview ? `preview_${preview}` : 'view', user.id, id);
+    const added = new Map((await sql<{ home_id: string; at: number }[]>`
+      SELECT home_id, extract(epoch FROM uploaded_at)::bigint AS at FROM portal_photo WHERE portfolio_id = ${id}`).map((r) => [r.home_id, Number(r.at)]));
     return c.json({
       state: snap.state === 'building' ? 'refreshing' : 'ready', role: shown, permissions: PERMS_OF(shown), fetchedAt: snap.fetched_at, preview,
-      notes: role === 'staff' && !preview ? snap.data.notes : [], portfolio: viewFor(snap.data, shown, now()),
+      notes: role === 'staff' && !preview ? snap.data.notes : [], portfolio: viewFor(snap.data, shown, now(), added),
     });
   });
 
@@ -335,6 +342,9 @@ export function portalRoutes(deps: PortalDeps) {
 
   app.get('/portfolios/:id/photo/:home', async (c) => {
     const g = await gate(c, 'homes:view'); if ('fail' in g) return g.fail;
+    const own = (await sql<{ bytes: Buffer; type: string }[]>`
+      SELECT bytes, type FROM portal_photo WHERE portfolio_id = ${g.id} AND home_id = ${c.req.param('home')}`)[0];
+    if (own) return c.body(new Uint8Array(own.bytes), 200, { 'Content-Type': own.type, 'Cache-Control': 'private, max-age=31536000, immutable' });
     const home = (await snapshot(g.id))?.data?.homes.find((h) => h.id === c.req.param('home'));
     const url = home?.photoUrl;
     const file = home?.photoFile;
@@ -370,6 +380,28 @@ export function portalRoutes(deps: PortalDeps) {
       logFailure(c, 'portal_photo', err);
       return apiError(c, 502, 'photo_failed', 'The photo did not load.');
     }
+  });
+
+  // Staff add the home's real picture (the photo from the listing, Zillow or an
+  // inspection) when Rentvine has none. The body is the image itself.
+  app.post('/portfolios/:id/photo/:home', async (c) => {
+    const g = await gate(c, 'portfolio:any'); if ('fail' in g) return g.fail;
+    const homeId = c.req.param('home');
+    if (!/^\d{1,12}$/.test(homeId) || !(await snapshot(g.id))?.data?.homes.some((h) => h.id === homeId)) return apiError(c, 404, 'not_found', 'Not found.');
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    const type = imageType(bytes);
+    if (!type) return apiError(c, 400, 'not_an_image', 'Please choose a JPEG, PNG, WebP or GIF picture.');
+    await sql`INSERT INTO portal_photo (portfolio_id, home_id, bytes, type, uploaded_by) VALUES (${g.id}, ${homeId}, ${Buffer.from(bytes)}, ${type}, ${g.user.id})
+              ON CONFLICT (portfolio_id, home_id) DO UPDATE SET bytes = EXCLUDED.bytes, type = EXCLUDED.type, uploaded_by = EXCLUDED.uploaded_by, uploaded_at = now()`;
+    await audit(c, 'photo_added', g.user.id, g.id, homeId);
+    return c.json({ ok: true });
+  });
+
+  app.post('/portfolios/:id/photo/:home/remove', async (c) => {
+    const g = await gate(c, 'portfolio:any'); if ('fail' in g) return g.fail;
+    await sql`DELETE FROM portal_photo WHERE portfolio_id = ${g.id} AND home_id = ${c.req.param('home')}`;
+    await audit(c, 'photo_removed', g.user.id, g.id, c.req.param('home'));
+    return c.json({ ok: true });
   });
 
   app.get('/portfolios/:id/files/:file', async (c) => {

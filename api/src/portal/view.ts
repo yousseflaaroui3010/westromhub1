@@ -53,7 +53,8 @@ function nextProtestDeadline(now: number): string {
 
 export const WESTROM_CONTACT = { name: 'Westrom Group', title: 'Your property management team', phone: '(817) 445-1108', email: 'info@westromgroup.com' };
 
-export function viewFor(data: PortfolioData, role: Role, now = Date.now()) {
+/** `added`: home id → when staff added its picture (a newer picture gets a new address, so browsers fetch it). */
+export function viewFor(data: PortfolioData, role: Role, now = Date.now(), added: Map<string, number> = new Map()) {
   const perms = permissions(role);
   const photo = (homeId: string) => `/api/portal/portfolios/${encodeURIComponent(data.id)}/photo/${encodeURIComponent(homeId)}`;
 
@@ -62,7 +63,7 @@ export function viewFor(data: PortfolioData, role: Role, now = Date.now()) {
     const h32 = hash(h.id);
     return {
       id: h.id, address: h.address, city: h.city, zip: h.zip, county: h.county,
-      style: styleOf(h), palette: h32 % 5, photo: h.photoUrl || h.photoFile ? photo(h.id) : undefined,
+      style: styleOf(h), palette: h32 % 5, photo: added.has(h.id) ? `${photo(h.id)}?v=${added.get(h.id)}` : h.photoUrl || h.photoFile ? photo(h.id) : undefined,
       beds: first?.beds ?? null, baths: first?.baths ?? null, sqft: first?.sqft ?? null, yearBuilt: h.yearBuilt,
       hoa: null,
       marketLowCents: perms.has('market:view') ? h.marketLowCents : null,
