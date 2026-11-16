@@ -105,7 +105,9 @@ export function viewFor(data: PortfolioData, role: Role, now = Date.now(), added
   const melds = !perms.has('homes:view') ? [] : data.homes.flatMap((h) => (h.melds ?? []).map((m) => ({
     ...m, home: h.address, days: m.opened && m.closed ? Math.max(0, Math.round((Date.parse(m.closed) - Date.parse(m.opened)) / 86_400_000)) : null,
   }))).sort((a, b) => (b.opened ?? '').localeCompare(a.opened ?? ''));
-  const repairs = !money || !moved ? [] : ledger!.bills.map((b) => ({ date: b.date, home: b.home, description: b.description, amountCents: b.amountCents }));
+  // Rentvine's generic bill labels say nothing to an owner: shown as "Invoice paid".
+  const billLabel = (d: string | null) => (!d || /^(uploaded )?invoice$/i.test(d.trim()) ? 'Invoice paid' : d);
+  const repairs = !money || !moved ? [] : ledger!.bills.map((b) => ({ date: b.date, home: b.home, description: billLabel(b.description), amountCents: b.amountCents }));
   const care = (repairs.length || melds.length || meldsSetUp) ? { repairs, melds, meldsSetUp } : undefined;
 
   // What happened lately, newest first: payments to the owner, requests closed, leases signed.

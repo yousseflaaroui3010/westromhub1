@@ -471,7 +471,7 @@ export function Updates({ portfolio }: { portfolio: Portfolio }) {
     <Chapter id="updates" kicker={daysFromToday(latest.date) >= -7 ? 'This week' : 'Lately'} title={null}>
       <div className="pf-update">
         <p className="pf-update-date">{fmtDate(latest.date, { weekday: 'long', month: 'long', day: 'numeric' })}{latest.isNew && <span>New</span>}</p>
-        <p className="pf-update-text">{latest.body}</p>
+        <p className="pf-update-text">{portfolio.real ? `${latest.title}. ${latest.body}` : latest.body}</p>
       </div>
       <ul className="pf-earlier">
         {rest.map((f, i) => (
