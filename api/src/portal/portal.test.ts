@@ -10,6 +10,8 @@ import { MemoryStore } from '../security/store';
 import { codeHash, sixDigitCode } from './crypto';
 import { buildPortfolio, catalog, loadLists, parseFile, type RvApi } from './rentvine';
 import { shortName, viewFor } from './view';
+import { parseTx, summarize } from './ledger';
+import { slimMeld, streetKey } from './meld';
 
 // ── A fake Rentvine with the shapes the staff dashboard reads ──────────────
 const FIX: Record<string, unknown[]> = {
@@ -51,6 +53,18 @@ const fakeRentvine: RvApi & { download(path: string): Promise<{ bytes: ArrayBuff
     if (path === 'properties/listings/search') {
       return params.search === '412 Larkspur Bend' ? [{ unit: { unitID: 111 }, image: { large: 'https://cdn.rentvine.com/photos/412.jpg' } }] : [];
     }
+    // A year of the account's transactions (one page): rent, Westrom's fee (once as a bill on the fee account), a repair, a payout.
+    if (path === 'accounting/transactions/search') {
+      const tx = (id: number, typeId: number, amount: string, date: string, description: string, pf = 501, prop = 11) =>
+        ({ transaction: { transactionID: id, transactionTypeID: typeId, amount, datePosted: `${date} 10:00:00`, description, isVoided: 0 }, portfolio: { portfolioID: pf }, property: { propertyID: prop, address: prop === 11 ? '412 Larkspur Bend' : '2207 Mesquite Trail' } });
+      return [
+        tx(1, 2, '2150.00', '2026-10-03', 'Rent'), tx(2, 14, '215.00', '2026-10-05', 'Management fee'),
+        tx(3, 8, '185.00', '2026-10-12', 'Garbage disposal replaced'), tx(4, 16, '1750.00', '2026-10-20', 'Owner payment'),
+        tx(5, 2, '2150.00', '2026-11-02', 'Rent'), tx(6, 8, '215.00', '2026-11-04', 'Management Fee Expense'),
+        tx(7, 2, '1850.00', '2026-11-02', 'Rent', 502, 13),
+        { transaction: { transactionID: 8, transactionTypeID: 2, amount: '999.00', datePosted: '2026-11-02', isVoided: 1 }, portfolio: { portfolioID: 501 } },
+      ];
+    }
     // 2207 Mesquite Trail has no listing picture, only a photo on the unit's Files tab.
     if (path === 'files/attachments/7/121') return [{ file: { fileID: 950, name: 'Front of house.JPG', objectID: 121, objectTypeID: 7 } }, { file: { fileID: 951, name: 'Lease.pdf', objectID: 121, objectTypeID: 7 } }];
     return [];
@@ -77,6 +91,32 @@ describe('portal pure parts', () => {
     expect(shortName('Ramirez Holdings LLC')).toBe('Ramirez');
   });
 
+  it('sums a year of transactions the way the deposit dashboard does', () => {
+    const rows = [
+      { transaction: { transactionTypeID: 2, amount: '2150.00', datePosted: '2026-10-03', description: 'Rent' }, portfolio: { portfolioID: 501 }, property: { propertyID: 11, address: '412 Larkspur Bend' } },
+      { transaction: { transactionTypeID: 8, amount: '215.00', datePosted: '2026-10-04', description: 'Management Fee Expense' }, portfolio: { portfolioID: 501 } },
+      { transaction: { transactionTypeID: 8, amount: '185.00', datePosted: '2026-10-12', description: 'Disposal' }, portfolio: { portfolioID: 501 }, property: { propertyID: 11, address: '412 Larkspur Bend' } },
+      { transaction: { transactionTypeID: 16, amount: '1750.00', datePosted: '2026-10-20', description: 'Owner payment' }, portfolio: { portfolioID: 501 } },
+      { transaction: { transactionTypeID: 2, amount: '5.00', datePosted: '2025-01-01' }, portfolio: { portfolioID: 501 } },
+      { transaction: { transactionTypeID: 3, amount: '2150.00', datePosted: '2026-10-01' }, portfolio: { portfolioID: 501 } },
+    ].map(parseTx).filter((t) => t !== null);
+    expect(rows).toHaveLength(5); // type 3 (a charge) moves no money
+    const sum = summarize(rows, Date.parse('2026-11-15T12:00:00Z'));
+    expect(sum.months).toHaveLength(12);
+    expect(sum.months.at(-1)!.month).toBe('2026-11');
+    expect(sum.months.at(-2)).toMatchObject({ month: '2026-10', rentCents: 215000, feesCents: 21500, billsCents: 18500, paidCents: 175000 });
+    expect(sum.totals.rentCents).toBe(215000); // the 2025 payment is older than 12 months
+    expect(sum.bills).toEqual([{ date: '2026-10-12', home: '412 Larkspur Bend', homeId: '11', description: 'Disposal', amountCents: 18500 }]);
+    expect(sum.lastPaid).toBe('2026-10-20');
+  });
+
+  it('keeps only what an owner needs from a meld, and matches streets loosely', () => {
+    expect(slimMeld({ id: 1, reference_id: 'M-12', brief_description: 'AC not cooling', status: 'COMPLETE', priority: 'HIGH', created: '2026-07-01T10:00:00Z', marked_complete: '2026-07-03T09:00:00Z', tenant_name: 'Jordan Price', description: 'Call Jordan at 817-555-0100' }))
+      .toEqual({ ref: 'M-12', title: 'AC not cooling', status: 'COMPLETE', priority: 'HIGH', opened: '2026-07-01', closed: '2026-07-03', open: false });
+    expect(slimMeld({ brief_description: 'x', status: 'TENANT_CANCELED' })).toBeNull();
+    expect(streetKey('412 Larkspur Bend Drive, Unit B')).toBe(streetKey('412 LARKSPUR BEND DR'));
+  });
+
   it('knows a picture by its first bytes', () => {
     expect(imageType(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe('image/jpeg');
     expect(imageType(new TextEncoder().encode('%PDF-1.7'))).toBeNull();
@@ -94,7 +134,7 @@ describe('portal pure parts', () => {
     expect(data.homes).toHaveLength(2);
     expect(data.homes[0].photoUrl).toBe('https://cdn.rentvine.com/photos/412.jpg');
     expect(data.homes[1]).toMatchObject({ photoUrl: null, photoFile: { kind: 'file', id: '950' } });
-    expect(data.v).toBe(3);
+    expect(data.v).toBe(4);
     expect(calls).not.toContain('get properties/listings/search'); // one list call, no search per home
     expect(data.contacts[0].email).toBe('andrew@example.com');
     const now = Date.parse('2026-11-15T12:00:00Z');
@@ -129,7 +169,7 @@ describe.skipIf(!url)('portal over HTTP', () => {
 
   beforeAll(async () => {
     sql = postgres(url as string, { max: 2, onnotice: () => {} });
-    await sql.unsafe('DROP TABLE IF EXISTS portal_streetview, portal_photo, portal_audit, portal_snapshot, portal_cache, portal_code, portal_invite, portal_session, portal_member, portal_user CASCADE');
+    await sql.unsafe('DROP TABLE IF EXISTS portal_ledger, portal_streetview, portal_photo, portal_audit, portal_snapshot, portal_cache, portal_code, portal_invite, portal_session, portal_member, portal_user CASCADE');
     await migrate(sql);
     app = createApp({
       allowedOrigins: [ORIGIN],
@@ -228,6 +268,20 @@ describe.skipIf(!url)('portal over HTTP', () => {
     expect(asOwner.portfolio.homes[0].units[0].lease.tenants).toEqual(['Jordan P.']);
     expect(asOwner.portfolio.contacts).toBeUndefined();
     expect((await get('/portfolios/setup', staff)).status).toBe(404);
+  });
+
+  it('shows the year from Rentvine transactions: months, totals, repairs and recent activity', async () => {
+    let view: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (let i = 0; i < 60 && !view?.portfolio?.year; i++) { view = await ready('/portfolios/501?as=owner', staff); await new Promise((r) => setTimeout(r, 40)); }
+    const p = view.portfolio;
+    expect(p.ledger).toHaveLength(12);
+    expect(p.ledger.find((m: { month: string }) => m.month === '2026-10')).toMatchObject({ rentCents: 215000, feesCents: 21500, repairsCents: 18500, paidCents: 175000 });
+    expect(p.ledger.find((m: { month: string }) => m.month === '2026-11')).toMatchObject({ rentCents: 215000, feesCents: 21500, repairsCents: 0 }); // the fee posted as a bill
+    expect(p.year).toMatchObject({ rentCents: 430000, feesCents: 43000, billsCents: 18500, paidCents: 175000, lastPaid: '2026-10-20' });
+    expect(p.care.repairs).toEqual([{ date: '2026-10-12', home: '412 Larkspur Bend', description: 'Garbage disposal replaced', amountCents: 18500 }]);
+    expect(p.care.meldsSetUp).toBe(false);
+    expect(p.feed[0]).toMatchObject({ kind: 'payment', title: '$1,750 paid to you', date: '2026-10-20' });
+    expect(JSON.stringify(p)).not.toContain('185000'); // another owner's rent (13 Kegs, $1,850) never shows
   });
 
   it('signs an owner in with the email Rentvine has, and shows only their portfolio', async () => {

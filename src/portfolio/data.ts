@@ -70,6 +70,11 @@ export interface Home {
 export interface LedgerMonth { month: string; rentCents: number; feesCents: number; repairsCents: number; paidCents: number; /** Real statements give one expenses total. */ expensesCents?: number }
 export interface Statement { id: string; period: string; incomeCents: number; expenseCents: number; paidCents: number; reserveCents: number; href?: string }
 export interface FeedItem { date: string; kind: 'update' | 'payment' | 'repair' | 'showing' | 'renewal' | 'document'; title: string; body: string; isNew?: boolean }
+/** The last 12 months from Rentvine's transactions (real portfolios). */
+export interface YearTotals { rentCents: number; otherInCents: number; ownerInCents: number; billsCents: number; feesCents: number; paidCents: number; lastPaid: string | null; months: number }
+export interface Repair { date: string; home: string | null; description: string | null; amountCents: number }
+export interface MeldItem { ref: string | null; title: string; status: string; priority: string | null; opened: string | null; closed: string | null; open: boolean; home: string; days: number | null }
+export interface Care { repairs: Repair[]; melds: MeldItem[]; meldsSetUp: boolean }
 export interface KeyDate { date: string; title: string; detail: string; href?: string; kind: 'tax' | 'insurance' | 'lease' | 'inspection' }
 
 export interface Portfolio {
@@ -87,6 +92,8 @@ export interface Portfolio {
   manager: { name: string; title: string; phone: string; email: string };
   /** Set on portfolios read from Rentvine (not the invented demo ones). */
   real?: boolean;
+  year?: YearTotals;
+  care?: Care;
   /** Owners on the Rentvine portfolio: sent to staff only, for invites. */
   contacts?: { name: string; email: string | null; share: number | null }[];
 }
@@ -165,6 +172,23 @@ export const PORTFOLIOS: Portfolio[] = [
       },
     ],
     ledger: morganLedger,
+    year: { rentCents: morganLedger.reduce((t, m) => t + m.rentCents, 0), otherInCents: 0, ownerInCents: 0, feesCents: morganLedger.reduce((t, m) => t + m.feesCents, 0), billsCents: morganLedger.reduce((t, m) => t + m.repairsCents, 0), paidCents: morganLedger.reduce((t, m) => t + m.paidCents, 0), lastPaid: '2026-11-05', months: 12 },
+    care: {
+      meldsSetUp: true,
+      melds: [
+        { ref: 'M-1042', title: 'Leak under the kitchen sink', status: 'PENDING_VENDOR', priority: 'MEDIUM', opened: '2026-11-12', closed: null, open: true, home: '9 Cedar Hollow Ct', days: null },
+        { ref: 'M-1031', title: 'Garbage disposal not working', status: 'COMPLETE', priority: 'MEDIUM', opened: '2026-11-02', closed: '2026-11-04', open: false, home: '412 Larkspur Bend', days: 2 },
+        { ref: 'M-0988', title: 'AC not cooling upstairs', status: 'COMPLETE', priority: 'HIGH', opened: '2026-07-14', closed: '2026-07-14', open: false, home: '1100 Pecan Grove Ln', days: 0 },
+        { ref: 'M-0954', title: 'Fence board loose', status: 'COMPLETE', priority: 'LOW', opened: '2026-05-20', closed: '2026-05-23', open: false, home: '2207 Mesquite Trail', days: 3 },
+        { ref: 'M-0921', title: 'Water heater pilot out', status: 'COMPLETE', priority: 'HIGH', opened: '2026-03-03', closed: '2026-03-04', open: false, home: '412 Larkspur Bend', days: 1 },
+      ],
+      repairs: [
+        { date: '2026-11-04', home: '412 Larkspur Bend', description: 'Garbage disposal replaced', amountCents: $(185) },
+        { date: '2026-09-18', home: '1100 Pecan Grove Ln', description: 'Make-ready paint and cleaning', amountCents: $(640) },
+        { date: '2026-07-15', home: '1100 Pecan Grove Ln', description: 'AC capacitor replaced', amountCents: $(95) },
+        { date: '2026-04-09', home: '2207 Mesquite Trail', description: 'Fence repair', amountCents: $(1280) },
+      ],
+    },
     statements: statements(morganLedger),
     feed: [
       { date: '2026-11-13', kind: 'update', isNew: true, title: 'Weekly update', body: 'Rent is in on 3 of 3 occupied homes. Mesquite Trail had 4 showings this week and 2 applications are being screened.' },

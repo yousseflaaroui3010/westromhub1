@@ -8,7 +8,9 @@
 // cdn.rentvine.com). Every parser is defensive: a missing field becomes null,
 // never an exception, and only the fields the page shows are kept.
 
-type Obj = Record<string, unknown>;
+import type { Meld, MeldReader } from './meld';
+
+export type Obj = Record<string, unknown>;
 
 export interface RvApi {
   get(path: string, params?: Record<string, string>): Promise<unknown>;
@@ -16,7 +18,7 @@ export interface RvApi {
 }
 
 /** Raise when PortfolioData gains a field, so saved snapshots are read again. */
-export const SNAPSHOT_VERSION = 3;
+export const SNAPSHOT_VERSION = 4;
 
 export const RENTVINE_CDN = 'https://cdn.rentvine.com/';
 const PORTFOLIO_TYPE = '11';
@@ -44,16 +46,16 @@ async function recordFiles(api: RvApi, objectId: string, objectType: string): Pr
   catch { return api.get('paths/1/contents', { objectID: objectId, objectTypeID: objectType }); }
 }
 
-const text = (v: unknown): string => (v == null ? '' : String(v).trim());
+export const text = (v: unknown): string => (v == null ? '' : String(v).trim());
 const num = (v: unknown): number | null => {
   if (v == null || v === '') return null;
   const n = Number(String(v).replace(/[^0-9.-]/g, ''));
   return Number.isFinite(n) ? n : null;
 };
-const cents = (v: unknown): number | null => { const n = num(v); return n == null ? null : Math.round(n * 100); };
-const day = (v: unknown): string | null => text(v).match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
-const yes = (v: unknown) => ['1', 'true', 'True'].includes(text(v));
-const unwrap = (row: Obj, key: string): Obj => (row && typeof row[key] === 'object' && row[key] !== null ? row[key] as Obj : row);
+export const cents = (v: unknown): number | null => { const n = num(v); return n == null ? null : Math.round(n * 100); };
+export const day = (v: unknown): string | null => text(v).match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
+export const yes = (v: unknown) => ['1', 'true', 'True'].includes(text(v));
+export const unwrap = (row: Obj, key: string): Obj => (row && typeof row[key] === 'object' && row[key] !== null ? row[key] as Obj : row);
 export const rows = (answer: unknown): Obj[] =>
   Array.isArray(answer) ? answer as Obj[] : (answer && Array.isArray((answer as Obj).data) ? (answer as Obj).data as Obj[] : []);
 
@@ -187,6 +189,8 @@ export interface PortfolioHome {
   units: PortfolioUnit[]; photoUrl: string | null;
   /** When the listing has no primary picture: a picture from the listing's photos or the home's Files tab. */
   photoFile?: { kind: 'listing' | 'file'; id: string } | null; marketLowCents: number | null; marketHighCents: number | null;
+  /** PropertyMeld requests of the last 12 months (undefined: PropertyMeld is not set up). */
+  melds?: Meld[];
 }
 export interface PortfolioData {
   id: string; name: string; since: string | null;
@@ -225,7 +229,7 @@ export function parseFile(row: Obj, objectId: string, objectType: string) {
 const street = (address: string) => address.replace(/\s+(apt|unit|#|suite|ste)\b.*$/i, '').trim();
 
 /** One portfolio, unredacted. Optional parts (statements, files, photos, market) fail soft into notes. */
-export async function buildPortfolio(api: RvApi, lists: Lists, portfolioId: string, estimate: Estimator | null): Promise<PortfolioData> {
+export async function buildPortfolio(api: RvApi, lists: Lists, portfolioId: string, estimate: Estimator | null, melds: MeldReader | null = null): Promise<PortfolioData> {
   const pf = lists.portfolios.find((p) => p.id === portfolioId);
   if (!pf) throw new Error('That portfolio is not in Rentvine.');
   const notes: string[] = [];
@@ -280,7 +284,12 @@ export async function buildPortfolio(api: RvApi, lists: Lists, portfolioId: stri
         if (e) { marketLowCents = Math.round(e.low * 100); marketHighCents = Math.round(e.high * 100); }
       } catch { /* no estimate */ }
     }
-    homes.push({ id: p.id, address: p.address, city: p.city, state: p.state, zip: p.zip, county: p.county, yearBuilt: p.yearBuilt, units, photoUrl, photoFile, marketLowCents, marketHighCents });
+    let homeMelds: Meld[] | undefined;
+    if (melds) {
+      try { homeMelds = (await melds(p.address, p.city)) ?? undefined; }
+      catch (err) { notes.push(`PropertyMeld could not be read for ${p.address} (${err instanceof Error ? err.message.slice(0, 80) : 'error'}).`); }
+    }
+    homes.push({ id: p.id, address: p.address, city: p.city, state: p.state, zip: p.zip, county: p.county, yearBuilt: p.yearBuilt, units, photoUrl, photoFile, marketLowCents, marketHighCents, melds: homeMelds });
   }
 
   let statements: PortfolioData['statements'] = [];

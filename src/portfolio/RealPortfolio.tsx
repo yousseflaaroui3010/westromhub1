@@ -5,7 +5,7 @@ import { ROLE_LABEL, type Permission, type Role } from './access';
 import type { Home, Portfolio } from './data';
 import { Frame, type MenuItem } from './Frame';
 import { BlobReveal, HouseArt, HouseBlueprint } from './HouseArt';
-import { Ahead, Footer, Hero, HomeDrawer, Homes, Manifesto, Money, Papers, Updates } from './sections';
+import { Ahead, CareChapter, Footer, Hero, HomeDrawer, Homes, Manifesto, Money, Papers, Updates } from './sections';
 import { Reveal, fmtDate } from './ui';
 
 // The real owner portfolio page: signed in, data from Rentvine through our
@@ -333,6 +333,7 @@ function PortfolioPage({ id, me, who, onSignOut }: { id: string; me: Me; who: { 
       <Manifesto portfolio={p} perms={perms} />
       {perms.has('homes:view') && p.homes.length > 0 && <Homes portfolio={p} perms={perms} onOpen={setOpen} />}
       {perms.has('money:view') && p.ledger.length > 0 && <Money portfolio={p} perms={perms} />}
+      {p.care && (perms.has('money:view') || perms.has('homes:view')) && <CareChapter portfolio={p} />}
       {perms.has('feed:view') && p.feed.length > 0 && <Updates portfolio={p} />}
       {perms.has('alerts:view') && p.keyDates.length > 0 && <Ahead portfolio={p} />}
       {perms.has('documents:view') && p.documents.length > 0 && <Papers portfolio={p} />}
