@@ -358,7 +358,7 @@ export function Money({ portfolio, perms }: { portfolio: Portfolio; perms: Perms
             <span>{money(m.rentCents)} collected</span>
             {m.expensesCents != null
               ? <span>− {money(m.expensesCents)} fees, repairs and bills</span>
-              : <><span>− {money(m.feesCents)} management, 10%</span><span>− {money(m.repairsCents)} repairs</span></>}
+              : <><span>− {money(m.feesCents)} management{m.rentCents > 0 && m.feesCents > 0 ? `, ${Math.round((m.feesCents / m.rentCents) * 100)}%` : ''}</span><span>− {money(m.repairsCents)} repairs and bills</span></>}
           </p>
         </div>
         <div className="pf-months" role="tablist" aria-label="Month">
@@ -369,7 +369,8 @@ export function Money({ portfolio, perms }: { portfolio: Portfolio; perms: Perms
             </button>
           ))}
         </div>
-        <div className="pf-statements">
+        {portfolio.year && <YearStrip portfolio={portfolio} />}
+        {portfolio.statements.length > 0 && <div className="pf-statements">
           <p className="pf-kicker">Owner statements</p>
           <ul className="pf-rows">
             {portfolio.statements.slice(0, 4).map((s) => (
@@ -384,7 +385,79 @@ export function Money({ portfolio, perms }: { portfolio: Portfolio; perms: Perms
               </li>
             ))}
           </ul>
-        </div>
+        </div>}
+      </div>
+    </Chapter>
+  );
+}
+
+/** The year at a glance: what came in, what it cost, what reached the owner, and how full the homes are. */
+function YearStrip({ portfolio }: { portfolio: Portfolio }) {
+  const y = portfolio.year!;
+  const rent = y.rentCents + y.otherInCents;
+  const units = portfolio.homes.flatMap((h) => h.units);
+  const leased = units.filter((u) => u.status !== 'vacant').length;
+  const kept = rent > 0 ? Math.round(((rent - y.feesCents - y.billsCents) / rent) * 100) : null;
+  return (
+    <div className="pf-year">
+      <p className="pf-kicker">The last 12 months</p>
+      <dl>
+        <div><dt>Rent collected</dt><dd>{money(rent)}</dd></div>
+        <div><dt>Paid to you</dt><dd>{money(y.paidCents)}</dd>{y.lastPaid && <small>Last payment {fmtDate(y.lastPaid, { month: 'short', day: 'numeric' })}</small>}</div>
+        {kept != null && <div><dt>Of each rent dollar</dt><dd>{kept}¢</dd><small>stays yours after fees and repairs</small></div>}
+        {units.length > 0 && <div><dt>Leased today</dt><dd>{leased} of {units.length}</dd><small>{leased === units.length ? 'every door earning' : `${units.length - leased} getting ready`}</small></div>}
+      </dl>
+    </div>
+  );
+}
+
+/* ── Care ────────────────────────────────────────────── */
+
+export function CareChapter({ portfolio }: { portfolio: Portfolio }) {
+  const c = portfolio.care!;
+  const closed = c.melds.filter((m) => m.closed);
+  const open = c.melds.filter((m) => m.open);
+  const days = closed.map((m) => m.days).filter((d): d is number => d != null).sort((a, b) => a - b);
+  const median = days.length ? days[Math.floor(days.length / 2)] : null;
+  const spent = c.repairs.reduce((s, r) => s + r.amountCents, 0);
+  return (
+    <Chapter id="care" kicker="Care" title={<>Every request, <em>seen through.</em></>}>
+      <div className="pf-care">
+        <dl className="pf-care-stats">
+          {c.meldsSetUp && <div><dt>Requests this year</dt><dd>{c.melds.length}</dd></div>}
+          {c.meldsSetUp && <div><dt>Closed</dt><dd>{closed.length}</dd></div>}
+          {median != null && <div><dt>Typical time to fix</dt><dd>{median === 0 ? 'Same day' : `${median} day${median === 1 ? '' : 's'}`}</dd></div>}
+          {c.meldsSetUp && <div><dt>Open right now</dt><dd>{open.length}</dd></div>}
+          {c.repairs.length > 0 && <div><dt>Repairs and services paid</dt><dd>{money(spent)}</dd></div>}
+        </dl>
+        {c.melds.length > 0 && (
+          <ul className="pf-care-list">
+            {c.melds.slice(0, 12).map((m, i) => (
+              <li key={m.ref ?? i} className={m.open ? 'is-open' : ''}>
+                <span className="pf-muted">{m.opened ? fmtDate(m.opened, { month: 'short', day: 'numeric' }) : ''}</span>
+                <b>{m.title}</b>
+                <span>{m.home}</span>
+                <span className="pf-care-state">{m.open ? 'In progress' : m.days == null ? 'Done' : m.days === 0 ? 'Fixed the same day' : `Fixed in ${m.days} day${m.days === 1 ? '' : 's'}`}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {c.repairs.length > 0 && (
+          <>
+            <p className="pf-kicker pf-care-sub">What we paid for, for your homes</p>
+            <ul className="pf-care-list">
+              {c.repairs.slice(0, 10).map((r, i) => (
+                <li key={i}>
+                  <span className="pf-muted">{fmtDate(r.date, { month: 'short', day: 'numeric' })}</span>
+                  <b>{r.description ?? 'Repair or service'}</b>
+                  <span>{r.home ?? ''}</span>
+                  <span className="pf-care-state">{money(r.amountCents)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {!c.melds.length && !c.repairs.length && <p className="pf-lede">No repairs were needed in the last 12 months.</p>}
       </div>
     </Chapter>
   );
@@ -395,7 +468,7 @@ export function Money({ portfolio, perms }: { portfolio: Portfolio; perms: Perms
 export function Updates({ portfolio }: { portfolio: Portfolio }) {
   const [latest, ...rest] = portfolio.feed;
   return (
-    <Chapter id="updates" kicker="This week" title={null}>
+    <Chapter id="updates" kicker={daysFromToday(latest.date) >= -7 ? 'This week' : 'Lately'} title={null}>
       <div className="pf-update">
         <p className="pf-update-date">{fmtDate(latest.date, { weekday: 'long', month: 'long', day: 'numeric' })}{latest.isNew && <span>New</span>}</p>
         <p className="pf-update-text">{latest.body}</p>

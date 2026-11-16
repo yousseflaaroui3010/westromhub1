@@ -3,6 +3,7 @@
 // The output matches the page's Portfolio type (src/portfolio/data.ts).
 
 import { permissions, tenantLabel, type Role } from './access';
+import type { LedgerSummary } from './ledger';
 import type { PortfolioData, PortfolioHome } from './rentvine';
 
 type Style = 'ranch' | 'twostory' | 'cottage' | 'modern' | 'duplex';
@@ -55,7 +56,8 @@ export const WESTROM_CONTACT = { name: 'Westrom Group', title: 'Your property ma
 
 /** `added`: home id → when staff added its picture (a newer picture gets a new address, so browsers fetch it). */
 /** `street`: a street picture can be asked for any home (Street View is set up); a miss falls back to the drawing in the browser. */
-export function viewFor(data: PortfolioData, role: Role, now = Date.now(), added: Map<string, number> = new Map(), street = false) {
+/** `ledger`: the portfolio's last 12 months from Rentvine's transactions (null until the first sweep). */
+export function viewFor(data: PortfolioData, role: Role, now = Date.now(), added: Map<string, number> = new Map(), street = false, ledger: LedgerSummary | null = null) {
   const perms = permissions(role);
   const photo = (homeId: string) => `/api/portal/portfolios/${encodeURIComponent(data.id)}/photo/${encodeURIComponent(homeId)}`;
 
@@ -87,9 +89,57 @@ export function viewFor(data: PortfolioData, role: Role, now = Date.now(), added
 
   const money = perms.has('money:view');
   const chronological = [...data.statements].sort((a, b) => (a.to ?? '').localeCompare(b.to ?? ''));
-  const ledger = !money ? [] : chronological.filter((s) => s.to).map((s) => ({
-    month: s.to!.slice(0, 7), rentCents: s.incomeCents, feesCents: s.expenseCents, repairsCents: 0, paidCents: s.paidCents, expensesCents: s.expenseCents,
-  }));
+  // Month by month from Rentvine's transactions when the sweep has them; Rentvine's
+  // saved statements otherwise (few owners have any).
+  const moved = ledger && (ledger.totals.rentCents || ledger.totals.paidCents || ledger.totals.billsCents || ledger.totals.feesCents);
+  const months = !money ? [] : moved
+    ? ledger!.months.map((m) => ({ month: m.month, rentCents: m.rentCents + m.otherInCents, feesCents: m.feesCents, repairsCents: m.billsCents, paidCents: m.paidCents }))
+    : chronological.filter((s) => s.to).map((s) => ({
+      month: s.to!.slice(0, 7), rentCents: s.incomeCents, feesCents: s.expenseCents, repairsCents: 0, paidCents: s.paidCents, expensesCents: s.expenseCents,
+    }));
+  const year = money && moved ? { ...ledger!.totals, lastPaid: ledger!.lastPaid, months: ledger!.months.length } : undefined;
+
+  // Care: the repairs and services paid for the homes (Rentvine), and the
+  // maintenance requests and how fast they were closed (PropertyMeld).
+  const meldsSetUp = data.homes.some((h) => h.melds !== undefined);
+  const melds = !perms.has('homes:view') ? [] : data.homes.flatMap((h) => (h.melds ?? []).map((m) => ({
+    ...m, home: h.address, days: m.opened && m.closed ? Math.max(0, Math.round((Date.parse(m.closed) - Date.parse(m.opened)) / 86_400_000)) : null,
+  }))).sort((a, b) => (b.opened ?? '').localeCompare(a.opened ?? ''));
+  const repairs = !money || !moved ? [] : ledger!.bills.map((b) => ({ date: b.date, home: b.home, description: b.description, amountCents: b.amountCents }));
+  const care = (repairs.length || melds.length || meldsSetUp) ? { repairs, melds, meldsSetUp } : undefined;
+
+  // What happened lately, newest first: payments to the owner, requests closed, leases signed.
+  const feed: { date: string; kind: string; title: string; body: string; isNew?: boolean }[] = [];
+  if (money && moved) {
+    for (const m of [...ledger!.months].reverse().slice(0, 3)) {
+      if (m.paidCents > 0) {
+        feed.push({
+          date: ledger!.lastPaid && ledger!.lastPaid.startsWith(m.month) ? ledger!.lastPaid : `${m.month}-28`, kind: 'payment',
+          title: `${dollars(m.paidCents)} paid to you`,
+          body: `${dollars(m.rentCents + m.otherInCents)} of rent came in for ${monthName(m.month)}; after Westrom's fee and ${m.billsCents ? `${dollars(m.billsCents)} of bills` : 'no bills'}, ${dollars(m.paidCents)} went to your account.`,
+        });
+      }
+    }
+  }
+  for (const m of melds.slice(0, 12)) {
+    if (m.closed) {
+      const took = m.days == null ? '' : `: ${m.days === 0 ? 'the same day' : `${m.days} day${m.days === 1 ? '' : 's'}`}`;
+      feed.push({ date: m.closed, kind: 'repair', title: `Done: ${m.title}`, body: `${m.home}. Opened ${shortDay(m.opened)}, closed ${shortDay(m.closed)}${took}.` });
+    } else if (m.open && m.opened) {
+      feed.push({ date: m.opened, kind: 'repair', title: `In progress: ${m.title}`, body: `${m.home}. Opened ${shortDay(m.opened)}; we are on it.` });
+    }
+  }
+  if (perms.has('tenancy:view')) {
+    for (const h of data.homes) for (const u of h.units) {
+      const start = u.lease?.start;
+      if (start && daysUntil(start, now) > -120 && daysUntil(start, now) <= 0) {
+        feed.push({ date: start, kind: 'renewal', title: `Lease started at ${h.address}`, body: `Leased at ${dollars(u.rentCents ?? 0)} a month${u.lease!.end ? ` until ${monthName(u.lease!.end.slice(0, 7))}` : ''}.` });
+      }
+    }
+  }
+  feed.sort((a, b) => b.date.localeCompare(a.date));
+  feed.splice(6);
+  if (feed[0] && daysUntil(feed[0].date, now) >= -10) feed[0].isNew = true;
   const statements = !money ? [] : data.statements.filter((s) => s.to).map((s) => ({
     id: s.id, period: s.to!.slice(0, 7), incomeCents: s.incomeCents, expenseCents: s.expenseCents, paidCents: s.paidCents, reserveCents: s.reserveCents ?? 0,
     href: perms.has('statements:download') ? `/api/portal/portfolios/${encodeURIComponent(data.id)}/statements/${encodeURIComponent(s.id)}` : undefined,
@@ -119,10 +169,15 @@ export function viewFor(data: PortfolioData, role: Role, now = Date.now(), added
     shortName: shortName(data.name),
     stage: role === 'prospect' ? 'prospect' : 'owner',
     since: data.since ? data.since.slice(0, 4) : '',
-    homes, ledger, statements, feed: [], keyDates, documents,
+    homes, ledger: months, statements, feed, keyDates, documents, year, care,
     manager: WESTROM_CONTACT,
     real: true,
     // Owner names and emails only for staff, who send the invites.
     contacts: role === 'staff' ? data.contacts : undefined,
   };
 }
+
+const dollars = (c: number) => `$${Math.round(c / 100).toLocaleString('en-US')}`;
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const monthName = (ym: string) => `${MONTH_NAMES[Number(ym.slice(5, 7)) - 1] ?? ''} ${ym.slice(0, 4)}`;
+const shortDay = (d: string | null) => (d ? `${MONTH_NAMES[Number(d.slice(5, 7)) - 1]?.slice(0, 3) ?? ''} ${Number(d.slice(8, 10))}` : '');

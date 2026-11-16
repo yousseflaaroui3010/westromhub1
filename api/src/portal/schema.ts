@@ -80,6 +80,13 @@ CREATE TABLE IF NOT EXISTS portal_streetview (
   checked_at     timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (portfolio_id, home_id)
 );
+-- Each portfolio's transactions of the last 12 months (Rentvine's accounting
+-- transactions), replaced whole by each sweep (every 6 hours).
+CREATE TABLE IF NOT EXISTS portal_ledger (
+  portfolio_id   text PRIMARY KEY,
+  rows           jsonb NOT NULL,
+  fetched_at     timestamptz NOT NULL
+);
 CREATE TABLE IF NOT EXISTS portal_audit (
   id             bigserial PRIMARY KEY,
   at             timestamptz NOT NULL DEFAULT now(),

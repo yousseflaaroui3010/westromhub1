@@ -22,6 +22,8 @@ import type { CounterStore } from '../security/store';
 import { permissions, type MemberRole, type Permission, type Role } from './access';
 import { codeHash, newToken, normEmail, sixDigitCode, tokenHash } from './crypto';
 import { imageType } from './image';
+import { LEDGER_PAGE, ledgerPage, parseTx, summarize, type Tx } from './ledger';
+import type { MeldReader } from './meld';
 import type { StreetView } from './streetview';
 import { buildPortfolio, catalog, loadLists, RENTVINE_CDN, SNAPSHOT_VERSION, type CatalogEntry, type Estimator, type Lists, type PortfolioData, type RvApi } from './rentvine';
 import { viewFor } from './view';
@@ -38,6 +40,8 @@ export interface PortalDeps {
   staffDomains?: string[];
   /** The street picture of an address (Google Street View), for homes Rentvine has no picture of. */
   streetView?: StreetView | null;
+  /** Maintenance requests per home (PropertyMeld); null while it is not set up. */
+  melds?: MeldReader | null;
   /** Keep Rentvine's lists warm in the background (off in tests). */
   warm?: boolean;
   fetchImpl?: typeof fetch;
@@ -177,7 +181,7 @@ export function portalRoutes(deps: PortalDeps) {
         await sql`INSERT INTO portal_snapshot (portfolio_id, state, started_at) VALUES (${portfolioId}, 'building', now())
                   ON CONFLICT (portfolio_id) DO UPDATE SET state = 'building', started_at = now(), error = NULL`;
         if (force) await sql`UPDATE portal_cache SET fetched_at = to_timestamp(0) WHERE name = 'lists'`;
-        const data = await buildPortfolio(api, await lists(api), portfolioId, deps.estimate);
+        const data = await buildPortfolio(api, await lists(api), portfolioId, deps.estimate, deps.melds ?? null);
         await sql`UPDATE portal_snapshot SET state = 'ready', data = ${sql.json(data as never)}, fetched_at = now(), error = NULL WHERE portfolio_id = ${portfolioId}`;
       } catch (err) {
         const msg = err instanceof Error ? err.message.slice(0, 200) : 'Rentvine could not be read.';
@@ -187,6 +191,49 @@ export function portalRoutes(deps: PortalDeps) {
         building.delete(portfolioId);
       }
     });
+  }
+
+  // The account's transactions of the last 12 months, one sweep for everyone
+  // (as the deposit dashboard's Owners read does). Each page waits its turn in
+  // the Rentvine queue, so a portfolio being opened slips in between pages.
+  let ledgerLoading = false;
+  function refreshLedger() {
+    if (ledgerLoading) return;
+    ledgerLoading = true;
+    void (async () => {
+      try {
+        const api = await deps.rentvine();
+        if (!api) return;
+        const since = new Date(now() - 366 * 86_400_000).toISOString().slice(0, 10);
+        const byPortfolio = new Map<string, Tx[]>();
+        let count = 0;
+        for (let page = 1; ; page++) {
+          if (page > 2000) throw new Error('more than 200,000 transactions in a year; stopped to be safe');
+          const batch = await serial(() => ledgerPage(api, since, page));
+          for (const r of batch) {
+            const t = parseTx(r);
+            if (!t) continue;
+            const { portfolioId, ...tx } = t;
+            byPortfolio.set(portfolioId, [...(byPortfolio.get(portfolioId) ?? []), tx]);
+          }
+          count += batch.length;
+          if (batch.length < LEDGER_PAGE) break;
+        }
+        await sql.begin(async (tx) => {
+          await tx`DELETE FROM portal_ledger`;
+          for (const [id, rows] of byPortfolio) {
+            await tx`INSERT INTO portal_ledger (portfolio_id, rows, fetched_at) VALUES (${id}, ${tx.json(rows as never)}, now())`;
+          }
+          await tx`INSERT INTO portal_cache (name, data, fetched_at) VALUES ('ledger', ${tx.json({ transactions: count, portfolios: byPortfolio.size } as never)}, now())
+                   ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data, fetched_at = now()`;
+        });
+        console.log(`[portal] ledger read: ${count} transactions for ${byPortfolio.size} portfolios`);
+      } catch (err) {
+        console.error(`[portal] ledger read failed: ${err instanceof Error ? err.message.slice(0, 200) : 'error'}`);
+      } finally {
+        ledgerLoading = false;
+      }
+    })();
   }
 
   let catalogLoading = false;
@@ -323,11 +370,15 @@ export function portalRoutes(deps: PortalDeps) {
     }
     if (snap.state !== 'building' && snap.fetched_at && (now() - snap.fetched_at.getTime() > SNAPSHOT_FRESH_MS || snap.data?.v !== SNAPSHOT_VERSION)) rebuild(id);
     await audit(c, preview ? `preview_${preview}` : 'view', user.id, id);
+    const ledgerMeta = (await sql<{ fetched_at: Date }[]>`SELECT fetched_at FROM portal_cache WHERE name = 'ledger'`)[0];
+    if (!ledgerMeta || now() - ledgerMeta.fetched_at.getTime() > LISTS_FRESH_MS) refreshLedger();
+    const txs = (await sql<{ rows: Tx[] }[]>`SELECT rows FROM portal_ledger WHERE portfolio_id = ${id}`)[0]?.rows;
+    const ledger = ledgerMeta ? summarize(txs ?? [], now()) : null;
     const added = new Map((await sql<{ home_id: string; at: number }[]>`
       SELECT home_id, extract(epoch FROM uploaded_at)::bigint AS at FROM portal_photo WHERE portfolio_id = ${id}`).map((r) => [r.home_id, Number(r.at)]));
     return c.json({
       state: snap.state === 'building' ? 'refreshing' : 'ready', role: shown, permissions: PERMS_OF(shown), fetchedAt: snap.fetched_at, preview,
-      notes: role === 'staff' && !preview ? snap.data.notes : [], portfolio: viewFor(snap.data, shown, now(), added, !!deps.streetView),
+      notes: role === 'staff' && !preview ? snap.data.notes : [], portfolio: viewFor(snap.data, shown, now(), added, !!deps.streetView, ledger),
     });
   });
 
@@ -516,6 +567,8 @@ export function portalRoutes(deps: PortalDeps) {
     // Owners sign in against Rentvine's lists, so keep them loaded.
     refreshCatalog();
     setInterval(refreshCatalog, LISTS_FRESH_MS).unref();
+    refreshLedger();
+    setInterval(refreshLedger, LISTS_FRESH_MS).unref();
   }
 
   app.onError((err, c) => { logFailure(c, 'portal', err); return apiError(c, 500, 'internal_error', 'Something went wrong. Please try again.'); });

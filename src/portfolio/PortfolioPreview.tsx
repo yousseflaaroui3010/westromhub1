@@ -5,7 +5,7 @@ import { Frame } from './Frame';
 import { ROLE_LABEL, permissionsFor, roleIn, visiblePortfolios } from './access';
 import { MEMBERSHIPS, PERSONAS, PORTFOLIOS, portfolioById, type Home } from './data';
 import {
-  Access, Ahead, Footer, Hero, HomeDrawer, Homes, Manifesto, Money, Papers, ProspectCta, ProspectHome, ProspectManifesto, SixThings, Updates,
+  Access, Ahead, CareChapter, Footer, Hero, HomeDrawer, Homes, Manifesto, Money, Papers, ProspectCta, ProspectHome, ProspectManifesto, SixThings, Updates,
 } from './sections';
 
 const ALL_IDS = PORTFOLIOS.map((p) => p.id);
@@ -77,6 +77,7 @@ export default function PortfolioPreview() {
               <Manifesto portfolio={portfolio} perms={perms} />
               {perms.has('homes:view') && <Homes portfolio={portfolio} perms={perms} onOpen={setOpen} />}
               {perms.has('money:view') && <Money portfolio={portfolio} perms={perms} />}
+              {portfolio.care && (perms.has('money:view') || perms.has('homes:view')) && <CareChapter portfolio={portfolio} />}
               {perms.has('feed:view') && <Updates portfolio={portfolio} />}
               {perms.has('alerts:view') && <Ahead portfolio={portfolio} />}
               {perms.has('documents:view') && <Papers portfolio={portfolio} />}

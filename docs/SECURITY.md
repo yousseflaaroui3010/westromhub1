@@ -193,6 +193,18 @@ stays a demo with invented data and no server calls.
   are left from the first version and unused.
 
 
+**Money and care (2026-11-16).** Every 6 hours the API reads the account's
+Rentvine transactions of the last 12 months (`GET /accounting/transactions/search`,
+not voided) in one sweep, as the deposit dashboard's Owners read does, and keeps
+each portfolio's rows in `portal_ledger` (replaced whole by each sweep). The page
+shows months, the year's totals, bills paid and recent payouts to people with
+`money:view` on that portfolio only. Maintenance requests come from PropertyMeld
+(read only; OAuth client credentials in `PROPERTYMELD_CLIENT_ID`,
+`PROPERTYMELD_CLIENT_SECRET`, `PROPERTYMELD_MULTITENANT_ID` or the matching
+app_secret rows). Only a request's short title, status, priority and dates are
+kept: no tenant names, phones, emails or long descriptions. Without the keys the
+Care chapter shows Rentvine's paid repairs only.
+
 **Street pictures (Google Street View).** For a home with no listing picture in
 Rentvine, the API asks Google's Street View Static API for the picture of the
 home's address (server side; the key, `GOOGLE_MAPS_API_KEY` or app_secret
