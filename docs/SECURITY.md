@@ -145,46 +145,52 @@ is used only when ours has no data for the segment.
 `/portfolio` is a signed-in page that shows one owner portfolio read from
 Rentvine. It changes this project's data model: the private Postgres now
 holds **owner and tenant names, owner emails, addresses and statement
-amounts**, copied from Rentvine, plus portal accounts. `/portfolio-preview`
+amounts**, copied from Rentvine, plus portal sign-ins. `/portfolio-preview`
 stays a demo with invented data and no server calls.
 
-- **Accounts.** `portal_user` (scrypt N=2^15 password hashes), `portal_member`
-  (portfolio, person, role), `portal_session` (SHA-256 of a 32-byte token,
-  14 days), `portal_invite` (SHA-256 of a token, 7 days, used once),
-  `portal_audit` (sign-ins, failures, views, downloads, invites, refusals).
-- **First account.** `POST /api/portal/setup` takes the `portal_setup_code`
-  row from app_secret (generated on first use; read it in Railway's database
-  view) and makes one **westromgroup.com** staff account. It refuses once any
-  staff account exists. Everyone else joins through an invite link that staff
-  (or an owner, for their own portfolio, as owner or accountant) create and
-  send themselves; no email service is involved. The token is in the link's
-  `#fragment`, so it never reaches a server log.
+- **Sign-in: email + a 6-digit code, no passwords.** `POST /api/portal/login/start`
+  decides who may get a code:
+  - an email on a staff domain (`PORTAL_STAFF_DOMAINS`, default
+    `westromgroup.com`): staff, every portfolio;
+  - an email Rentvine lists on an active portfolio's owner contact: owner of
+    those portfolios (Rentvine is the source of truth; nobody is invited);
+  - an email an owner or staff added to a portfolio (an accountant).
+  Anyone else gets the same answer and nothing is sent, so the form does not
+  tell who is an owner. Codes: random 6 digits, stored as an HMAC keyed by the
+  email (`portal_code`), 10 minutes, 5 tries, one live code per email.
+  `POST /api/portal/login/verify` turns a right code into a session.
+- **Sending.** The API asks n8n to email the code (`N8N_LEAD_WEBHOOK_BASE` +
+  `/portal-code`, `X-WGC-Gateway` from app_secret `n8n_gateway_secret`, the
+  lead form's secret). n8n's "WF-5 Portal sign-in code" sends it with Brevo
+  and does not save successful executions (`docs/n8n/`).
 - **Sessions.** Cookie `wg_portal`: HttpOnly, SameSite=Lax, Path=/api/portal,
-  Secure behind HTTPS. Every POST must carry an allowed Origin (the CORS
-  check rejects others; a missing Origin is refused), which closes cross-site
-  requests. Sign-in failures answer one message whether or not the email
-  exists, and cost the same scrypt time either way.
-- **Limits.** Sign-in: 12 per IP per 15 min and 8 per email per hour. Setup:
-  5 per IP per hour. Invite accept: 10 per IP per hour. Portal reads have
-  their own bucket in the API (900 per 15 min) and in nginx
-  (`api_portal`, 120/min, burst 40), because a page loads a photo per home.
+  Secure behind HTTPS, 14 days; only a SHA-256 of the token is stored. Staff
+  is the email's domain, checked on every request. Every POST must carry an
+  allowed Origin (a missing Origin is refused).
+- **Limits.** Codes: 10 per IP per 15 min and 5 per email per hour. Code
+  checks: 20 per IP per 15 min. Portal reads have their own bucket in the API
+  (900 per 15 min) and in nginx (`api_portal`, 120/min, burst 40), because a
+  page loads a photo per home.
 - **Access.** Every portfolio route works out the person's role on THAT
-  portfolio (staff see all). `portal/view.ts` cuts the data down by role on
-  the server, from the same table as the page (`parity.test.ts` fails on any
-  drift): owners see tenants as "Jordan P."; accountants get money, papers
-  and tax dates and no homes or tenants at all; only staff get owner emails.
+  portfolio. `portal/view.ts` cuts the data down by role on the server, from
+  the same table as the page (`parity.test.ts` fails on any drift): owners see
+  tenants as "Jordan P."; accountants get money, papers and tax dates and no
+  homes or tenants at all; only staff see owners' emails.
 - **Rentvine.** Read only, through this project's own key (app_secret
   `rentvine_api_key` / `rentvine_api_secret`), one request at a time, 0.8 s
   apart. Shared lists (portfolios, owners, properties, units, active leases)
-  are kept 6 hours in `portal_cache`; one portfolio is kept 24 hours in
-  `portal_snapshot` and re-read in the background when older. Staff can force
-  a re-read. Photos are fetched only from `https://cdn.rentvine.com/` and only
-  for a home in the person's portfolio; documents and statements only by an
-  id that is in that portfolio's snapshot.
-- **Removing someone.** "Remove" on the Access section deletes the membership
-  and cancels their pending invites. To lock an account entirely: `UPDATE
-  portal_user SET disabled_at = now() WHERE email = '...'` (sessions stop at
-  once). To end every session: `DELETE FROM portal_session`.
+  are kept 6 hours in `portal_cache` and refreshed in the background (owners
+  sign in against them); one portfolio is kept 24 hours in `portal_snapshot`.
+  Staff can force a re-read. Photos only from `https://cdn.rentvine.com/`, only
+  for a home in the person's portfolio; documents and statements only by an id
+  in that portfolio's snapshot.
+- **Locking someone out.** Owner access follows Rentvine: change the owner
+  email there and their access follows at the next list refresh (6 h). To
+  lock an account at once: `UPDATE portal_user SET disabled_at = now() WHERE
+  email = '...'` (sessions stop and no new code is sent). Removing an added
+  person: "Remove" in the Access section. To end every session: `DELETE FROM
+  portal_session`. The tables `portal_invite` and `portal_user.password_hash`
+  are left from the first version and unused.
 
 ## Two API copies, shared limits, uptime alert (2026-11-12)
 
