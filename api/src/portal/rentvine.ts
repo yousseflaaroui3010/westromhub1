@@ -18,7 +18,7 @@ export interface RvApi {
 }
 
 /** Raise when PortfolioData gains a field, so saved snapshots are read again. */
-export const SNAPSHOT_VERSION = 4;
+export const SNAPSHOT_VERSION = 5;
 
 export const RENTVINE_CDN = 'https://cdn.rentvine.com/';
 const PORTFOLIO_TYPE = '11';

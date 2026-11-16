@@ -200,8 +200,8 @@ each portfolio's rows in `portal_ledger` (replaced whole by each sweep). The pag
 shows months, the year's totals, bills paid and recent payouts to people with
 `money:view` on that portfolio only. Maintenance requests come from PropertyMeld
 (read only; OAuth client credentials in `PROPERTYMELD_CLIENT_ID`,
-`PROPERTYMELD_CLIENT_SECRET`, `PROPERTYMELD_MULTITENANT_ID` or the matching
-app_secret rows). Only a request's short title, status, priority and dates are
+`PROPERTYMELD_CLIENT_SECRET`, `PROPERTYMELD_MULTITENANT_ID` (or `PM_CLIENT_ID`,
+`PM_CLIENT_SECRET`, `PM_MULTITENANT_ID`) or the matching app_secret rows). Only a request's short title, status, priority and dates are
 kept: no tenant names, phones, emails or long descriptions. Without the keys the
 Care chapter shows Rentvine's paid repairs only.
 
