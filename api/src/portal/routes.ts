@@ -1,15 +1,15 @@
 // Owner portal API (/api/portal/*).
 //
-// Sign-in: email + password, session in an HttpOnly cookie scoped to
-// /api/portal (SameSite=Lax; Secure behind HTTPS). Only a SHA-256 of the
-// session token is stored. POSTs must carry an allowed Origin (the global CORS
-// check rejects others), which with SameSite closes cross-site requests.
-//
-// Accounts: the first staff account is made once with the setup code from
-// app_secret (portal_setup_code, read in Railway's database view). After that,
-// people join only through invite links that staff (or an owner, for their own
-// portfolio) create and send themselves. Every portfolio read checks the
-// person's role on THAT portfolio and redacts by role (portal/view.ts).
+// Sign-in: email + a 6-digit code (10 minutes, 5 tries) sent by n8n through
+// the same gateway secret the lead form uses. Who may sign in, and to what:
+//   - a staff email domain (westromgroup.com): every portfolio;
+//   - an email Rentvine lists on a portfolio's owner contact: those portfolios;
+//   - an email an owner (or staff) added to a portfolio, e.g. their accountant.
+// Anyone else gets the same answer and no email, so the form does not reveal
+// who is an owner. Sessions: HttpOnly cookie scoped to /api/portal
+// (SameSite=Lax; Secure behind HTTPS); only a SHA-256 of the token is stored.
+// POSTs must carry an allowed Origin. Every portfolio read checks the role on
+// THAT portfolio and cuts the data down by role (portal/view.ts).
 
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -19,8 +19,8 @@ import type { Sql } from '../db';
 import { apiError, logFailure } from '../http/errors';
 import { getClientIp } from '../security/clientIp';
 import type { CounterStore } from '../security/store';
-import { MEMBER_ROLES, permissions, type MemberRole, type Permission, type Role } from './access';
-import { hashPassword, newToken, normEmail, passwordProblem, tokenHash, verifyPassword } from './crypto';
+import { permissions, type MemberRole, type Permission, type Role } from './access';
+import { codeHash, newToken, normEmail, sixDigitCode, tokenHash } from './crypto';
 import { buildPortfolio, catalog, loadLists, RENTVINE_CDN, type CatalogEntry, type Estimator, type Lists, type PortfolioData, type RvApi } from './rentvine';
 import { viewFor } from './view';
 
@@ -30,14 +30,20 @@ export interface PortalDeps {
   /** The Rentvine client, or null while no key is stored. */
   rentvine: () => Promise<(RvApi & { download(path: string): Promise<{ bytes: ArrayBuffer; type: string }> }) | null>;
   estimate: Estimator | null;
-  setupCode: () => Promise<string | undefined>;
+  /** Sends the sign-in code (n8n). Null: sign-in cannot send codes (logged). */
+  sendCode: ((to: { email: string; name: string | null }, code: string) => Promise<void>) | null;
+  /** Email domains that are Westrom Group staff. Default: westromgroup.com. */
+  staffDomains?: string[];
+  /** Keep Rentvine's lists warm in the background (off in tests). */
+  warm?: boolean;
   fetchImpl?: typeof fetch;
   now?: () => number;
 }
 
 const COOKIE = 'wg_portal';
 const SESSION_DAYS = 14;
-const INVITE_DAYS = 7;
+const CODE_MINUTES = 10;
+const CODE_TRIES = 5;
 const LISTS_FRESH_MS = 6 * 3600_000;
 const SNAPSHOT_FRESH_MS = 24 * 3600_000;
 const MAX_IMAGE = 15 * 1024 * 1024;
@@ -51,6 +57,8 @@ export function portalRoutes(deps: PortalDeps) {
   const { sql, store } = deps;
   const now = deps.now ?? Date.now;
   const fetchImpl = deps.fetchImpl ?? fetch;
+  const staffDomains = (deps.staffDomains ?? ['westromgroup.com']).map((d) => d.toLowerCase());
+  const isStaff = (email: string) => staffDomains.some((d) => email.endsWith(`@${d}`));
   const app = new Hono<Env>();
 
   const audit = (c: Context, action: string, userId: string | null, portfolioId: string | null = null, detail: string | null = null) =>
@@ -77,7 +85,8 @@ export function portalRoutes(deps: PortalDeps) {
       const rows = await sql<User[]>`
         SELECT u.id::text AS id, u.email, u.name, u.staff FROM portal_session s JOIN portal_user u ON u.id = s.user_id
         WHERE s.token_hash = ${tokenHash(token)} AND s.expires_at > now() AND u.disabled_at IS NULL`;
-      c.set('user', rows[0] ?? null);
+      // Staff is the email's domain, checked on every request (not a stored flag).
+      c.set('user', rows[0] ? { ...rows[0], staff: isStaff(rows[0].email) } : null);
     }
     return next();
   });
@@ -100,7 +109,31 @@ export function portalRoutes(deps: PortalDeps) {
     if (!user) return null;
     if (user.staff) return 'staff';
     const rows = await sql<{ role: MemberRole }[]>`SELECT role FROM portal_member WHERE portfolio_id = ${portfolioId} AND user_id = ${user.id}`;
-    return rows[0]?.role ?? null;
+    if (rows[0]) return rows[0].role;
+    return (await owners()).byEmail.get(user.email)?.has(portfolioId) ? 'owner' : null;
+  }
+
+  // Rentvine's owner contacts by email, from the cached lists (rebuilt when the lists change).
+  let ownerIndex: { at: number; byEmail: Map<string, Set<string>>; names: Map<string, string> } | null = null;
+  async function owners() {
+    const row = (await sql<{ data: Lists; fetched_at: Date }[]>`SELECT data, fetched_at FROM portal_cache WHERE name = 'lists'`)[0];
+    if (!row) return { byEmail: new Map<string, Set<string>>(), names: new Map<string, string>() };
+    if (ownerIndex && ownerIndex.at === row.fetched_at.getTime()) return ownerIndex;
+    const emailOf = new Map(row.data.owners.filter((o) => o.email).map((o) => [o.contactId, o.email as string]));
+    const byEmail = new Map<string, Set<string>>();
+    const names = new Map<string, string>();
+    for (const p of row.data.portfolios) {
+      if (!p.active) continue;
+      for (const ct of p.contacts) {
+        const email = emailOf.get(ct.contactId);
+        if (!email) continue;
+        if (!byEmail.has(email)) byEmail.set(email, new Set());
+        byEmail.get(email)!.add(p.id);
+        if (ct.name) names.set(email, ct.name);
+      }
+    }
+    ownerIndex = { at: row.fetched_at.getTime(), byEmail, names };
+    return ownerIndex;
   }
 
   // ── Rentvine reads (one at a time per process) ──────────────────────────
@@ -152,47 +185,54 @@ export function portalRoutes(deps: PortalDeps) {
     });
   }
 
-  // ── Setup (first staff account, once) ──────────────────────────────────
-  const staffExists = async () => (await sql`SELECT 1 FROM portal_user WHERE staff LIMIT 1`).length > 0;
+  // ── Sign in with an emailed code ───────────────────────────────────────
+  const NEUTRAL = { ok: true, message: 'If that email is on file with Westrom Group, a 6-digit code is on its way. It works for 10 minutes.' };
 
-  app.get('/setup', async (c) => c.json({ needed: !(await staffExists()) }));
-
-  app.post('/setup', async (c) => {
-    const hit = await limited(c, 'setup', getClientIp(c), 5, 3600_000); if (hit) return hit;
-    if (await staffExists()) return apiError(c, 410, 'setup_done', 'Setup is already done. Ask a Westrom admin for an invite.');
-    const b = await json(c);
-    const email = normEmail(b?.email);
-    const name = typeof b?.name === 'string' ? b.name.trim().slice(0, 80) : '';
-    const code = typeof b?.code === 'string' ? b.code.trim() : '';
-    const expected = await deps.setupCode();
-    const problem = passwordProblem(b?.password);
-    if (!expected) return apiError(c, 503, 'setup_unavailable', 'Setup is not available right now.');
-    if (!email || !name) return apiError(c, 400, 'invalid', 'Enter your name and work email.');
-    if (!email.endsWith('@westromgroup.com')) return apiError(c, 400, 'invalid', 'Use a westromgroup.com email for the first account.');
-    if (problem) return apiError(c, 400, 'weak_password', problem);
-    const a = Buffer.from(code), e = Buffer.from(expected);
-    if (a.length !== e.length || !timingSafeEqual(a, e)) { await audit(c, 'setup_bad_code', null); return apiError(c, 403, 'bad_code', 'That setup code is not right.'); }
-    const hashed = await hashPassword(b!.password as string);
-    const rows = await sql<{ id: string }[]>`INSERT INTO portal_user (email, name, password_hash, staff) VALUES (${email}, ${name}, ${hashed}, true)
-      ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, staff = true, name = EXCLUDED.name RETURNING id::text`;
-    await audit(c, 'setup', rows[0].id);
-    await startSession(c, rows[0].id);
-    return c.json({ ok: true });
+  app.post('/login/start', async (c) => {
+    const ipHit = await limited(c, 'code-ip', getClientIp(c), 10, 15 * 60_000); if (ipHit) return ipHit;
+    const email = normEmail((await json(c))?.email);
+    if (!email) return apiError(c, 400, 'invalid', 'Enter a valid email.');
+    const eHit = await limited(c, 'code-email', email, 5, 3600_000); if (eHit) return eHit;
+    const idx = await owners();
+    const member = (await sql`SELECT 1 FROM portal_member m JOIN portal_user u ON u.id = m.user_id WHERE u.email = ${email} AND u.disabled_at IS NULL LIMIT 1`).length > 0;
+    const allowed = isStaff(email) || idx.byEmail.has(email) || member;
+    if (!allowed) { await audit(c, 'code_not_on_file', null, null, email); return c.json(NEUTRAL); }
+    const disabled = (await sql`SELECT 1 FROM portal_user WHERE email = ${email} AND disabled_at IS NOT NULL`).length > 0;
+    if (disabled) { await audit(c, 'code_disabled', null, null, email); return c.json(NEUTRAL); }
+    const code = sixDigitCode();
+    await sql`INSERT INTO portal_code (email, code_hash, expires_at, attempts) VALUES (${email}, ${codeHash(email, code)}, ${new Date(now() + CODE_MINUTES * 60_000)}, 0)
+              ON CONFLICT (email) DO UPDATE SET code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at, attempts = 0, created_at = now()`;
+    if (!deps.sendCode) { console.error('[portal] no code sender configured (N8N_LEAD_WEBHOOK_BASE / gateway secret)'); return c.json(NEUTRAL); }
+    try {
+      await deps.sendCode({ email, name: idx.names.get(email) ?? null }, code);
+      await audit(c, 'code_sent', null, null, email);
+    } catch (err) {
+      console.error(`[portal] sending the sign-in code failed: ${err instanceof Error ? err.message.slice(0, 160) : 'error'}`);
+      await audit(c, 'code_send_failed', null, null, email);
+    }
+    return c.json(NEUTRAL);
   });
 
-  // ── Sign in / out ───────────────────────────────────────────────────────
-  app.post('/login', async (c) => {
-    const ipHit = await limited(c, 'login-ip', getClientIp(c), 12, 15 * 60_000); if (ipHit) return ipHit;
+  app.post('/login/verify', async (c) => {
+    const ipHit = await limited(c, 'verify-ip', getClientIp(c), 20, 15 * 60_000); if (ipHit) return ipHit;
     const b = await json(c);
     const email = normEmail(b?.email);
-    const password = typeof b?.password === 'string' ? b.password.slice(0, 200) : '';
-    if (email) { const eHit = await limited(c, 'login-email', email, 8, 3600_000); if (eHit) return eHit; }
-    const rows = email ? await sql<{ id: string; password_hash: string | null }[]>`
-      SELECT id::text, password_hash FROM portal_user WHERE email = ${email} AND disabled_at IS NULL` : [];
-    const ok = await verifyPassword(password, rows[0]?.password_hash ?? null);
-    if (!ok || !rows[0]) { await audit(c, 'login_failed', rows[0]?.id ?? null, null, email); return apiError(c, 401, 'bad_login', 'That email and password do not match.'); }
-    await startSession(c, rows[0].id);
-    await audit(c, 'login', rows[0].id);
+    const code = typeof b?.code === 'string' ? b.code.replace(/\s+/g, '') : '';
+    const wrong = () => apiError(c, 401, 'bad_code', 'That code is not right or has expired. Ask for a new one.');
+    if (!email || !/^\d{6}$/.test(code)) return wrong();
+    const row = (await sql<{ code_hash: string; expires_at: Date; attempts: number }[]>`
+      UPDATE portal_code SET attempts = attempts + 1 WHERE email = ${email} RETURNING code_hash, expires_at, attempts`)[0];
+    if (!row || row.expires_at.getTime() < now() || row.attempts > CODE_TRIES) { await audit(c, 'code_rejected', null, null, email); return wrong(); }
+    const a = Buffer.from(row.code_hash), e = Buffer.from(codeHash(email, code));
+    if (a.length !== e.length || !timingSafeEqual(a, e)) { await audit(c, 'code_wrong', null, null, email); return wrong(); }
+    await sql`DELETE FROM portal_code WHERE email = ${email}`;
+    const name = (await owners()).names.get(email) ?? email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase());
+    const user = (await sql<{ id: string; disabled: boolean }[]>`
+      INSERT INTO portal_user (email, name, staff) VALUES (${email}, ${name.slice(0, 80)}, ${isStaff(email)})
+      ON CONFLICT (email) DO UPDATE SET staff = EXCLUDED.staff RETURNING id::text, (disabled_at IS NOT NULL) AS disabled`)[0];
+    if (user.disabled) return wrong();
+    await startSession(c, user.id);
+    await audit(c, 'login', user.id);
     return c.json({ ok: true });
   });
 
@@ -207,9 +247,14 @@ export function portalRoutes(deps: PortalDeps) {
     const user = c.get('user');
     if (!user) return c.json({ user: null });
     const names = new Map(((await sql<{ data: CatalogEntry[] }[]>`SELECT data FROM portal_cache WHERE name = 'catalog'`)[0]?.data ?? []).map((e) => [e.id, e.name]));
-    const portfolios = user.staff ? [] : (await sql<{ portfolio_id: string; role: MemberRole }[]>`
-      SELECT portfolio_id, role FROM portal_member WHERE user_id = ${user.id} ORDER BY created_at`)
-      .map((m) => ({ id: m.portfolio_id, role: m.role, name: names.get(m.portfolio_id) ?? null }));
+    const mine = new Map<string, MemberRole>();
+    if (!user.staff) {
+      for (const id of (await owners()).byEmail.get(user.email) ?? []) mine.set(id, 'owner');
+      for (const m of await sql<{ portfolio_id: string; role: MemberRole }[]>`SELECT portfolio_id, role FROM portal_member WHERE user_id = ${user.id} ORDER BY created_at`) {
+        if (!mine.has(m.portfolio_id)) mine.set(m.portfolio_id, m.role);
+      }
+    }
+    const portfolios = [...mine].map(([id, role]) => ({ id, role, name: names.get(id) ?? null }));
     return c.json({ user: { email: user.email, name: user.name, staff: user.staff }, portfolios });
   });
 
@@ -330,88 +375,37 @@ export function portalRoutes(deps: PortalDeps) {
     }
   });
 
-  // ── People on a portfolio, and invites ──────────────────────────────────
+  // ── People on a portfolio ───────────────────────────────────────────────
+  // Owners come from Rentvine (they sign in with the email Rentvine has).
+  // Others (an accountant, a second owner Rentvine does not list) are added here.
   app.get('/portfolios/:id/members', async (c) => {
     const g = await gate(c, 'members:view'); if ('fail' in g) return g.fail;
+    const data = (await snapshot(g.id))?.data;
+    const owners = (data?.contacts ?? []).map((o) => ({
+      name: o.name, share: o.share, onFile: !!o.email,
+      email: g.role === 'staff' ? o.email : null, // owners' emails only for staff
+    }));
     const members = await sql<{ email: string; name: string; role: string }[]>`
       SELECT u.email, u.name, m.role FROM portal_member m JOIN portal_user u ON u.id = m.user_id
       WHERE m.portfolio_id = ${g.id} AND u.disabled_at IS NULL ORDER BY m.created_at`;
-    const invites = await sql<{ email: string; role: string; expires_at: Date }[]>`
-      SELECT email, role, expires_at FROM portal_invite WHERE portfolio_id = ${g.id} AND used_at IS NULL AND expires_at > now() ORDER BY created_at DESC`;
-    return c.json({ members, invites });
+    return c.json({ owners, members });
   });
 
-  app.post('/invites', async (c) => {
-    const user = c.get('user');
-    if (!user) return apiError(c, 401, 'signed_out', 'Please sign in.');
-    const hit = await limited(c, 'invite', user.id, 40, 3600_000); if (hit) return hit;
+  app.post('/portfolios/:id/members/add', async (c) => {
+    const g = await gate(c, 'members:manage'); if ('fail' in g) return g.fail;
+    const hit = await limited(c, 'member-add', g.user.id, 30, 3600_000); if (hit) return hit;
     const b = await json(c);
     const email = normEmail(b?.email);
-    const asStaff = b?.staff === true;
-    const portfolioId = typeof b?.portfolioId === 'string' ? b.portfolioId : null;
-    const role = MEMBER_ROLES.includes(b?.role as MemberRole) ? b!.role as MemberRole : null;
-    if (!email) return apiError(c, 400, 'invalid', 'Enter a valid email.');
-    if (asStaff) {
-      if (!user.staff) return apiError(c, 403, 'forbidden', 'Only Westrom staff invite staff.');
-      if (!email.endsWith('@westromgroup.com')) return apiError(c, 400, 'invalid', 'Staff use a westromgroup.com email.');
-    } else {
-      if (!portfolioId || !idOk(portfolioId) || !role) return apiError(c, 400, 'invalid', 'Choose a portfolio and a role.');
-      const mine = await roleOn(user, portfolioId);
-      if (!mine || !permissions(mine).has('members:manage')) return apiError(c, 403, 'forbidden', 'You cannot invite people to this portfolio.');
-      if (mine !== 'staff' && role === 'prospect') return apiError(c, 403, 'forbidden', 'Only staff invite prospective owners.');
-    }
-    const token = newToken();
-    await sql`INSERT INTO portal_invite (token_hash, email, staff, portfolio_id, role, created_by, expires_at)
-              VALUES (${tokenHash(token)}, ${email}, ${asStaff}, ${asStaff ? null : portfolioId}, ${asStaff ? null : role}, ${user.id},
-                      ${new Date(now() + INVITE_DAYS * 86_400_000)})`;
-    await audit(c, 'invite', user.id, portfolioId, `${email} as ${asStaff ? 'staff' : role}`);
-    const origin = c.req.header('Origin')!;
-    return c.json({ link: `${origin}/portfolio/invite#${token}`, expiresInDays: INVITE_DAYS });
-  });
-
-  app.get('/invites/peek', async (c) => {
-    const token = c.req.query('t') ?? '';
-    const hit = await limited(c, 'peek', getClientIp(c), 30, 3600_000); if (hit) return hit;
-    const inv = (await sql<{ email: string; staff: boolean; has_password: boolean }[]>`
-      SELECT i.email, i.staff, (u.password_hash IS NOT NULL) AS has_password FROM portal_invite i LEFT JOIN portal_user u ON u.email = i.email
-      WHERE i.token_hash = ${tokenHash(token)} AND i.used_at IS NULL AND i.expires_at > now()`)[0];
-    if (!inv) return apiError(c, 404, 'invite_gone', 'This invite link has expired or was already used. Ask Westrom Group for a new one.');
-    return c.json({ email: inv.email, staff: inv.staff, existing: inv.has_password });
-  });
-
-  app.post('/invites/accept', async (c) => {
-    const hit = await limited(c, 'accept', getClientIp(c), 10, 3600_000); if (hit) return hit;
-    const b = await json(c);
-    const token = typeof b?.token === 'string' ? b.token : '';
-    const password = typeof b?.password === 'string' ? b.password : '';
-    const inv = (await sql<{ email: string; staff: boolean; portfolio_id: string | null; role: MemberRole | null }[]>`
-      SELECT email, staff, portfolio_id, role FROM portal_invite WHERE token_hash = ${tokenHash(token)} AND used_at IS NULL AND expires_at > now()`)[0];
-    if (!inv) return apiError(c, 404, 'invite_gone', 'This invite link has expired or was already used. Ask Westrom Group for a new one.');
-    const existing = (await sql<{ id: string; password_hash: string | null }[]>`SELECT id::text, password_hash FROM portal_user WHERE email = ${inv.email}`)[0];
-    let userId: string;
-    if (existing?.password_hash) {
-      // Joining another portfolio with an account you already have: prove it is you.
-      if (!(await verifyPassword(password, existing.password_hash))) return apiError(c, 401, 'bad_login', 'Enter the password you already use with Westrom Group.');
-      userId = existing.id;
-      if (inv.staff) await sql`UPDATE portal_user SET staff = true WHERE id = ${userId}`;
-    } else {
-      const problem = passwordProblem(password);
-      const name = typeof b?.name === 'string' ? b.name.trim().slice(0, 80) : '';
-      if (!name) return apiError(c, 400, 'invalid', 'Enter your name.');
-      if (problem) return apiError(c, 400, 'weak_password', problem);
-      const hashed = await hashPassword(password);
-      userId = (await sql<{ id: string }[]>`INSERT INTO portal_user (email, name, password_hash, staff) VALUES (${inv.email}, ${name}, ${hashed}, ${inv.staff})
-        ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, password_hash = EXCLUDED.password_hash, staff = portal_user.staff OR EXCLUDED.staff
-        RETURNING id::text`)[0].id;
-    }
-    if (!inv.staff && inv.portfolio_id && inv.role) {
-      await sql`INSERT INTO portal_member (portfolio_id, user_id, role) VALUES (${inv.portfolio_id}, ${userId}, ${inv.role})
-                ON CONFLICT (portfolio_id, user_id) DO UPDATE SET role = EXCLUDED.role`;
-    }
-    await sql`UPDATE portal_invite SET used_at = now() WHERE token_hash = ${tokenHash(token)}`;
-    await audit(c, 'invite_accepted', userId, inv.portfolio_id);
-    await startSession(c, userId);
-    return c.json({ ok: true, portfolioId: inv.portfolio_id });
+    const role: MemberRole | null = b?.role === 'accountant' || b?.role === 'owner' || (b?.role === 'prospect' && g.role === 'staff') ? b.role as MemberRole : null;
+    if (!email || !role) return apiError(c, 400, 'invalid', 'Enter an email and choose the access.');
+    if (isStaff(email)) return apiError(c, 400, 'invalid', 'Westrom Group staff already see every portfolio.');
+    const name = email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()).slice(0, 80);
+    const user = (await sql<{ id: string }[]>`INSERT INTO portal_user (email, name) VALUES (${email}, ${name})
+      ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING id::text`)[0];
+    await sql`INSERT INTO portal_member (portfolio_id, user_id, role) VALUES (${g.id}, ${user.id}, ${role})
+              ON CONFLICT (portfolio_id, user_id) DO UPDATE SET role = EXCLUDED.role`;
+    await audit(c, 'member_added', g.user.id, g.id, `${email} as ${role}`);
+    return c.json({ ok: true });
   });
 
   app.post('/portfolios/:id/members/remove', async (c) => {
@@ -419,10 +413,15 @@ export function portalRoutes(deps: PortalDeps) {
     const email = normEmail((await json(c))?.email);
     if (!email) return apiError(c, 400, 'invalid', 'Enter a valid email.');
     await sql`DELETE FROM portal_member m USING portal_user u WHERE m.user_id = u.id AND u.email = ${email} AND m.portfolio_id = ${g.id}`;
-    await sql`UPDATE portal_invite SET expires_at = now() WHERE email = ${email} AND portfolio_id = ${g.id} AND used_at IS NULL`;
     await audit(c, 'member_removed', g.user.id, g.id, email);
     return c.json({ ok: true });
   });
+
+  if (deps.warm !== false) {
+    // Owners sign in against Rentvine's lists, so keep them loaded.
+    refreshCatalog();
+    setInterval(refreshCatalog, LISTS_FRESH_MS).unref();
+  }
 
   app.onError((err, c) => { logFailure(c, 'portal', err); return apiError(c, 500, 'internal_error', 'Something went wrong. Please try again.'); });
   return app;

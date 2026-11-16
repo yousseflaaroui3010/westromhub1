@@ -7,6 +7,7 @@ import { httpExtractor } from './extractor';
 import { cachedSecret, getOrCreateSecret } from './security/secretStore';
 import { connect, migrate, readSecret, readSecretStrict, withRetry } from './db';
 import { rentvineClient } from './rentvine/sync';
+import { n8nCodeSender } from './portal/send';
 import { pgLeadStore, leadHealth } from './leads/store';
 import { dbEstimator } from './estimator/indexCache';
 import { createApp } from './app';
@@ -130,10 +131,13 @@ async function main() {
         return client;
       },
       estimate: async (q: { zip: string; sqft: number; beds: string | null }) => estimator.estimate(q),
-      setupCode: dbSecret('portal_setup_code'),
+      sendCode: env.N8N_LEAD_WEBHOOK_BASE && gatewaySecret
+        ? n8nCodeSender(env.N8N_LEAD_WEBHOOK_BASE.replace(/\/+$/, ''), gatewaySecret)
+        : null,
+      staffDomains: list(env.PORTAL_STAFF_DOMAINS, 'westromgroup.com'),
     };
   })() : null;
-  if (portal) console.log('Owner portal: on (/api/portal)');
+  if (portal) console.log(`Owner portal: on (/api/portal); sign-in codes ${portal.sendCode ? 'by n8n' : 'NOT SENT (no N8N_LEAD_WEBHOOK_BASE)'}`);
 
   const app = createApp({
     extractor,

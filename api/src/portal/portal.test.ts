@@ -6,7 +6,7 @@ import postgres from 'postgres';
 import { createApp } from '../app';
 import { migrate, type Sql } from '../db';
 import { MemoryStore } from '../security/store';
-import { hashPassword, verifyPassword } from './crypto';
+import { codeHash, sixDigitCode } from './crypto';
 import { buildPortfolio, catalog, loadLists, parseFile, type RvApi } from './rentvine';
 import { shortName, viewFor } from './view';
 
@@ -49,12 +49,10 @@ const fakeRentvine: RvApi & { download(path: string): Promise<{ bytes: ArrayBuff
 };
 
 describe('portal pure parts', () => {
-  it('hashes and checks passwords', async () => {
-    const h = await hashPassword('correct horse battery');
-    expect(h.startsWith('scrypt$')).toBe(true);
-    expect(await verifyPassword('correct horse battery', h)).toBe(true);
-    expect(await verifyPassword('wrong horse battery', h)).toBe(false);
-    expect(await verifyPassword('anything at all', null)).toBe(false);
+  it('makes 6-digit codes and binds their hash to the email', () => {
+    for (let i = 0; i < 50; i++) expect(sixDigitCode()).toMatch(/^\d{6}$/);
+    expect(codeHash('a@x.com', '123456')).not.toBe(codeHash('b@x.com', '123456'));
+    expect(codeHash('a@x.com', '123456')).toBe(codeHash('a@x.com', '123456'));
   });
 
   it('shortens portfolio names for the hero', () => {
@@ -103,19 +101,23 @@ describe.skipIf(!url)('portal over HTTP', () => {
   let sql: Sql;
   let app: ReturnType<typeof createApp>;
   const imageFetches: string[] = [];
+  const sent: { email: string; name: string | null; code: string }[] = [];
+  let clock = Date.parse('2026-11-15T12:00:00Z');
 
   beforeAll(async () => {
     sql = postgres(url as string, { max: 2, onnotice: () => {} });
-    await sql.unsafe('DROP TABLE IF EXISTS portal_audit, portal_snapshot, portal_cache, portal_invite, portal_session, portal_member, portal_user CASCADE');
+    await sql.unsafe('DROP TABLE IF EXISTS portal_audit, portal_snapshot, portal_cache, portal_code, portal_invite, portal_session, portal_member, portal_user CASCADE');
     await migrate(sql);
     app = createApp({
       allowedOrigins: [ORIGIN],
       store: new MemoryStore(),
       portal: {
         sql,
+        warm: false,
+        now: () => clock,
         rentvine: async () => fakeRentvine,
         estimate: async () => ({ low: 2080, high: 2260 }),
-        setupCode: async () => 'setup-code-1234567890',
+        sendCode: async (to, code) => { sent.push({ ...to, code }); },
         fetchImpl: (async (u: string) => {
           imageFetches.push(String(u));
           return new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } });
@@ -132,46 +134,66 @@ describe.skipIf(!url)('portal over HTTP', () => {
   });
   const get = (path: string, cookie = '') => app.request(`/api/portal${path}`, { headers: cookie ? { cookie } : {} });
   async function ready(path: string, cookie: string) {
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 60; i++) {
       const body = await (await get(path, cookie)).json() as { state: string };
-      if (body.state === 'ready') // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test reads deep JSON
-      return body as Record<string, any>;
+      if (body.state === 'ready') return body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
       await new Promise((r) => setTimeout(r, 40));
     }
     throw new Error('never ready');
   }
+  async function signIn(email: string) {
+    const before = sent.length;
+    expect((await post('/login/start', { email })).status).toBe(200);
+    const mail = sent.slice(before).find((m) => m.email === email.toLowerCase());
+    if (!mail) throw new Error(`no code sent to ${email}`);
+    const res = await post('/login/verify', { email, code: mail.code });
+    expect(res.status).toBe(200);
+    return cookieOf(res);
+  }
 
   let staff = '', owner = '', accountant = '';
 
-  it('makes the first staff account once, with the setup code', async () => {
-    expect(await (await get('/setup')).json()).toEqual({ needed: true });
-    expect((await post('/setup', { code: 'nope', email: 'yousseff@westromgroup.com', name: 'Yousseff', password: 'a long enough password' })).status).toBe(403);
-    expect((await post('/setup', { code: 'setup-code-1234567890', email: 'someone@gmail.com', name: 'X', password: 'a long enough password' })).status).toBe(400);
-    const ok = await post('/setup', { code: 'setup-code-1234567890', email: 'Yousseff@westromgroup.com', name: 'Yousseff', password: 'a long enough password' });
+  it('signs staff in by their westromgroup.com email, with a code that works once', async () => {
+    expect((await post('/login/start', { email: 'yousseff@westromgroup.com' }, '', null)).status).toBe(403); // no Origin
+    const start = await post('/login/start', { email: 'Yousseff@westromgroup.com' });
+    expect(await start.json()).toMatchObject({ ok: true });
+    const code = sent.at(-1)!.code;
+    expect(code).toMatch(/^\d{6}$/);
+    expect((await post('/login/verify', { email: 'yousseff@westromgroup.com', code: code === '000000' ? '111111' : '000000' })).status).toBe(401);
+    const ok = await post('/login/verify', { email: 'yousseff@westromgroup.com', code });
     expect(ok.status).toBe(200);
     expect(ok.headers.get('set-cookie')).toMatch(/HttpOnly/i);
     expect(ok.headers.get('set-cookie')).toMatch(/Path=\/api\/portal/);
     staff = cookieOf(ok);
-    expect((await post('/setup', { code: 'setup-code-1234567890', email: 'a@westromgroup.com', name: 'A', password: 'a long enough password' })).status).toBe(410);
+    expect((await post('/login/verify', { email: 'yousseff@westromgroup.com', code })).status).toBe(401); // used
+    expect(await (await get('/me', staff)).json()).toMatchObject({ user: { email: 'yousseff@westromgroup.com', staff: true, name: 'Yousseff' } });
   });
 
-  it('refuses a POST without an Origin, and a wrong password, with one message', async () => {
-    expect((await post('/login', { email: 'yousseff@westromgroup.com', password: 'a long enough password' }, '', null)).status).toBe(403);
-    const bad = await post('/login', { email: 'yousseff@westromgroup.com', password: 'wrong password!!' });
-    const nobody = await post('/login', { email: 'nobody@example.com', password: 'wrong password!!' });
-    expect(bad.status).toBe(401);
-    expect(await bad.json()).toMatchObject({ error: 'That email and password do not match.' });
-    expect(await nobody.json()).toMatchObject({ error: 'That email and password do not match.' });
-    const good = await post('/login', { email: 'yousseff@westromgroup.com', password: 'a long enough password' });
-    expect(good.status).toBe(200);
-    staff = cookieOf(good);
-    expect(await (await get('/me', staff)).json()).toMatchObject({ user: { email: 'yousseff@westromgroup.com', staff: true } });
+  it('gives a stranger the same answer and sends nothing', async () => {
+    const before = sent.length;
+    const res = await post('/login/start', { email: 'stranger@example.com' });
+    const ownerish = await post('/login/start', { email: 'yousseff@westromgroup.com' });
+    expect(await res.json()).toEqual(await ownerish.json());
+    expect(sent.slice(before).map((m) => m.email)).toEqual(['yousseff@westromgroup.com']);
+    expect((await post('/login/verify', { email: 'stranger@example.com', code: '123456' })).status).toBe(401);
+  });
+
+  it('expires codes and stops after five wrong tries', async () => {
+    await post('/login/start', { email: 'tina@westromgroup.com' });
+    const code = sent.at(-1)!.code;
+    clock += 11 * 60_000;
+    expect((await post('/login/verify', { email: 'tina@westromgroup.com', code })).status).toBe(401);
+    clock -= 11 * 60_000;
+    await post('/login/start', { email: 'tina@westromgroup.com' });
+    const fresh = sent.at(-1)!.code;
+    const bad = fresh === '999999' ? '888888' : '999999';
+    for (let i = 0; i < 5; i++) expect((await post('/login/verify', { email: 'tina@westromgroup.com', code: bad })).status).toBe(401);
+    expect((await post('/login/verify', { email: 'tina@westromgroup.com', code: fresh })).status).toBe(401);
   });
 
   it('lets staff browse every portfolio and read one', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test reads deep JSON
-    let cat: any;
-    for (let i = 0; i < 50 && !(cat?.portfolios?.length); i++) { cat = await (await get('/catalog', staff)).json(); await new Promise((r) => setTimeout(r, 40)); }
+    let cat: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (let i = 0; i < 60 && !(cat?.portfolios?.length); i++) { cat = await (await get('/catalog', staff)).json(); await new Promise((r) => setTimeout(r, 40)); }
     expect(cat.portfolios.map((p: { name: string }) => p.name)).toEqual(['13 Kegs LLC', 'Morgan Family Trust']);
     const body = await ready('/portfolios/501', staff);
     expect(body.role).toBe('staff');
@@ -179,23 +201,18 @@ describe.skipIf(!url)('portal over HTTP', () => {
     expect(body.portfolio.homes[0].photo).toBe('/api/portal/portfolios/501/photo/11');
   });
 
-  it('invites an owner who then sees only their portfolio, with tenants as initials', async () => {
-    const inv = await (await post('/invites', { email: 'andrew@example.com', portfolioId: '501', role: 'owner' }, staff)).json() as { link: string };
-    expect(inv.link.startsWith(`${ORIGIN}/portfolio/invite#`)).toBe(true);
-    const token = inv.link.split('#')[1];
-    expect(await (await get(`/invites/peek?t=${token}`)).json()).toMatchObject({ email: 'andrew@example.com', existing: false });
-    const acc = await post('/invites/accept', { token, name: 'Andrew Morgan', password: 'owner password here' });
-    expect(acc.status).toBe(200);
-    owner = cookieOf(acc);
-    expect((await post('/invites/accept', { token, name: 'Again', password: 'owner password here' })).status).toBe(404);
-    expect(await (await get('/me', owner)).json()).toMatchObject({ portfolios: [{ id: '501', role: 'owner' }] });
-
+  it('signs an owner in with the email Rentvine has, and shows only their portfolio', async () => {
+    owner = await signIn('Andrew@Example.com');
+    expect(sent.at(-1)!.name).toBe('Andrew Morgan');
+    expect(await (await get('/me', owner)).json()).toMatchObject({ user: { name: 'Andrew Morgan', staff: false }, portfolios: [{ id: '501', role: 'owner' }] });
     const mine = await ready('/portfolios/501', owner);
     expect(mine.portfolio.homes[0].units[0].lease.tenants).toEqual(['Jordan P.']);
     expect(mine.portfolio.contacts).toBeUndefined();
     expect((await get('/portfolios/502', owner)).status).toBe(403);
     expect((await get('/catalog', owner)).status).toBe(403);
     expect((await post('/portfolios/501/refresh', {}, owner)).status).toBe(403);
+    const people = await (await get('/portfolios/501/members', owner)).json() as { owners: { email: string | null }[] };
+    expect(people.owners[0].email).toBeNull(); // owners' emails are for staff only
   });
 
   it('serves the photo from cdn.rentvine.com only, to people on the portfolio', async () => {
@@ -203,14 +220,14 @@ describe.skipIf(!url)('portal over HTTP', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('image/jpeg');
     expect(imageFetches).toEqual(['https://cdn.rentvine.com/photos/412.jpg']);
-    expect((await get('/portfolios/501/photo/12', owner)).status).toBe(404); // no listing photo
+    expect((await get('/portfolios/501/photo/12', owner)).status).toBe(404);
     expect((await get('/portfolios/501/photo/11')).status).toBe(401);
   });
 
-  it('lets an owner add an accountant, who gets money and papers but no tenants', async () => {
-    const inv = await (await post('/invites', { email: 'dana@cpa.example', portfolioId: '501', role: 'accountant' }, owner)).json() as { link: string };
-    const acc = await post('/invites/accept', { token: inv.link.split('#')[1], name: 'Dana', password: 'accountant password' });
-    accountant = cookieOf(acc);
+  it('lets an owner add an accountant, who signs in and gets money and papers but no tenants', async () => {
+    expect((await post('/portfolios/501/members/add', { email: 'dana@cpa.example', role: 'accountant' }, owner)).status).toBe(200);
+    expect((await post('/portfolios/501/members/add', { email: 'x@y.example', role: 'prospect' }, owner)).status).toBe(400);
+    accountant = await signIn('dana@cpa.example');
     const view = await ready('/portfolios/501', accountant);
     expect(view.role).toBe('accountant');
     expect(view.portfolio.homes).toEqual([]);
@@ -220,14 +237,21 @@ describe.skipIf(!url)('portal over HTTP', () => {
     expect((await get('/portfolios/501/files/900', accountant)).status).toBe(200);
     expect((await get('/portfolios/501/statements/77', accountant)).status).toBe(200);
     expect((await get('/portfolios/501/statements/78', accountant)).status).toBe(404);
-    expect((await post('/invites', { email: 'x@y.example', portfolioId: '501', role: 'owner' }, accountant)).status).toBe(403);
+    expect((await post('/portfolios/501/members/add', { email: 'z@y.example', role: 'owner' }, accountant)).status).toBe(403);
   });
 
-  it('removes a member and signs out', async () => {
+  it('removes a member, locks a disabled account out, and signs out', async () => {
     expect((await post('/portfolios/501/members/remove', { email: 'dana@cpa.example' }, owner)).status).toBe(200);
     expect((await get('/portfolios/501', accountant)).status).toBe(403);
-    expect((await post('/logout', {}, owner)).status).toBe(200);
+    const before = sent.length;
+    await post('/login/start', { email: 'dana@cpa.example' });
+    expect(sent.length).toBe(before); // no longer on any portfolio: no code
+    await sql`UPDATE portal_user SET disabled_at = now() WHERE email = 'andrew@example.com'`;
     expect(await (await get('/me', owner)).json()).toEqual({ user: null });
+    await post('/login/start', { email: 'andrew@example.com' });
+    expect(sent.length).toBe(before);
+    expect((await post('/logout', {}, staff)).status).toBe(200);
+    expect(await (await get('/me', staff)).json()).toEqual({ user: null });
     const denied = await sql`SELECT count(*)::int AS n FROM portal_audit WHERE action = 'denied'`;
     expect(denied[0].n).toBeGreaterThan(0);
   });

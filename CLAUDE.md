@@ -11,3 +11,9 @@ done from here:
 - Never edit files in a local clone of it. Cloning and reading it to learn how it
   talks to Rentvine, LeadSimple, ClickUp, Zillow and the other tools is allowed.
 - Anything learned from it gets built here, in this repository.
+
+## Merging pull requests
+
+Youssef's standing instruction (2026-11-16): once a pull request's checks
+pass (lint, tests, build, CI), merge it yourself (squash) without waiting to
+be asked. Never merge with failing checks.

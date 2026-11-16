@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowUpRight, Check, Copy, Search, UserMinus } from 'lucide-react';
+import { ArrowUpRight, Search, UserMinus } from 'lucide-react';
 import { ROLE_LABEL, type Permission, type Role } from './access';
 import type { Home, Portfolio } from './data';
 import { Frame, type MenuItem } from './Frame';
@@ -45,15 +45,13 @@ export default function RealPortfolio() {
 
   useEffect(() => { document.title = 'Owner portfolio · Westrom Group'; }, [path]);
 
-  if (path === '/portfolio/setup') return <Setup onDone={() => { reload(); navigate('/portfolio'); }} />;
-  if (path === '/portfolio/invite') return <Invite onDone={(pid) => { reload(); navigate(pid ? `/portfolio/${pid}` : '/portfolio'); }} />;
   if (!me) return <Frame label="Owner portfolio"><Waiting title={<>One moment.</>} /></Frame>;
   if (!me.user) return <SignIn onDone={reload} />;
 
   const signOut = async () => { await call('/logout', {}); setMe({ user: null }); navigate('/portfolio'); };
   const who = { name: me.user.name, role: me.user.staff ? 'Westrom Group staff' : undefined };
 
-  if (id && id !== 'setup' && id !== 'invite') return <PortfolioPage id={id} me={me} who={who} onSignOut={signOut} />;
+  if (id) return <PortfolioPage id={id} me={me} who={who} onSignOut={signOut} />;
   if (me.user.staff) return <StaffPicker who={who} onSignOut={signOut} />;
   const mine = me.portfolios ?? [];
   if (mine.length === 1) { navigate(`/portfolio/${mine[0].id}`, { replace: true }); return null; }
@@ -109,91 +107,57 @@ function Field({ id, label, ...rest }: { id: string; label: string } & React.Inp
 }
 
 function SignIn({ onDone }: { onDone: () => void }) {
+  const [email, setEmail] = useState('');
+  const [step, setStep] = useState<'email' | 'code'>('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [setupNeeded, setSetupNeeded] = useState(false);
-  useEffect(() => { void call<{ needed: boolean }>('/setup').then((r) => r.ok && setSetupNeeded(r.data.needed)); }, []);
-  const submit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const start = async (e?: FormEvent<HTMLFormElement>) => {
+    e?.preventDefault();
     setBusy(true); setError(null);
-    const r = await call('/login', { email: f.get('email'), password: f.get('password') });
+    const r = await call<{ message: string }>('/login/start', { email });
+    setBusy(false);
+    if (!r.ok) { setError(r.error); return; }
+    setNotice(r.data.message);
+    setStep('code');
+  };
+  const verify = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const code = String(new FormData(e.currentTarget).get('code') ?? '');
+    setBusy(true); setError(null);
+    const r = await call('/login/verify', { email, code });
     setBusy(false);
     if (r.ok) onDone(); else setError(r.error);
   };
-  return (
-    <AuthLayout kicker="Westrom Group · Owner portfolio" title={<>Your homes, <em>one sign-in away.</em></>}>
-      <form className="pf-form" onSubmit={submit}>
-        <Field id="email" label="Email" type="email" autoComplete="username" required />
-        <Field id="password" label="Password" type="password" autoComplete="current-password" required />
-        {error && <p className="pf-alert" role="alert">{error}</p>}
-        <button className="pf-btn is-red" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-      </form>
-      <p className="pf-auth-note">New here? Open the invite link Westrom Group sent you. Forgot your password? Ask your property manager for a new link.</p>
-      {setupNeeded && <p className="pf-auth-note"><a className="pf-link" href="/portfolio/setup">First-time setup for Westrom Group staff <ArrowUpRight aria-hidden /></a></p>}
-    </AuthLayout>
-  );
-}
 
-function Setup({ onDone }: { onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const submit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    if (f.get('password') !== f.get('password2')) { setError('The two passwords are different.'); return; }
-    setBusy(true); setError(null);
-    const r = await call('/setup', { code: f.get('code'), name: f.get('name'), email: f.get('email'), password: f.get('password') });
-    setBusy(false);
-    if (r.ok) onDone(); else setError(r.error);
-  };
+  if (step === 'code') {
+    return (
+      <AuthLayout kicker={`Code sent to ${email}`} title={<>Check <em>your email.</em></>}>
+        <p className="pf-auth-note">{notice}</p>
+        <form className="pf-form" onSubmit={verify}>
+          <label className="pf-field" htmlFor="code">
+            <span>6-digit code</span>
+            <input id="code" name="code" className="pf-input pf-code" inputMode="numeric" autoComplete="one-time-code"
+              pattern="[0-9 ]{6,7}" maxLength={7} placeholder="000 000" required autoFocus />
+          </label>
+          {error && <p className="pf-alert" role="alert">{error}</p>}
+          <button className="pf-btn is-red" disabled={busy}>{busy ? 'Checking…' : 'Sign in'}</button>
+        </form>
+        <p className="pf-auth-note">
+          No email after two minutes? Check spam, then <button className="pf-link" onClick={() => void start()}>send a new code</button> or <button className="pf-link" onClick={() => { setStep('email'); setError(null); }}>use another email</button>.
+        </p>
+      </AuthLayout>
+    );
+  }
   return (
-    <AuthLayout kicker="First-time setup" title={<>Make the <em>first staff account.</em></>}>
-      <p className="pf-auth-note">The setup code is the <b>portal_setup_code</b> row in the app_secret table, in Railway’s database view. It works once, for the first account; everyone after that joins by invite.</p>
-      <form className="pf-form" onSubmit={submit}>
-        <Field id="code" label="Setup code" autoComplete="off" required />
-        <Field id="name" label="Your name" autoComplete="name" required />
-        <Field id="email" label="Work email (westromgroup.com)" type="email" autoComplete="username" required />
-        <Field id="password" label="Password (10 characters or more)" type="password" autoComplete="new-password" minLength={10} required />
-        <Field id="password2" label="Password again" type="password" autoComplete="new-password" minLength={10} required />
+    <AuthLayout kicker="Westrom Group · Owner portfolio" title={<>Your homes, <em>one email away.</em></>}>
+      <form className="pf-form" onSubmit={start}>
+        <Field id="email" label="Your email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
         {error && <p className="pf-alert" role="alert">{error}</p>}
-        <button className="pf-btn is-red" disabled={busy}>{busy ? 'Creating…' : 'Create the account'}</button>
+        <button className="pf-btn is-red" disabled={busy}>{busy ? 'Sending…' : 'Email me a code'}</button>
       </form>
-    </AuthLayout>
-  );
-}
-
-function Invite({ onDone }: { onDone: (portfolioId: string | null) => void }) {
-  const token = useMemo(() => window.location.hash.replace(/^#/, ''), []);
-  const [info, setInfo] = useState<{ email: string; existing: boolean } | { error: string } | null>(
-    () => (token ? null : { error: 'This link is missing its code. Open the full link from your email.' }));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!token) return;
-    void call<{ email: string; existing: boolean }>(`/invites/peek?t=${encodeURIComponent(token)}`).then((r) => setInfo(r.ok ? r.data : { error: r.error }));
-  }, [token]);
-  const submit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    if (info && 'email' in info && !info.existing && f.get('password') !== f.get('password2')) { setError('The two passwords are different.'); return; }
-    setBusy(true); setError(null);
-    const r = await call<{ portfolioId: string | null }>('/invites/accept', { token, name: f.get('name'), password: f.get('password') });
-    setBusy(false);
-    if (r.ok) { history.replaceState(null, '', '/portfolio'); onDone(r.data.portfolioId); } else setError(r.error);
-  };
-  if (!info) return <Frame label="Owner portfolio"><Waiting title={<>Opening your invite.</>} /></Frame>;
-  if ('error' in info) return <AuthLayout kicker="Invite" title={<>This link <em>has expired.</em></>}><p className="pf-lede">{info.error}</p></AuthLayout>;
-  return (
-    <AuthLayout kicker={`Invite for ${info.email}`} title={info.existing ? <>Add this portfolio <em>to your account.</em></> : <>Welcome to <em>Westrom Group.</em></>}>
-      <form className="pf-form" onSubmit={submit}>
-        {!info.existing && <Field id="name" label="Your name" autoComplete="name" required />}
-        <Field id="password" label={info.existing ? 'Your password' : 'Choose a password (10 characters or more)'} type="password"
-          autoComplete={info.existing ? 'current-password' : 'new-password'} minLength={info.existing ? undefined : 10} required />
-        {!info.existing && <Field id="password2" label="Password again" type="password" autoComplete="new-password" minLength={10} required />}
-        {error && <p className="pf-alert" role="alert">{error}</p>}
-        <button className="pf-btn is-red" disabled={busy}>{busy ? 'One moment…' : info.existing ? 'Add it' : 'Open my portfolio'}</button>
-      </form>
+      <p className="pf-auth-note">Use the email Westrom Group has for you. We send a 6-digit code; there is no password to remember.</p>
     </AuthLayout>
   );
 }
@@ -232,7 +196,7 @@ function StaffPicker({ who, onSignOut }: { who: { name: string; role?: string };
   }, []);
   const shown = (cat?.portfolios ?? []).filter((p) => !q || `${p.name} ${p.cities.join(' ')}`.toLowerCase().includes(q.toLowerCase()));
   return (
-    <Frame label="Owner portfolio" who={who} menu={[{ label: 'Invite a teammate', href: '#team' }, { label: 'Sign out', onClick: onSignOut }]} watchKey={String(cat?.portfolios.length)}>
+    <Frame label="Owner portfolio" who={who} menu={[{ label: 'Sign out', onClick: onSignOut }]} watchKey={String(cat?.portfolios.length)}>
       <section className="pf-chapter pf-picker" data-tone="paper" id="top">
         <Reveal className="pf-chapter-in">
           <p className="pf-kicker">Westrom Group staff</p>
@@ -257,13 +221,6 @@ function StaffPicker({ who, onSignOut }: { who: { name: string; role?: string };
               {shown.length > 60 && <p className="pf-muted pf-small">Showing 60 of {shown.length}. Search to narrow it down.</p>}
             </>
           )}
-        </Reveal>
-      </section>
-      <section className="pf-chapter" data-tone="paper" id="team">
-        <Reveal className="pf-chapter-in">
-          <p className="pf-kicker">Team</p>
-          <h2 className="pf-title">Invite <em>a teammate.</em></h2>
-          <InviteForm staff />
         </Reveal>
       </section>
     </Frame>
@@ -368,92 +325,69 @@ function PortfolioPage({ id, me, who, onSignOut }: { id: string; me: Me; who: { 
 
 /* ── People and invites ──────────────────────────────── */
 
-function InviteForm({ portfolioId, staff = false, roles = [], prefill = '' }: { portfolioId?: string; staff?: boolean; roles?: Role[]; prefill?: string }) {
-  const [link, setLink] = useState<string | null>(null);
+function AddPerson({ portfolioId, roles, onAdded }: { portfolioId: string; roles: Role[]; onAdded: () => void }) {
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [email, setEmail] = useState(prefill);
+  const [done, setDone] = useState<string | null>(null);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    setError(null); setLink(null); setCopied(false);
-    const r = await call<{ link: string }>('/invites', staff ? { email, staff: true } : { email, portfolioId, role: f.get('role') });
-    if (r.ok) setLink(r.data.link); else setError(r.error);
-  };
-  const copy = async () => {
-    if (!link) return;
-    try { await navigator.clipboard.writeText(link); setCopied(true); } catch { setCopied(false); }
+    const form = e.currentTarget;
+    const f = new FormData(form);
+    setError(null); setDone(null);
+    const r = await call(`/portfolios/${portfolioId}/members/add`, { email: f.get('email'), role: f.get('role') });
+    if (!r.ok) { setError(r.error); return; }
+    setDone(String(f.get('email')));
+    form.reset();
+    onAdded();
   };
   return (
     <form className="pf-invite" onSubmit={submit}>
       <div className="pf-invite-row">
-        <Field id={staff ? 'team-email' : 'invite-email'} label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        {!staff && (
-          <label className="pf-field" htmlFor="invite-role">
-            <span>Access</span>
-            <select id="invite-role" name="role" className="pf-input" defaultValue={roles[0]}>
-              {roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-            </select>
-          </label>
-        )}
-        <button className="pf-btn">Create invite link</button>
+        <Field id="add-email" name="email" label="Their email" type="email" required />
+        <label className="pf-field" htmlFor="add-role">
+          <span>Access</span>
+          <select id="add-role" name="role" className="pf-input" defaultValue={roles[0]}>
+            {roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+          </select>
+        </label>
+        <button className="pf-btn">Add</button>
       </div>
       {error && <p className="pf-alert" role="alert">{error}</p>}
-      {link && (
-        <div className="pf-linkbox">
-          <p>Send this link to <b>{email}</b> from your own email. It works once, for 7 days.</p>
-          <div><code className="pf-select">{link}</code><button type="button" className="pf-icon" onClick={copy} aria-label="Copy link">{copied ? <Check /> : <Copy />}</button></div>
-        </div>
-      )}
+      {done && <p className="pf-linkbox">Added. <b>{done}</b> can now sign in at wgcassetguide.com/portfolio with that email; they get a code by email.</p>}
     </form>
   );
 }
 
 function RealAccess({ portfolio, role, perms }: { portfolio: Portfolio; role: Role; perms: ReadonlySet<Permission> }) {
-  const [data, setData] = useState<{ members: { email: string; name: string; role: Role }[]; invites: { email: string; role: Role; expires_at: string }[] } | null>(null);
-  const [prefill, setPrefill] = useState('');
+  type People = { owners: { name: string; share: number | null; onFile: boolean; email: string | null }[]; members: { email: string; name: string; role: Role }[] };
+  const [data, setData] = useState<People | null>(null);
   const [tick, setTick] = useState(0);
-  useEffect(() => { void call<NonNullable<typeof data>>(`/portfolios/${portfolio.id}/members`).then((r) => r.ok && setData(r.data)); }, [portfolio.id, tick]);
+  useEffect(() => { void call<People>(`/portfolios/${portfolio.id}/members`).then((r) => r.ok && setData(r.data)); }, [portfolio.id, tick]);
   const manage = perms.has('members:manage');
-  const roles: Role[] = role === 'staff' ? ['owner', 'accountant', 'prospect'] : ['accountant', 'owner'];
+  const roles: Role[] = role === 'staff' ? ['accountant', 'owner', 'prospect'] : ['accountant', 'owner'];
   const remove = async (email: string) => { await call(`/portfolios/${portfolio.id}/members/remove`, { email }); setTick((t) => t + 1); };
-  const onPortal = new Set((data?.members ?? []).map((m) => m.email));
   return (
     <section id="access" data-tone="paper" className="pf-chapter">
       <Reveal className="pf-chapter-in">
         <p className="pf-kicker">Access</p>
         <h2 className="pf-title">Who sees <em>this portfolio.</em></h2>
-        <p className="pf-lede">Co-owners share it. An accountant sees the money and the papers, never the tenants. Nobody opens a portfolio they are not on.</p>
+        <p className="pf-lede">Owners sign in with the email Westrom Group has on file for them. Add your accountant and they see the money and the papers, never the tenants.</p>
         <div className="pf-access">
           <ul className="pf-members">
+            {(data?.owners ?? []).map((o) => (
+              <li key={o.name}>
+                <b>{o.name}{o.share != null && <span className="pf-muted"> · {o.share}%</span>}</b>
+                <span>Owner{role === 'staff' ? ` · ${o.email ?? 'no email in Rentvine, so no sign-in yet'}` : o.onFile ? '' : ' · ask Westrom Group to add your email'}</span>
+              </li>
+            ))}
             {(data?.members ?? []).map((m) => (
               <li key={m.email}>
-                <b>{m.name} · {m.email}</b><span>{ROLE_LABEL[m.role]}</span>
+                <b>{m.email}</b><span>{ROLE_LABEL[m.role]}, added here</span>
                 {manage && <button className="pf-link pf-remove" onClick={() => remove(m.email)}><UserMinus aria-hidden /> Remove</button>}
               </li>
             ))}
-            {(data?.invites ?? []).map((i) => <li key={`i-${i.email}`}><b>{i.email}</b><span>Invited as {ROLE_LABEL[i.role].toLowerCase()}, waiting</span></li>)}
             <li><b>Your Westrom Group team</b><span>Staff</span></li>
           </ul>
-          <div>
-            {manage && <InviteForm key={prefill} portfolioId={portfolio.id} roles={roles} prefill={prefill} />}
-            {role === 'staff' && portfolio.contacts && portfolio.contacts.length > 0 && (
-              <div className="pf-contacts">
-                <p className="pf-kicker">Owners in Rentvine</p>
-                <ul className="pf-rows">
-                  {portfolio.contacts.map((c) => (
-                    <li key={`${c.name}-${c.email}`}>
-                      <span>{c.name}{c.share != null && <span className="pf-muted"> · {c.share}%</span>}</span>
-                      <span className="pf-muted">{c.email ?? 'No email in Rentvine'}</span>
-                      {c.email && !onPortal.has(c.email)
-                        ? <button className="pf-link" onClick={() => setPrefill(c.email!)}>Invite</button>
-                        : <span className="pf-muted">{c.email ? 'On the portal' : ''}</span>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
+          <div>{manage && <AddPerson portfolioId={portfolio.id} roles={roles} onAdded={() => setTick((t) => t + 1)} />}</div>
         </div>
       </Reveal>
     </section>

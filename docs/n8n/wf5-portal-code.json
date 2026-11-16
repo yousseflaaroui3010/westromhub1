@@ -1,0 +1,185 @@
+{
+  "name": "WF-5 Portal sign-in code",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "d043c102d78e/portal-code",
+        "responseMode": "responseNode",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "id": "b5f0c0a1-5e1f-4a59-9a0e-portal000001",
+      "name": "POST /portal-code",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "wf5-portal-code",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WGC gateway"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// WF-5: email a Westrom Group owner-portal sign-in code.\n// Called only by the wgcassetguide.com API (/api/portal/login/start), which\n// decides who may get a code. The webhook node requires the \"WGC gateway\"\n// Header Auth credential (X-WGC-Gateway), the same one WF-0 and WF-1 use.\n// Sends nothing unless the payload is exactly { email, code(6 digits), name?, minutes }.\nconst crypto = require('crypto');\nconst body = $json.body || {};\nconst headers = $json.headers || {};\nconst GW = $env.WGC_GATEWAY_SECRET || '';\nif (GW) {\n  const got = Buffer.from(String(headers['x-wgc-gateway'] || ''), 'utf8');\n  const exp = Buffer.from(GW, 'utf8');\n  if (got.length !== exp.length || !crypto.timingSafeEqual(got, exp)) return [{ json: { reject: true } }];\n}\nconst email = String(body.email || '').trim().toLowerCase();\nconst code = String(body.code || '');\nconst minutes = Math.min(30, Math.max(1, Number(body.minutes) || 10));\nconst name = String(body.name || '').replace(/[<>&\"]/g, '').trim().slice(0, 80);\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254 || !/^\\d{6}$/.test(code)) return [{ json: { reject: true } }];\nconst first = name ? name.split(' ')[0] : '';\nconst spaced = code.slice(0, 3) + ' ' + code.slice(3);\nconst html = '<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Your sign-in code</title></head>' +\n  '<body style=\"margin:0;padding:0;background:#f2efe7;font-family:Helvetica,Arial,sans-serif;color:#16171a\">' +\n  '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f2efe7\"><tr><td align=\"center\" style=\"padding:40px 16px\">' +\n  '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:520px;background:#ffffff;border:1px solid #e3ddd0\">' +\n  '<tr><td style=\"padding:32px 32px 8px;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#85827a\">Westrom Group \u00b7 Owner portfolio</td></tr>' +\n  '<tr><td style=\"padding:8px 32px 0;font-family:Georgia,serif;font-size:28px;line-height:1.2\">' + (first ? 'Hello ' + first + ',' : 'Hello,') + '</td></tr>' +\n  '<tr><td style=\"padding:16px 32px 0;font-size:16px;line-height:1.6;color:#4b4c50\">Here is your code to sign in to your owner portfolio. It works for ' + minutes + ' minutes.</td></tr>' +\n  '<tr><td style=\"padding:24px 32px\"><div style=\"font-family:Georgia,serif;font-size:44px;letter-spacing:10px;color:#a8170f\">' + spaced + '</div></td></tr>' +\n  '<tr><td style=\"padding:0 32px 32px;font-size:14px;line-height:1.6;color:#85827a\">If you did not ask for this code, you can ignore this email; nobody can sign in without it. Questions: (817) 445-1108.</td></tr>' +\n  '</table></td></tr></table></body></html>';\nconst text = (first ? 'Hello ' + first + ',' : 'Hello,') + '\\n\\nYour Westrom Group owner portfolio sign-in code is ' + spaced + '.\\nIt works for ' + minutes + ' minutes.\\n\\nIf you did not ask for this code, you can ignore this email.\\nWestrom Group, (817) 445-1108';\nreturn [{ json: { reject: false, email, name, subject: 'Your Westrom Group sign-in code: ' + spaced, html, text } }];\n"
+      },
+      "id": "b5f0c0a1-5e1f-4a59-9a0e-portal000002",
+      "name": "Check and build email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.reject }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "b5f0c0a1-5e1f-4a59-9a0e-portal000003",
+      "name": "Rejected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "b5f0c0a1-5e1f-4a59-9a0e-portal000004",
+      "name": "Respond rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "={{ $env.BREVO_API_KEY }}"
+            },
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sender: { email: $env.MAIL_FROM, name: \"Westrom Group\" }, to: [{ email: $json.email, name: $json.name || undefined }], subject: $json.subject, htmlContent: $json.html, textContent: $json.text, tags: [\"portal-sign-in\"] }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b5f0c0a1-5e1f-4a59-9a0e-portal000005",
+      "name": "Send code (Brevo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true } }}",
+        "options": {}
+      },
+      "id": "b5f0c0a1-5e1f-4a59-9a0e-portal000006",
+      "name": "Respond sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "POST /portal-code": {
+      "main": [
+        [
+          {
+            "node": "Check and build email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check and build email": {
+      "main": [
+        [
+          {
+            "node": "Rejected?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rejected?": {
+      "main": [
+        [
+          {
+            "node": "Respond rejected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send code (Brevo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send code (Brevo)": {
+      "main": [
+        [
+          {
+            "node": "Respond sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all"
+  }
+}
