@@ -192,6 +192,16 @@ stays a demo with invented data and no server calls.
   portal_session`. The tables `portal_invite` and `portal_user.password_hash`
   are left from the first version and unused.
 
+
+**Home pictures added by staff.** When Rentvine has no picture of a home, staff
+(and only staff) can add one from the home's panel: `POST
+/api/portal/portfolios/{id}/photo/{home}` with the image as the body. The API
+checks the staff role, the Origin header, that the home is on that portfolio,
+the size (8 MB; nginx allows 9 MB on that path only) and the image type by its
+first bytes (JPEG, PNG, WebP, GIF). The picture is stored in `portal_photo`,
+shown before Rentvine's, served only to people on the portfolio, and every add
+or remove is written to `portal_audit`.
+
 ## Two API copies, shared limits, uptime alert (2026-11-12)
 
 The API runs as two always-on replicas behind Railway's edge, so a crash or

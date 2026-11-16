@@ -249,6 +249,27 @@ describe.skipIf(!url)('portal over HTTP', () => {
     expect((await get('/portfolios/501/photo/11')).status).toBe(401);
   });
 
+  it('lets staff add the real picture of a home, shown before Rentvine\'s, and nobody else', async () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 9, 9, 9]);
+    const send = (path: string, body: BodyInit, cookie: string, origin: string | null = ORIGIN) => app.request(`/api/portal${path}`, {
+      method: 'POST', body, headers: { 'content-type': 'image/jpeg', ...(origin ? { origin } : {}), cookie },
+    });
+    expect((await send('/portfolios/501/photo/11', jpeg, owner)).status).toBe(403);
+    expect((await send('/portfolios/501/photo/11', jpeg, staff, null)).status).toBe(403);
+    expect((await send('/portfolios/501/photo/11', new TextEncoder().encode('%PDF-1.7'), staff)).status).toBe(400);
+    expect((await send('/portfolios/501/photo/13', jpeg, staff)).status).toBe(404); // another portfolio's home
+    expect((await send('/portfolios/501/photo/11', new Uint8Array(9 * 1024 * 1024), staff)).status).toBe(413);
+    expect((await send('/portfolios/501/photo/11', jpeg, staff)).status).toBe(200);
+    const pic = await get('/portfolios/501/photo/11', owner);
+    expect(pic.headers.get('content-type')).toBe('image/jpeg');
+    expect(new Uint8Array(await pic.arrayBuffer())).toEqual(jpeg);
+    const view = await ready('/portfolios/501', owner);
+    expect(view.portfolio.homes[0].photo).toMatch(/^\/api\/portal\/portfolios\/501\/photo\/11\?v=\d+$/);
+    expect((await post('/portfolios/501/photo/11/remove', {}, owner)).status).toBe(403);
+    expect((await post('/portfolios/501/photo/11/remove', {}, staff)).status).toBe(200);
+    expect((await ready('/portfolios/501', owner)).portfolio.homes[0].photo).toBe('/api/portal/portfolios/501/photo/11');
+  });
+
   it('lets an owner add an accountant, who signs in and gets money and papers but no tenants', async () => {
     expect((await post('/portfolios/501/members/add', { email: 'dana@cpa.example', role: 'accountant' }, owner)).status).toBe(200);
     expect((await post('/portfolios/501/members/add', { email: 'x@y.example', role: 'prospect' }, owner)).status).toBe(400);
