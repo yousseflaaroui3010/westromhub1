@@ -21,7 +21,7 @@ import { getClientIp } from '../security/clientIp';
 import type { CounterStore } from '../security/store';
 import { permissions, type MemberRole, type Permission, type Role } from './access';
 import { codeHash, newToken, normEmail, sixDigitCode, tokenHash } from './crypto';
-import { buildPortfolio, catalog, loadLists, RENTVINE_CDN, type CatalogEntry, type Estimator, type Lists, type PortfolioData, type RvApi } from './rentvine';
+import { buildPortfolio, catalog, loadLists, RENTVINE_CDN, SNAPSHOT_VERSION, type CatalogEntry, type Estimator, type Lists, type PortfolioData, type RvApi } from './rentvine';
 import { viewFor } from './view';
 
 export interface PortalDeps {
@@ -48,6 +48,16 @@ const LISTS_FRESH_MS = 6 * 3600_000;
 const SNAPSHOT_FRESH_MS = 24 * 3600_000;
 const MAX_IMAGE = 15 * 1024 * 1024;
 
+/** The picture's type from its first bytes (Rentvine's downloads do not always say). */
+export function imageType(b: Uint8Array): string | null {
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return 'image/gif';
+  if (String.fromCharCode(...b.slice(0, 4)) === 'RIFF' && String.fromCharCode(...b.slice(8, 12)) === 'WEBP') return 'image/webp';
+  return null;
+}
+
+
 interface User { id: string; email: string; name: string; staff: boolean }
 type Env = { Variables: { user: User | null } };
 
@@ -55,6 +65,8 @@ const PERMS_OF = (role: Role | null) => [...permissions(role)];
 
 export function portalRoutes(deps: PortalDeps) {
   const { sql, store } = deps;
+  // Pictures read through the Rentvine API (not the CDN), kept in memory so a page view costs no extra Rentvine calls.
+  const photoCache = new Map<string, { bytes: ArrayBuffer; type: string }>();
   const now = deps.now ?? Date.now;
   const fetchImpl = deps.fetchImpl ?? fetch;
   const staffDomains = (deps.staffDomains ?? ['westromgroup.com']).map((d) => d.toLowerCase());
@@ -306,7 +318,7 @@ export function portalRoutes(deps: PortalDeps) {
       if (!snap || snap.state !== 'building') rebuild(id);
       return c.json({ state: snap?.state === 'error' ? 'error' : 'building', error: snap?.state === 'error' ? snap.error : null, role: shown, permissions: PERMS_OF(shown), preview });
     }
-    if (snap.state !== 'building' && snap.fetched_at && now() - snap.fetched_at.getTime() > SNAPSHOT_FRESH_MS) rebuild(id);
+    if (snap.state !== 'building' && snap.fetched_at && (now() - snap.fetched_at.getTime() > SNAPSHOT_FRESH_MS || snap.data?.v !== SNAPSHOT_VERSION)) rebuild(id);
     await audit(c, preview ? `preview_${preview}` : 'view', user.id, id);
     return c.json({
       state: snap.state === 'building' ? 'refreshing' : 'ready', role: shown, permissions: PERMS_OF(shown), fetchedAt: snap.fetched_at, preview,
@@ -325,6 +337,27 @@ export function portalRoutes(deps: PortalDeps) {
     const g = await gate(c, 'homes:view'); if ('fail' in g) return g.fail;
     const home = (await snapshot(g.id))?.data?.homes.find((h) => h.id === c.req.param('home'));
     const url = home?.photoUrl;
+    const file = home?.photoFile;
+    if (!url && file && /^\d{1,12}$/.test(file.id)) {
+      try {
+        const key = `${file.kind}:${file.id}`;
+        let hit = photoCache.get(key);
+        if (!hit) {
+          const api = await deps.rentvine();
+          if (!api) return apiError(c, 503, 'unavailable', 'Photos are not available right now.');
+          const got = await serial(() => api.download(file.kind === 'listing' ? `listings/files/${file.id}/preview` : `files/${file.id}/download`));
+          const type = imageType(new Uint8Array(got.bytes));
+          if (!type || got.bytes.byteLength > MAX_IMAGE) return apiError(c, 502, 'photo_failed', 'The photo did not load.');
+          hit = { bytes: got.bytes, type };
+          photoCache.set(key, hit);
+          if (photoCache.size > 120) photoCache.delete(photoCache.keys().next().value!);
+        }
+        return c.body(hit.bytes, 200, { 'Content-Type': hit.type, 'Cache-Control': 'private, max-age=86400' });
+      } catch (err) {
+        logFailure(c, 'portal_photo', err);
+        return apiError(c, 502, 'photo_failed', 'The photo did not load.');
+      }
+    }
     if (!url || !url.startsWith(RENTVINE_CDN)) return apiError(c, 404, 'not_found', 'No photo.');
     try {
       const res = await fetchImpl(url, { redirect: 'error', signal: AbortSignal.timeout(20_000) });

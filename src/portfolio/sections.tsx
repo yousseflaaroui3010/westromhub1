@@ -117,6 +117,11 @@ function useScrollProgress<T extends HTMLElement>() {
 
 type Piece = string | { em: string };
 
+/** Zillow's address search, built from the address alone (nothing is sent to Zillow until clicked). */
+const zillowUrl = (h: Home) => `https://www.zillow.com/homes/${encodeURIComponent(`${h.address} ${h.city} TX ${h.zip}`.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, ''))}_rb/`;
+
+const countyName = (c: string | null | undefined) => (c ?? '').replace(/\s+county$/i, '').trim();
+
 function Statement({ pieces }: { pieces: Piece[] }) {
   const ref = useScrollProgress<HTMLParagraphElement>();
   const words: { text: string; em: boolean }[] = [];
@@ -127,7 +132,7 @@ function Statement({ pieces }: { pieces: Piece[] }) {
   return (
     <p ref={ref} className="pf-statement" style={{ ['--n' as string]: words.length }}>
       {words.map((w, i) => (
-        <span key={i} className={w.em ? 'is-em' : ''} style={{ ['--w' as string]: i }}>{w.text} </span>
+        <span key={i} className={w.em ? (/\d/.test(w.text) ? 'is-em is-num' : 'is-em') : ''} style={{ ['--w' as string]: i }}>{w.text} </span>
       ))}
     </p>
   );
@@ -135,7 +140,8 @@ function Statement({ pieces }: { pieces: Piece[] }) {
 
 export function Manifesto({ portfolio, perms }: { portfolio: Portfolio; perms: Perms }) {
   const doors = portfolio.homes.reduce((s, h) => s + h.units.length, 0);
-  const counties = [...new Set(portfolio.homes.map((h) => h.county).filter(Boolean))];
+  // Rentvine sometimes stores "Tarrant County", sometimes "Tarrant".
+  const counties = [...new Set(portfolio.homes.map((h) => countyName(h.county)).filter(Boolean))];
   const cities = [...new Set(portfolio.homes.map((h) => h.city).filter(Boolean))];
   const rent = portfolio.homes.reduce((s, h) => s + homeRent(h), 0);
   const paid = portfolio.ledger.reduce((s, m) => s + m.paidCents, 0);
@@ -239,7 +245,7 @@ export function HomeDrawer({ home, portfolio, perms, onClose }: { home: Home; po
         <button ref={closeRef} className="pf-close" onClick={onClose} aria-label="Close"><X /></button>
         <HomePicture home={home} perms={perms} className="pf-drawer-pic" label="Move over the picture" />
         <div className="pf-drawer-body">
-          <p className="pf-kicker">{home.city}, Texas · {home.county} County</p>
+          <p className="pf-kicker">{home.city}, Texas{countyName(home.county) ? ` · ${countyName(home.county)} County` : ''}</p>
           <h3 className="pf-drawer-title">{home.address}</h3>
           <dl className="pf-facts">
             <div><dt>Bedrooms</dt><dd>{dash(home.beds)}</dd></div>
@@ -247,6 +253,10 @@ export function HomeDrawer({ home, portfolio, perms, onClose }: { home: Home; po
             <div><dt>Square feet</dt><dd>{dash(home.sqft, (n) => n.toLocaleString())}</dd></div>
             <div><dt>Built</dt><dd>{dash(home.yearBuilt)}</dd></div>
           </dl>
+          <p className="pf-links">
+            <a href={zillowUrl(home)} target="_blank" rel="noopener noreferrer">See it on Zillow</a>
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${home.address}, ${home.city}, TX ${home.zip}`)}`} target="_blank" rel="noopener noreferrer">Map</a>
+          </p>
           {home.hoa && <p className="pf-note">In {home.hoa}.</p>}
           {home.yearBuilt != null && home.yearBuilt < 1978 && <p className="pf-note">Built before 1978, so the lead-based paint addendum applies.</p>}
 

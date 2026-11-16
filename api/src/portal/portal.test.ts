@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import postgres from 'postgres';
 import { createApp } from '../app';
+import { imageType } from './routes';
 import { migrate, type Sql } from '../db';
 import { MemoryStore } from '../security/store';
 import { codeHash, sixDigitCode } from './crypto';
@@ -42,10 +43,16 @@ const fakeRentvine: RvApi & { download(path: string): Promise<{ bytes: ArrayBuff
     if (path === 'properties/listings/search') {
       return params.search === '412 Larkspur Bend' ? [{ unit: { unitID: 111 }, image: { large: 'https://cdn.rentvine.com/photos/412.jpg' } }] : [];
     }
+    // 2207 Mesquite Trail has no listing picture, only a photo on the unit's Files tab.
+    if (path === 'files/attachments/7/121') return [{ file: { fileID: 950, name: 'Front of house.JPG', objectID: 121, objectTypeID: 7 } }, { file: { fileID: 951, name: 'Lease.pdf', objectID: 121, objectTypeID: 7 } }];
     return [];
   },
   async pages(path) { calls.push(path); return (FIX[path] ?? []) as Record<string, unknown>[]; },
-  async download() { return { bytes: new TextEncoder().encode('%PDF-1.7').buffer as ArrayBuffer, type: 'application/pdf' }; },
+  async download(path) {
+    calls.push(path);
+    if (path === 'files/950/download') return { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2]).buffer as ArrayBuffer, type: 'application/octet-stream' };
+    return { bytes: new TextEncoder().encode('%PDF-1.7').buffer as ArrayBuffer, type: 'application/pdf' };
+  },
 };
 
 describe('portal pure parts', () => {
@@ -62,6 +69,11 @@ describe('portal pure parts', () => {
     expect(shortName('Ramirez Holdings LLC')).toBe('Ramirez');
   });
 
+  it('knows a picture by its first bytes', () => {
+    expect(imageType(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe('image/jpeg');
+    expect(imageType(new TextEncoder().encode('%PDF-1.7'))).toBeNull();
+  });
+
   it('keeps only files of the record asked for', () => {
     expect(parseFile({ file: { fileID: 1, name: 'a.pdf', objectID: 5, objectTypeID: 11 } }, '5', '11')).not.toBeNull();
     expect(parseFile({ file: { fileID: 2, name: 'b.pdf', objectID: 6, objectTypeID: 11 } }, '5', '11')).toBeNull();
@@ -73,6 +85,8 @@ describe('portal pure parts', () => {
     const data = await buildPortfolio(fakeRentvine, lists, '501', async () => ({ low: 2080, high: 2260 }));
     expect(data.homes).toHaveLength(2);
     expect(data.homes[0].photoUrl).toBe('https://cdn.rentvine.com/photos/412.jpg');
+    expect(data.homes[1]).toMatchObject({ photoUrl: null, photoFile: { kind: 'file', id: '950' } });
+    expect(data.v).toBe(2);
     expect(data.contacts[0].email).toBe('andrew@example.com');
     const now = Date.parse('2026-11-15T12:00:00Z');
 
@@ -226,7 +240,12 @@ describe.skipIf(!url)('portal over HTTP', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('image/jpeg');
     expect(imageFetches).toEqual(['https://cdn.rentvine.com/photos/412.jpg']);
-    expect((await get('/portfolios/501/photo/12', owner)).status).toBe(404);
+    const fromFiles = await get('/portfolios/501/photo/12', owner);
+    expect(fromFiles.status).toBe(200);
+    expect(fromFiles.headers.get('content-type')).toBe('image/jpeg');
+    await get('/portfolios/501/photo/12', owner);
+    expect(calls.filter((p) => p === 'files/950/download')).toHaveLength(1); // kept in memory
+    expect((await get('/portfolios/501/photo/99', owner)).status).toBe(404);
     expect((await get('/portfolios/501/photo/11')).status).toBe(401);
   });
 
