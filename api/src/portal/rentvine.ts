@@ -15,8 +15,34 @@ export interface RvApi {
   pages(path: string, params: Record<string, string>, maxPages: number): Promise<Obj[]>;
 }
 
+/** Raise when PortfolioData gains a field, so saved snapshots are read again. */
+export const SNAPSHOT_VERSION = 2;
+
 export const RENTVINE_CDN = 'https://cdn.rentvine.com/';
 const PORTFOLIO_TYPE = '11';
+// Rentvine object types (Rentvine support, as used by the deposit dashboard): a
+// single-family home keeps its files on the unit (7), others on the property (6).
+const UNIT_TYPE = '7', PROPERTY_TYPE = '6';
+const IMAGE_NAME = /\.(jpe?g|png|webp|gif|avif)$/i;
+
+/** The first picture among a record's files (folders and other records' files left out). */
+function firstImage(answer: unknown, objectId: string, objectType: string): string | null {
+  const list = Array.isArray(answer) ? answer as Obj[]
+    : ['contents', 'files', 'items', 'data'].map((k) => (answer as Obj | null)?.[k]).find(Array.isArray) as Obj[] | undefined ?? rows(answer);
+  for (const r of list) {
+    const f = parseFile(r, objectId, objectType);
+    const inner = (r.file ?? r.attachment ?? r) as Obj;
+    const kind = text(inner.type ?? inner.mimeType ?? inner.contentType).toLowerCase();
+    if (f && /^\d{1,12}$/.test(f.id) && (kind.startsWith('image/') || IMAGE_NAME.test(f.name))) return f.id;
+  }
+  return null;
+}
+
+/** One record's files: the attachments path first, the paths listing as the fallback (as the deposit dashboard reads them). */
+async function recordFiles(api: RvApi, objectId: string, objectType: string): Promise<unknown> {
+  try { return await api.get(`files/attachments/${objectType}/${encodeURIComponent(objectId)}`); }
+  catch { return api.get('paths/1/contents', { objectID: objectId, objectTypeID: objectType }); }
+}
 
 const text = (v: unknown): string => (v == null ? '' : String(v).trim());
 const num = (v: unknown): number | null => {
@@ -134,7 +160,9 @@ export interface PortfolioUnit {
 }
 export interface PortfolioHome {
   id: string; address: string; city: string; state: string; zip: string; county: string; yearBuilt: number | null;
-  units: PortfolioUnit[]; photoUrl: string | null; marketLowCents: number | null; marketHighCents: number | null;
+  units: PortfolioUnit[]; photoUrl: string | null;
+  /** When the listing has no primary picture: a picture from the listing's photos or the home's Files tab. */
+  photoFile?: { kind: 'listing' | 'file'; id: string } | null; marketLowCents: number | null; marketHighCents: number | null;
 }
 export interface PortfolioData {
   id: string; name: string; since: string | null;
@@ -143,6 +171,8 @@ export interface PortfolioData {
   statements: { id: string; from: string | null; to: string | null; incomeCents: number; expenseCents: number; paidCents: number; reserveCents: number | null }[];
   files: { id: string; name: string; created: string | null }[];
   notes: string[];
+  /** Shape version: an older snapshot is rebuilt on its next view. */
+  v?: number;
 }
 
 export type Estimator = (q: { zip: string; sqft: number; beds: string | null }) => Promise<{ low: number; high: number } | null>;
@@ -188,7 +218,11 @@ export async function buildPortfolio(api: RvApi, lists: Lists, portfolioId: stri
         lease: l ? { tenants: l.tenants, start: l.start, end: l.end, monthToMonth: l.monthToMonth, depositCents: l.depositCents ?? u.depositCents } : null,
       };
     });
+    // The home's picture, in the order the deposit dashboard looks: the listing's
+    // main picture, the listing's photos, then the unit's and property's Files.
     let photoUrl: string | null = null;
+    let photoFile: PortfolioHome['photoFile'] = null;
+    let listingId = '';
     try {
       const found = rows(await api.get('properties/listings/search', { search: street(p.address), pageSize: '25' }));
       const ids = new Set(units.map((u) => u.id));
@@ -196,7 +230,22 @@ export async function buildPortfolio(api: RvApi, lists: Lists, portfolioId: stri
       const img = (hit?.image ?? {}) as Obj;
       const url = text(img.large ?? img.medium ?? img.small);
       if (url.startsWith(RENTVINE_CDN)) photoUrl = url;
-    } catch { notes.push(`No listing photo for ${p.address}.`); }
+      listingId = text((hit?.listing as Obj | undefined)?.propertyListingID);
+    } catch { /* try the files below */ }
+    if (!photoUrl && /^\d{1,12}$/.test(listingId)) {
+      try {
+        const id = firstImage(await api.get(`listings/${listingId}/files`), '', '');
+        if (id) photoFile = { kind: 'listing', id };
+      } catch { /* next */ }
+    }
+    for (const [oid, otype] of [...units.map((u) => [u.id, UNIT_TYPE]), [p.id, PROPERTY_TYPE]]) {
+      if (photoUrl || photoFile) break;
+      try {
+        const id = firstImage(await recordFiles(api, oid, otype), oid, otype);
+        if (id) photoFile = { kind: 'file', id };
+      } catch { /* next */ }
+    }
+    if (!photoUrl && !photoFile) notes.push(`No picture in Rentvine for ${p.address}.`);
     let marketLowCents: number | null = null, marketHighCents: number | null = null;
     const first = units[0];
     if (estimate && first?.sqft && p.zip) {
@@ -205,7 +254,7 @@ export async function buildPortfolio(api: RvApi, lists: Lists, portfolioId: stri
         if (e) { marketLowCents = Math.round(e.low * 100); marketHighCents = Math.round(e.high * 100); }
       } catch { /* no estimate */ }
     }
-    homes.push({ id: p.id, address: p.address, city: p.city, state: p.state, zip: p.zip, county: p.county, yearBuilt: p.yearBuilt, units, photoUrl, marketLowCents, marketHighCents });
+    homes.push({ id: p.id, address: p.address, city: p.city, state: p.state, zip: p.zip, county: p.county, yearBuilt: p.yearBuilt, units, photoUrl, photoFile, marketLowCents, marketHighCents });
   }
 
   let statements: PortfolioData['statements'] = [];
@@ -226,6 +275,6 @@ export async function buildPortfolio(api: RvApi, lists: Lists, portfolioId: stri
   return {
     id: pf.id, name: pf.name, since,
     contacts: pf.contacts.map((c) => ({ name: c.name, email: emailOf.get(c.contactId) ?? null, share: c.share })),
-    homes, statements, files, notes,
+    homes, statements, files, notes, v: SNAPSHOT_VERSION,
   };
 }

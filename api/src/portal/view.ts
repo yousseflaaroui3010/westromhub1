@@ -62,7 +62,7 @@ export function viewFor(data: PortfolioData, role: Role, now = Date.now()) {
     const h32 = hash(h.id);
     return {
       id: h.id, address: h.address, city: h.city, zip: h.zip, county: h.county,
-      style: styleOf(h), palette: h32 % 5, photo: h.photoUrl ? photo(h.id) : undefined,
+      style: styleOf(h), palette: h32 % 5, photo: h.photoUrl || h.photoFile ? photo(h.id) : undefined,
       beds: first?.beds ?? null, baths: first?.baths ?? null, sqft: first?.sqft ?? null, yearBuilt: h.yearBuilt,
       hoa: null,
       marketLowCents: perms.has('market:view') ? h.marketLowCents : null,
