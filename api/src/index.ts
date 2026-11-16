@@ -139,14 +139,14 @@ async function main() {
       staffDomains: list(env.PORTAL_STAFF_DOMAINS, 'westromgroup.com'),
       // Street pictures for homes Rentvine has no picture of: Railway variable GOOGLE_MAPS_API_KEY
       // or app_secret google_maps_api_key (a Google Maps Platform key with the Street View Static API on).
-      // Maintenance requests (read only): Railway variables PROPERTYMELD_CLIENT_ID,
+      // Maintenance requests (read only): Railway variables PROPERTYMELD_CLIENT_ID (or PM_CLIENT_ID),
       // PROPERTYMELD_CLIENT_SECRET, PROPERTYMELD_MULTITENANT_ID, or app_secret
       // propertymeld_client_id / _client_secret / _multitenant_id (the deposit dashboard's API app).
       melds: propertyMeld(async () => {
         const [clientId, clientSecret, multitenantId] = await Promise.all([
-          env.PROPERTYMELD_CLIENT_ID || readSecret(sql, 'propertymeld_client_id'),
-          env.PROPERTYMELD_CLIENT_SECRET || readSecret(sql, 'propertymeld_client_secret'),
-          env.PROPERTYMELD_MULTITENANT_ID || readSecret(sql, 'propertymeld_multitenant_id'),
+          env.PROPERTYMELD_CLIENT_ID || env.PM_CLIENT_ID || readSecret(sql, 'propertymeld_client_id'),
+          env.PROPERTYMELD_CLIENT_SECRET || env.PM_CLIENT_SECRET || readSecret(sql, 'propertymeld_client_secret'),
+          env.PROPERTYMELD_MULTITENANT_ID || env.PM_MULTITENANT_ID || readSecret(sql, 'propertymeld_multitenant_id'),
         ]);
         return clientId && clientSecret && multitenantId ? { clientId, clientSecret, multitenantId } : null;
       }),

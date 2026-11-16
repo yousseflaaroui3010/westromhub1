@@ -134,7 +134,7 @@ describe('portal pure parts', () => {
     expect(data.homes).toHaveLength(2);
     expect(data.homes[0].photoUrl).toBe('https://cdn.rentvine.com/photos/412.jpg');
     expect(data.homes[1]).toMatchObject({ photoUrl: null, photoFile: { kind: 'file', id: '950' } });
-    expect(data.v).toBe(4);
+    expect(data.v).toBe(5);
     expect(calls).not.toContain('get properties/listings/search'); // one list call, no search per home
     expect(data.contacts[0].email).toBe('andrew@example.com');
     const now = Date.parse('2026-11-15T12:00:00Z');
