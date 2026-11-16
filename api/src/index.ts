@@ -7,6 +7,7 @@ import { httpExtractor } from './extractor';
 import { cachedSecret, getOrCreateSecret } from './security/secretStore';
 import { connect, migrate, readSecret, readSecretStrict, withRetry } from './db';
 import { rentvineClient } from './rentvine/sync';
+import { googleStreetView } from './portal/streetview';
 import { n8nCodeSender } from './portal/send';
 import { pgLeadStore, leadHealth } from './leads/store';
 import { dbEstimator } from './estimator/indexCache';
@@ -135,6 +136,9 @@ async function main() {
         ? n8nCodeSender(env.N8N_LEAD_WEBHOOK_BASE.replace(/\/+$/, ''), gatewaySecret)
         : null,
       staffDomains: list(env.PORTAL_STAFF_DOMAINS, 'westromgroup.com'),
+      // Street pictures for homes Rentvine has no picture of: Railway variable GOOGLE_MAPS_API_KEY
+      // or app_secret google_maps_api_key (a Google Maps Platform key with the Street View Static API on).
+      streetView: googleStreetView(async () => env.GOOGLE_MAPS_API_KEY || (await readSecret(sql, 'google_maps_api_key')) || undefined),
     };
   })() : null;
   if (portal) console.log(`Owner portal: on (/api/portal); sign-in codes ${portal.sendCode ? 'by n8n' : 'NOT SENT (no N8N_LEAD_WEBHOOK_BASE)'}`);

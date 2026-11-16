@@ -193,6 +193,14 @@ stays a demo with invented data and no server calls.
   are left from the first version and unused.
 
 
+**Street pictures (Google Street View).** For a home with no listing picture in
+Rentvine, the API asks Google's Street View Static API for the picture of the
+home's address (server side; the key, `GOOGLE_MAPS_API_KEY` or app_secret
+`google_maps_api_key`, never reaches the browser and is never logged). The free
+metadata call runs first, so a miss bills nothing. Only the address is sent to
+Google. Each picture is kept in `portal_streetview` and fetched once; a miss is
+asked again after 30 days. Without a key nothing is asked or remembered.
+
 **Home pictures added by staff.** When Rentvine has no picture of a home, staff
 (and only staff) can add one from the home's panel: `POST
 /api/portal/portfolios/{id}/photo/{home}` with the image as the body. The API
