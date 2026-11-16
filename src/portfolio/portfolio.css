@@ -285,6 +285,9 @@ html.pf-html, html.pf-html body { background: #f2efe7; scroll-padding-top: 96px;
 .pf-photo-add .pf-btn { padding: 11px 18px; font-size: 13px; }
 .pf-link-btn { font-size: 13px; text-decoration: underline; text-underline-offset: 4px; color: var(--fg-2); }
 .pf-photo-add .pf-error { margin-top: 10px; color: var(--red); font-size: 14px; }
+.pf-filter { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 6px; }
+.pf-filter button { padding: 9px 16px; border: 1px solid var(--fg) !important; border-radius: 999px; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+.pf-filter button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
 .pf-links { display: flex; gap: 22px; margin-top: 18px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
 .pf-links a { color: var(--fg); text-decoration: underline; text-underline-offset: 5px; text-decoration-color: var(--accent); }
 .pf-links a:hover { color: var(--accent); }

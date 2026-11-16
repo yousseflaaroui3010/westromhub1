@@ -28,6 +28,11 @@ const FIX: Record<string, unknown[]> = {
     { unit: { unitID: 121, propertyID: 12, beds: 3, fullBaths: 2, size: 1520, rent: '1875.00' } },
     { unit: { unitID: 131, propertyID: 13, beds: 4, fullBaths: 2, size: 2100, rent: '1850.00' } },
   ],
+  // Every listing, as the deposit dashboard's Homes to market reads them: 412 Larkspur's has a picture, 7244 Retriever's none.
+  'properties/listings/search': [
+    { listing: { propertyListingID: 61, unitID: 111 }, unit: { unitID: 111 }, image: { large: 'https://cdn.rentvine.com/photos/412.jpg' } },
+    { listing: { propertyListingID: 63, unitID: 131 }, unit: { unitID: 131 }, image: {} },
+  ],
   'leases/export': [
     { lease: { leaseID: 1, unitID: 111, startDate: '2026-08-01', endDate: '2027-07-31', isMonthToMonth: 0, tenants: [{ name: 'Jordan Alexander Price' }] }, unit: { unitID: 111, rent: '2150.00', deposit: '2150.00' } },
   ],
@@ -38,7 +43,7 @@ let streetOff = false;
 const STREET_JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 7, 7]);
 const fakeRentvine: RvApi & { download(path: string): Promise<{ bytes: ArrayBuffer; type: string }> } = {
   async get(path, params = {}) {
-    calls.push(path);
+    calls.push(`get ${path}`);
     if (path === 'portfolios/501/statements') {
       return [{ statement: { statementID: 77, startDate: '2026-10-01', endDate: '2026-10-31', totalIncomeAmount: '4025.00', totalExpenseAmount: '402.50', totalDistributionAmount: '3622.50', reserveAmount: '350' } }];
     }
@@ -84,12 +89,13 @@ describe('portal pure parts', () => {
 
   it('builds a portfolio and redacts it per role', async () => {
     const lists = await loadLists(fakeRentvine);
-    expect(catalog(lists).map((c) => c.id)).toEqual(['502', '501']);
+    expect(catalog(lists).map((c) => [c.id, c.photos])).toEqual([['502', 0], ['501', 1]]);
     const data = await buildPortfolio(fakeRentvine, lists, '501', async () => ({ low: 2080, high: 2260 }));
     expect(data.homes).toHaveLength(2);
     expect(data.homes[0].photoUrl).toBe('https://cdn.rentvine.com/photos/412.jpg');
     expect(data.homes[1]).toMatchObject({ photoUrl: null, photoFile: { kind: 'file', id: '950' } });
-    expect(data.v).toBe(2);
+    expect(data.v).toBe(3);
+    expect(calls).not.toContain('get properties/listings/search'); // one list call, no search per home
     expect(data.contacts[0].email).toBe('andrew@example.com');
     const now = Date.parse('2026-11-15T12:00:00Z');
 

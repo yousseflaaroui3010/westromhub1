@@ -16,7 +16,7 @@ export interface RvApi {
 }
 
 /** Raise when PortfolioData gains a field, so saved snapshots are read again. */
-export const SNAPSHOT_VERSION = 2;
+export const SNAPSHOT_VERSION = 3;
 
 export const RENTVINE_CDN = 'https://cdn.rentvine.com/';
 const PORTFOLIO_TYPE = '11';
@@ -67,7 +67,21 @@ export interface PropertyRow {
 }
 export interface UnitRow { id: string; propertyId: string; label: string; beds: number | null; baths: number | null; sqft: number | null; rentCents: number | null; depositCents: number | null }
 export interface LeaseRow { unitId: string; start: string | null; end: string | null; monthToMonth: boolean; rentCents: number | null; depositCents: number | null; tenants: string[] }
-export interface Lists { portfolios: PortfolioRow[]; owners: OwnerRow[]; properties: PropertyRow[]; units: UnitRow[]; leases: LeaseRow[] }
+/** One Rentvine listing (active or not): its unit and, when it has one, its main picture on cdn.rentvine.com. */
+export interface ListingRow { unitId: string; listingId: string; photo: string | null }
+export interface Lists {
+  portfolios: PortfolioRow[]; owners: OwnerRow[]; properties: PropertyRow[]; units: UnitRow[]; leases: LeaseRow[];
+  /** Missing in lists saved before 2026-11-16: those are read again. */
+  listings?: ListingRow[];
+}
+
+export function parseListing(row: Obj): ListingRow | null {
+  const unitId = text((row.unit as Obj | undefined)?.unitID ?? (row.listing as Obj | undefined)?.unitID);
+  if (!unitId) return null;
+  const img = (row.image ?? {}) as Obj;
+  const url = text(img.large ?? img.medium ?? img.small);
+  return { unitId, listingId: text((row.listing as Obj | undefined)?.propertyListingID), photo: url.startsWith(RENTVINE_CDN) ? url : null };
+}
 
 export function parsePortfolio(row: Obj): PortfolioRow | null {
   const p = unwrap(row, 'portfolio');
@@ -137,18 +151,28 @@ export async function loadLists(api: RvApi): Promise<Lists> {
   const properties = keep(await api.pages('properties', {}, 100), parseProperty);
   const units = keep(await api.pages('properties/units/export', {}, 120), parseUnit);
   const leases = keep(await api.pages('leases/export', { 'primaryLeaseStatusIDs[]': '2' }, 120), parseLease);
-  return { portfolios, owners, properties, units, leases };
+  // Every listing, active or not, with its main picture (as the deposit dashboard's Homes to market reads them).
+  const listings = keep(await api.pages('properties/listings/search', {}, 60), parseListing);
+  return { portfolios, owners, properties, units, leases, listings };
 }
 
-export interface CatalogEntry { id: string; name: string; homes: number; cities: string[] }
+/** `photos`: homes with a picture on their Rentvine listing. */
+export interface CatalogEntry { id: string; name: string; homes: number; cities: string[]; photos: number }
 
 /** Active portfolios that own at least one active home, for the staff picker. */
 export function catalog(lists: Lists): CatalogEntry[] {
   const homes = new Map<string, PropertyRow[]>();
   for (const p of lists.properties) homes.set(p.portfolioId, [...(homes.get(p.portfolioId) ?? []), p]);
+  const unitsOf = new Map<string, string[]>();
+  for (const u of lists.units) unitsOf.set(u.propertyId, [...(unitsOf.get(u.propertyId) ?? []), u.id]);
+  const pictured = new Set((lists.listings ?? []).filter((l) => l.photo).map((l) => l.unitId));
   return lists.portfolios
     .filter((p) => p.active && homes.has(p.id))
-    .map((p) => ({ id: p.id, name: p.name, homes: homes.get(p.id)!.length, cities: [...new Set(homes.get(p.id)!.map((h) => h.city).filter(Boolean))].slice(0, 4) }))
+    .map((p) => ({
+      id: p.id, name: p.name, homes: homes.get(p.id)!.length,
+      cities: [...new Set(homes.get(p.id)!.map((h) => h.city).filter(Boolean))].slice(0, 4),
+      photos: homes.get(p.id)!.filter((h) => (unitsOf.get(h.id) ?? []).some((u) => pictured.has(u))).length,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -223,15 +247,17 @@ export async function buildPortfolio(api: RvApi, lists: Lists, portfolioId: stri
     let photoUrl: string | null = null;
     let photoFile: PortfolioHome['photoFile'] = null;
     let listingId = '';
-    try {
-      const found = rows(await api.get('properties/listings/search', { search: street(p.address), pageSize: '25' }));
-      const ids = new Set(units.map((u) => u.id));
-      const hit = found.find((r) => ids.has(text((r.unit as Obj | undefined)?.unitID ?? (r.listing as Obj | undefined)?.unitID)));
-      const img = (hit?.image ?? {}) as Obj;
-      const url = text(img.large ?? img.medium ?? img.small);
-      if (url.startsWith(RENTVINE_CDN)) photoUrl = url;
-      listingId = text((hit?.listing as Obj | undefined)?.propertyListingID);
-    } catch { /* try the files below */ }
+    const ids = new Set(units.map((u) => u.id));
+    const indexed = (lists.listings ?? []).filter((l) => ids.has(l.unitId));
+    const withPhoto = indexed.find((l) => l.photo);
+    if (withPhoto) { photoUrl = withPhoto.photo; listingId = withPhoto.listingId; }
+    else if (indexed[0]) listingId = indexed[0].listingId;
+    else if (!lists.listings) {
+      try {
+        const hit = rows(await api.get('properties/listings/search', { search: street(p.address), pageSize: '25' })).map(parseListing).find((l) => l && ids.has(l.unitId));
+        if (hit) { photoUrl = hit.photo; listingId = hit.listingId; }
+      } catch { /* try the files below */ }
+    }
     if (!photoUrl && /^\d{1,12}$/.test(listingId)) {
       try {
         const id = firstImage(await api.get(`listings/${listingId}/files`), '', '');

@@ -157,7 +157,7 @@ export function portalRoutes(deps: PortalDeps) {
 
   async function lists(api: RvApi): Promise<Lists> {
     const cached = (await sql<{ data: Lists; fetched_at: Date }[]>`SELECT data, fetched_at FROM portal_cache WHERE name = 'lists'`)[0];
-    if (cached && now() - cached.fetched_at.getTime() < LISTS_FRESH_MS) return cached.data;
+    if (cached && cached.data.listings && now() - cached.fetched_at.getTime() < LISTS_FRESH_MS) return cached.data;
     const fresh = await loadLists(api);
     await sql`INSERT INTO portal_cache (name, data, fetched_at) VALUES ('lists', ${sql.json(fresh as never)}, now())
               ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data, fetched_at = now()`;
@@ -279,7 +279,7 @@ export function portalRoutes(deps: PortalDeps) {
     if (!user) return apiError(c, 401, 'signed_out', 'Please sign in.');
     if (!user.staff) return apiError(c, 403, 'forbidden', 'Not allowed.');
     const row = (await sql<{ data: CatalogEntry[]; fetched_at: Date }[]>`SELECT data, fetched_at FROM portal_cache WHERE name = 'catalog'`)[0];
-    if (!row || now() - row.fetched_at.getTime() > LISTS_FRESH_MS) refreshCatalog();
+    if (!row || now() - row.fetched_at.getTime() > LISTS_FRESH_MS || (row.data.length > 0 && row.data[0].photos === undefined)) refreshCatalog();
     return c.json({ state: row ? 'ready' : 'loading', fetchedAt: row?.fetched_at ?? null, portfolios: row?.data ?? [] });
   });
 
