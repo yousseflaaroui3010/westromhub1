@@ -176,13 +176,15 @@ function Waiting({ title, children }: { title: ReactNode; children?: ReactNode }
 
 /* ── Staff: every portfolio ───────────────────────────── */
 
-type CatalogEntry = { id: string; name: string; homes: number; cities: string[] };
+type CatalogEntry = { id: string; name: string; homes: number; cities: string[]; photos?: number };
 
 function StaffPicker({ who, onSignOut }: { who: { name: string; role?: string }; onSignOut: () => void }) {
   const navigate = useNavigate();
   const [cat, setCat] = useState<{ state: string; portfolios: CatalogEntry[]; fetchedAt: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  // For a demo: owners whose homes have their real picture in Rentvine come first, and only they show by default.
+  const [pictured, setPictured] = useState(true);
   useEffect(() => {
     let stop = false;
     let timer = 0;
@@ -196,7 +198,11 @@ function StaffPicker({ who, onSignOut }: { who: { name: string; role?: string };
     void load();
     return () => { stop = true; window.clearTimeout(timer); };
   }, []);
-  const shown = (cat?.portfolios ?? []).filter((p) => !q || `${p.name} ${p.cities.join(' ')}`.toLowerCase().includes(q.toLowerCase()));
+  const withPhotos = (cat?.portfolios ?? []).filter((p) => (p.photos ?? 0) > 0).length;
+  const shown = (cat?.portfolios ?? [])
+    .filter((p) => !pictured || (p.photos ?? 0) > 0)
+    .filter((p) => !q || `${p.name} ${p.cities.join(' ')}`.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => (b.photos ?? 0) / b.homes - (a.photos ?? 0) / a.homes || (b.photos ?? 0) - (a.photos ?? 0) || a.name.localeCompare(b.name));
   return (
     <Frame label="Owner portfolio" who={who} menu={[{ label: 'Sign out', onClick: onSignOut }]} watchKey={String(cat?.portfolios.length)}>
       <section className="pf-chapter pf-picker" data-tone="paper" id="top">
@@ -209,12 +215,16 @@ function StaffPicker({ who, onSignOut }: { who: { name: string; role?: string };
           ) : (
             <>
               <label className="pf-search" htmlFor="pf-q"><Search aria-hidden /><input id="pf-q" placeholder={`Search ${cat.portfolios.length} portfolios by owner or city`} value={q} onChange={(e) => setQ(e.target.value)} /></label>
+              <div className="pf-filter" role="group" aria-label="Which portfolios">
+                <button type="button" aria-pressed={pictured} onClick={() => setPictured(true)}>With pictures in Rentvine · {withPhotos}</button>
+                <button type="button" aria-pressed={!pictured} onClick={() => setPictured(false)}>All · {cat.portfolios.length}</button>
+              </div>
               <ul className="pf-list">
                 {shown.slice(0, 60).map((p) => (
                   <li key={p.id}>
                     <a href={`/portfolio/${p.id}`} onClick={(e) => { e.preventDefault(); navigate(`/portfolio/${p.id}`); }}>
                       <span className="pf-list-name">{p.name}</span>
-                      <span className="pf-muted">{p.homes} {p.homes === 1 ? 'home' : 'homes'}{p.cities.length ? ` · ${p.cities.join(', ')}` : ''}</span>
+                      <span className="pf-muted">{p.homes} {p.homes === 1 ? 'home' : 'homes'}{p.photos ? ` · ${p.photos === p.homes ? (p.homes === 1 ? 'with its picture' : 'all with pictures') : `${p.photos} with pictures`}` : ''}{p.cities.length ? ` · ${p.cities.join(', ')}` : ''}</span>
                       <ArrowUpRight aria-hidden />
                     </a>
                   </li>
