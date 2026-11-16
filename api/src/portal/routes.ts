@@ -21,6 +21,8 @@ import { getClientIp } from '../security/clientIp';
 import type { CounterStore } from '../security/store';
 import { permissions, type MemberRole, type Permission, type Role } from './access';
 import { codeHash, newToken, normEmail, sixDigitCode, tokenHash } from './crypto';
+import { imageType } from './image';
+import type { StreetView } from './streetview';
 import { buildPortfolio, catalog, loadLists, RENTVINE_CDN, SNAPSHOT_VERSION, type CatalogEntry, type Estimator, type Lists, type PortfolioData, type RvApi } from './rentvine';
 import { viewFor } from './view';
 
@@ -34,6 +36,8 @@ export interface PortalDeps {
   sendCode: ((to: { email: string; name: string | null }, code: string) => Promise<void>) | null;
   /** Email domains that are Westrom Group staff. Default: westromgroup.com. */
   staffDomains?: string[];
+  /** The street picture of an address (Google Street View), for homes Rentvine has no picture of. */
+  streetView?: StreetView | null;
   /** Keep Rentvine's lists warm in the background (off in tests). */
   warm?: boolean;
   fetchImpl?: typeof fetch;
@@ -49,20 +53,14 @@ const SNAPSHOT_FRESH_MS = 24 * 3600_000;
 const MAX_IMAGE = 15 * 1024 * 1024;
 const MAX_UPLOAD = 8 * 1024 * 1024;
 
-/** The picture's type from its first bytes (Rentvine's downloads do not always say). */
-export function imageType(b: Uint8Array): string | null {
-  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
-  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
-  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return 'image/gif';
-  if (String.fromCharCode(...b.slice(0, 4)) === 'RIFF' && String.fromCharCode(...b.slice(8, 12)) === 'WEBP') return 'image/webp';
-  return null;
-}
 
 
 interface User { id: string; email: string; name: string; staff: boolean }
 type Env = { Variables: { user: User | null } };
 
 const PERMS_OF = (role: Role | null) => [...permissions(role)];
+
+export { imageType };
 
 export function portalRoutes(deps: PortalDeps) {
   const { sql, store } = deps;
@@ -329,7 +327,7 @@ export function portalRoutes(deps: PortalDeps) {
       SELECT home_id, extract(epoch FROM uploaded_at)::bigint AS at FROM portal_photo WHERE portfolio_id = ${id}`).map((r) => [r.home_id, Number(r.at)]));
     return c.json({
       state: snap.state === 'building' ? 'refreshing' : 'ready', role: shown, permissions: PERMS_OF(shown), fetchedAt: snap.fetched_at, preview,
-      notes: role === 'staff' && !preview ? snap.data.notes : [], portfolio: viewFor(snap.data, shown, now(), added),
+      notes: role === 'staff' && !preview ? snap.data.notes : [], portfolio: viewFor(snap.data, shown, now(), added, !!deps.streetView),
     });
   });
 
@@ -346,8 +344,15 @@ export function portalRoutes(deps: PortalDeps) {
       SELECT bytes, type FROM portal_photo WHERE portfolio_id = ${g.id} AND home_id = ${c.req.param('home')}`)[0];
     if (own) return c.body(new Uint8Array(own.bytes), 200, { 'Content-Type': own.type, 'Cache-Control': 'private, max-age=31536000, immutable' });
     const home = (await snapshot(g.id))?.data?.homes.find((h) => h.id === c.req.param('home'));
-    const url = home?.photoUrl;
-    const file = home?.photoFile;
+    if (!home) return apiError(c, 404, 'not_found', 'No photo.');
+    const url = home.photoUrl;
+    // Order: the listing's pictures, then the street picture (the outside of the
+    // home), then a picture from the Files tab (which can be a repair photo).
+    if (!url && home.photoFile?.kind !== 'listing' && deps.streetView) {
+      const street = await streetPicture(c, g.id, home);
+      if (street) return c.body(new Uint8Array(street.bytes), 200, { 'Content-Type': street.type, 'Cache-Control': 'private, max-age=86400' });
+    }
+    const file = home.photoFile;
     if (!url && file && /^\d{1,12}$/.test(file.id)) {
       try {
         const key = `${file.kind}:${file.id}`;
@@ -381,6 +386,26 @@ export function portalRoutes(deps: PortalDeps) {
       return apiError(c, 502, 'photo_failed', 'The photo did not load.');
     }
   });
+
+  // The street picture of a home, from portal_streetview or Google once (a miss is remembered for 30 days).
+  async function streetPicture(c: Context, portfolioId: string, home: PortfolioData['homes'][number]): Promise<{ bytes: Uint8Array; type: string } | null> {
+    const kept = (await sql<{ bytes: Buffer | null; type: string | null; fresh: boolean }[]>`
+      SELECT bytes, type, checked_at > now() - interval '30 days' AS fresh FROM portal_streetview WHERE portfolio_id = ${portfolioId} AND home_id = ${home.id}`)[0];
+    if (kept?.bytes && kept.type) return { bytes: new Uint8Array(kept.bytes), type: kept.type };
+    if (kept && kept.fresh) return null;
+    const address = [home.address, home.city, [home.state || 'TX', home.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    try {
+      const got = await deps.streetView!(address);
+      if (got === 'off') return null;
+      await sql`INSERT INTO portal_streetview (portfolio_id, home_id, bytes, type, checked_at)
+                VALUES (${portfolioId}, ${home.id}, ${got ? Buffer.from(got.bytes) : null}, ${got?.type ?? null}, now())
+                ON CONFLICT (portfolio_id, home_id) DO UPDATE SET bytes = EXCLUDED.bytes, type = EXCLUDED.type, checked_at = now()`;
+      return got;
+    } catch (err) {
+      logFailure(c, 'portal_streetview', err);
+      return null;
+    }
+  }
 
   // Staff add the home's real picture (the photo from the listing, Zillow or an
   // inspection) when Rentvine has none. The body is the image itself.

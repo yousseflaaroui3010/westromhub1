@@ -33,6 +33,9 @@ const FIX: Record<string, unknown[]> = {
   ],
 };
 const calls: string[] = [];
+const streetAsks: string[] = [];
+let streetOff = false;
+const STREET_JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 7, 7]);
 const fakeRentvine: RvApi & { download(path: string): Promise<{ bytes: ArrayBuffer; type: string }> } = {
   async get(path, params = {}) {
     calls.push(path);
@@ -120,7 +123,7 @@ describe.skipIf(!url)('portal over HTTP', () => {
 
   beforeAll(async () => {
     sql = postgres(url as string, { max: 2, onnotice: () => {} });
-    await sql.unsafe('DROP TABLE IF EXISTS portal_audit, portal_snapshot, portal_cache, portal_code, portal_invite, portal_session, portal_member, portal_user CASCADE');
+    await sql.unsafe('DROP TABLE IF EXISTS portal_streetview, portal_photo, portal_audit, portal_snapshot, portal_cache, portal_code, portal_invite, portal_session, portal_member, portal_user CASCADE');
     await migrate(sql);
     app = createApp({
       allowedOrigins: [ORIGIN],
@@ -130,6 +133,7 @@ describe.skipIf(!url)('portal over HTTP', () => {
         warm: false,
         now: () => clock,
         rentvine: async () => fakeRentvine,
+        streetView: async (address) => { if (streetOff) return 'off'; streetAsks.push(address); return address.startsWith('2207 Mesquite') ? { bytes: STREET_JPEG, type: 'image/jpeg' } : null; },
         estimate: async () => ({ low: 2080, high: 2260 }),
         sendCode: async (to, code) => { sent.push({ ...to, code }); },
         fetchImpl: (async (u: string) => {
@@ -240,13 +244,30 @@ describe.skipIf(!url)('portal over HTTP', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('image/jpeg');
     expect(imageFetches).toEqual(['https://cdn.rentvine.com/photos/412.jpg']);
+    // No listing picture: the street picture comes before a Files-tab photo, fetched from Google once.
+    const street = await get('/portfolios/501/photo/12', owner);
+    expect(street.status).toBe(200);
+    expect(new Uint8Array(await street.arrayBuffer())).toEqual(STREET_JPEG);
+    await get('/portfolios/501/photo/12', owner);
+    expect(streetAsks).toEqual(['2207 Mesquite Trail, Fort Worth, TX 76179']);
+    // Google has no street picture: the Files-tab photo, downloaded once.
+    await sql`UPDATE portal_streetview SET bytes = NULL, type = NULL`;
     const fromFiles = await get('/portfolios/501/photo/12', owner);
     expect(fromFiles.status).toBe(200);
     expect(fromFiles.headers.get('content-type')).toBe('image/jpeg');
     await get('/portfolios/501/photo/12', owner);
     expect(calls.filter((p) => p === 'files/950/download')).toHaveLength(1); // kept in memory
+    expect(streetAsks).toHaveLength(1); // the miss is remembered
     expect((await get('/portfolios/501/photo/99', owner)).status).toBe(404);
     expect((await get('/portfolios/501/photo/11')).status).toBe(401);
+  });
+
+  it('remembers nothing while no Google key is set', async () => {
+    streetOff = true;
+    await sql`DELETE FROM portal_streetview`;
+    expect((await get('/portfolios/501/photo/12', owner)).status).toBe(200); // the Files photo meanwhile
+    expect((await sql`SELECT 1 FROM portal_streetview`).length).toBe(0);
+    streetOff = false;
   });
 
   it('lets staff add the real picture of a home, shown before Rentvine\'s, and nobody else', async () => {

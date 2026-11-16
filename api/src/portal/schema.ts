@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS portal_photo (
   uploaded_at    timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (portfolio_id, home_id)
 );
+-- Street pictures from Google Street View (bytes NULL: Google has none; asked again after 30 days).
+CREATE TABLE IF NOT EXISTS portal_streetview (
+  portfolio_id   text NOT NULL,
+  home_id        text NOT NULL,
+  bytes          bytea,
+  type           text,
+  checked_at     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (portfolio_id, home_id)
+);
 CREATE TABLE IF NOT EXISTS portal_audit (
   id             bigserial PRIMARY KEY,
   at             timestamptz NOT NULL DEFAULT now(),
