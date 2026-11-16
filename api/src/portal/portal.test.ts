@@ -199,6 +199,11 @@ describe.skipIf(!url)('portal over HTTP', () => {
     expect(body.role).toBe('staff');
     expect(body.portfolio.contacts[0].email).toBe('andrew@example.com');
     expect(body.portfolio.homes[0].photo).toBe('/api/portal/portfolios/501/photo/11');
+    const asOwner = await ready('/portfolios/501?as=owner', staff);
+    expect(asOwner).toMatchObject({ role: 'owner', preview: 'owner' });
+    expect(asOwner.portfolio.homes[0].units[0].lease.tenants).toEqual(['Jordan P.']);
+    expect(asOwner.portfolio.contacts).toBeUndefined();
+    expect((await get('/portfolios/setup', staff)).status).toBe(404);
   });
 
   it('signs an owner in with the email Rentvine has, and shows only their portfolio', async () => {
@@ -209,6 +214,7 @@ describe.skipIf(!url)('portal over HTTP', () => {
     expect(mine.portfolio.homes[0].units[0].lease.tenants).toEqual(['Jordan P.']);
     expect(mine.portfolio.contacts).toBeUndefined();
     expect((await get('/portfolios/502', owner)).status).toBe(403);
+    expect((await ready('/portfolios/501?as=accountant', owner)).role).toBe('owner'); // only staff can preview
     expect((await get('/catalog', owner)).status).toBe(403);
     expect((await post('/portfolios/501/refresh', {}, owner)).status).toBe(403);
     const people = await (await get('/portfolios/501/members', owner)).json() as { owners: { email: string | null }[] };

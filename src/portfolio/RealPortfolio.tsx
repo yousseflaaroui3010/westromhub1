@@ -41,7 +41,9 @@ export default function RealPortfolio() {
   }, [nonce]);
 
   const path = location.pathname.replace(/\/+$/, '');
-  const id = path.match(/^\/portfolio\/([0-9A-Za-z_-]{1,40})$/)?.[1];
+  const id = path.match(/^\/portfolio\/(\d{1,12})$/)?.[1];
+  // Old links from the first version (/portfolio/setup, /portfolio/invite) and anything else land on sign-in.
+  useEffect(() => { if (path !== '/portfolio' && !id) navigate('/portfolio', { replace: true }); }, [path, id, navigate]);
 
   useEffect(() => { document.title = 'Owner portfolio · Westrom Group'; }, [path]);
 
@@ -231,7 +233,7 @@ function StaffPicker({ who, onSignOut }: { who: { name: string; role?: string };
 
 type PortfolioAnswer = {
   state: 'building' | 'refreshing' | 'ready' | 'error'; error?: string | null; role: Role; permissions: Permission[];
-  fetchedAt?: string; notes?: string[]; portfolio?: Portfolio;
+  fetchedAt?: string; notes?: string[]; portfolio?: Portfolio; preview?: 'owner' | 'accountant' | null;
 };
 
 function PortfolioPage({ id, me, who, onSignOut }: { id: string; me: Me; who: { name: string; role?: string }; onSignOut: () => void }) {
@@ -240,13 +242,16 @@ function PortfolioPage({ id, me, who, onSignOut }: { id: string; me: Me; who: { 
   const [error, setError] = useState<{ status: number; text: string } | null>(null);
   const [open, setOpen] = useState<Home | null>(null);
   const [tick, setTick] = useState(0);
+  const [preview, setPreview] = useState<'owner' | null>(null);
+  // The owner view hides contacts, so keep the first owner's name from the staff view for the greeting.
+  const [ownerFirst, setOwnerFirst] = useState('');
   const close = useCallback(() => setOpen(null), []);
 
   useEffect(() => {
     let stop = false;
     let timer = 0;
     const load = async () => {
-      const r = await call<PortfolioAnswer>(`/portfolios/${id}`);
+      const r = await call<PortfolioAnswer>(`/portfolios/${id}${preview ? `?as=${preview}` : ''}`);
       if (stop) return;
       if (!r.ok) { setError({ status: r.status, text: r.error }); return; }
       setAnswer(r.data);
@@ -254,7 +259,7 @@ function PortfolioPage({ id, me, who, onSignOut }: { id: string; me: Me; who: { 
     };
     void load();
     return () => { stop = true; window.clearTimeout(timer); };
-  }, [id, tick]);
+  }, [id, tick, preview]);
 
   const p = answer?.portfolio;
   useEffect(() => { if (p) document.title = `${p.name} · Westrom Group`; }, [p]);
@@ -271,6 +276,9 @@ function PortfolioPage({ id, me, who, onSignOut }: { id: string; me: Me; who: { 
     if (perms.has('members:view')) menu.push({ label: 'Access', href: '#access' });
   }
   if (staff) {
+    menu.push(preview
+      ? { label: 'Back to the staff view', onClick: () => { setPreview(null); window.scrollTo({ top: 0 }); }, quiet: true }
+      : { label: 'See it as the owner sees it', onClick: () => { setOwnerFirst(p?.contacts?.[0]?.name.split(' ')[0] ?? ''); setPreview('owner'); window.scrollTo({ top: 0 }); }, quiet: true });
     menu.push({ label: 'All portfolios', onClick: () => navigate('/portfolio'), quiet: true });
     menu.push({ label: 'Refresh from Rentvine', onClick: async () => { await call(`/portfolios/${id}/refresh`, {}); setTick((t) => t + 1); }, quiet: true });
   } else if ((me.portfolios ?? []).length > 1) {
@@ -304,9 +312,14 @@ function PortfolioPage({ id, me, who, onSignOut }: { id: string; me: Me; who: { 
 
   const role = answer.role;
   return (
-    <Frame label={p.stage === 'prospect' ? 'Proposal' : 'Owner portfolio'} who={{ name: who.name, role: ROLE_LABEL[role] }} menu={menu}
-      footnote={`${p.name} · read from Rentvine ${answer.fetchedAt ? fmtDate(answer.fetchedAt.slice(0, 10), { month: 'short', day: 'numeric' }) : ''}`} watchKey={`${id}:${answer.fetchedAt}`}>
-      <Hero portfolio={p} firstName={firstName} perms={perms} role={role} />
+    <Frame label={p.stage === 'prospect' ? 'Proposal' : 'Owner portfolio'} who={{ name: who.name, role: answer.preview ? `Seeing it as the ${answer.preview}` : ROLE_LABEL[role] }} menu={menu}
+      footnote={`${p.name} · read from Rentvine ${answer.fetchedAt ? fmtDate(answer.fetchedAt.slice(0, 10), { month: 'short', day: 'numeric' }) : ''}`} watchKey={`${id}:${answer.fetchedAt}:${answer.preview}`}>
+      {staff && (
+        <button className="pf-preview-toggle" onClick={() => { if (!answer.preview) setOwnerFirst(p.contacts?.[0]?.name.split(' ')[0] ?? ''); setPreview(answer.preview ? null : 'owner'); window.scrollTo({ top: 0 }); }}>
+          {answer.preview ? 'Owner view · back to staff view' : 'See it as the owner sees it'}
+        </button>
+      )}
+      <Hero portfolio={p} firstName={answer.preview ? (ownerFirst || p.shortName) : firstName} perms={perms} role={role} />
       <Manifesto portfolio={p} perms={perms} />
       {perms.has('homes:view') && p.homes.length > 0 && <Homes portfolio={p} perms={perms} onOpen={setOpen} />}
       {perms.has('money:view') && p.ledger.length > 0 && <Money portfolio={p} perms={perms} />}

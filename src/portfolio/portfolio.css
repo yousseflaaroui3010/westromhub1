@@ -331,6 +331,11 @@ select.pf-input { padding-right: 24px; }
 .pf-remove:hover { color: var(--red); }
 .pf-notes ul { margin-top: 12px; display: grid; gap: 6px; font-size: 14px; color: var(--fg-2); }
 
+/* staff: owner-view switch */
+.pf-root > .pf-preview-toggle { position: fixed; z-index: 75; left: 50%; top: 26px; translate: -50% 0; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--fg) !important; background: var(--bg) !important; color: var(--fg); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; transition: background 0.9s var(--ease), color 0.9s var(--ease); }
+.pf-root > .pf-preview-toggle:hover { background: var(--fg) !important; color: var(--bg); }
+@media (max-width: 900px) { .pf-root > .pf-preview-toggle { top: auto; bottom: 16px; } }
+
 /* ── denied ──────────────────────────────────────────── */
 .pf-denied { min-height: 100svh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 140px 24px 160px; }
 .pf-denied .pf-title, .pf-denied .pf-lede { margin-left: auto; margin-right: auto; }

@@ -269,7 +269,8 @@ export function portalRoutes(deps: PortalDeps) {
   });
 
   // ── One portfolio ───────────────────────────────────────────────────────
-  const idOk = (id: string) => /^[0-9A-Za-z_-]{1,40}$/.test(id);
+  // Rentvine portfolio ids are numbers.
+  const idOk = (id: string) => /^\d{1,12}$/.test(id);
 
   async function snapshot(id: string) {
     return (await sql<{ state: string; data: PortfolioData | null; error: string | null; fetched_at: Date | null }[]>`
@@ -296,16 +297,20 @@ export function portalRoutes(deps: PortalDeps) {
     if (!idOk(id)) return apiError(c, 404, 'not_found', 'Not found.');
     const role = await roleOn(user, id);
     if (!role) { await audit(c, 'denied', user.id, id); return apiError(c, 403, 'not_yours', 'This portfolio is not on your account.'); }
+    // Staff can see the page exactly as an owner or accountant would (?as=owner), to show it.
+    const as = c.req.query('as');
+    const preview = role === 'staff' && (as === 'owner' || as === 'accountant') ? as : null;
+    const shown: Role = preview ?? role;
     const snap = await snapshot(id);
     if (!snap?.data) {
       if (!snap || snap.state !== 'building') rebuild(id);
-      return c.json({ state: snap?.state === 'error' ? 'error' : 'building', error: snap?.state === 'error' ? snap.error : null, role, permissions: PERMS_OF(role) });
+      return c.json({ state: snap?.state === 'error' ? 'error' : 'building', error: snap?.state === 'error' ? snap.error : null, role: shown, permissions: PERMS_OF(shown), preview });
     }
     if (snap.state !== 'building' && snap.fetched_at && now() - snap.fetched_at.getTime() > SNAPSHOT_FRESH_MS) rebuild(id);
-    await audit(c, 'view', user.id, id);
+    await audit(c, preview ? `preview_${preview}` : 'view', user.id, id);
     return c.json({
-      state: snap.state === 'building' ? 'refreshing' : 'ready', role, permissions: PERMS_OF(role), fetchedAt: snap.fetched_at,
-      notes: role === 'staff' ? snap.data.notes : [], portfolio: viewFor(snap.data, role, now()),
+      state: snap.state === 'building' ? 'refreshing' : 'ready', role: shown, permissions: PERMS_OF(shown), fetchedAt: snap.fetched_at, preview,
+      notes: role === 'staff' && !preview ? snap.data.notes : [], portfolio: viewFor(snap.data, shown, now()),
     });
   });
 
