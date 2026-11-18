@@ -139,7 +139,7 @@ describe('POST /api/leads/lead', () => {
     expect(calls).toHaveLength(5);
   });
 
-  it('sends the guide to an address at most once per day, but still serves the estimate', async () => {
+  it('sends the guide to an address at most once per day, but still forwards the contact and serves the estimate', async () => {
     const app = build();
     const consent = { explicit: true, text_version: 'v3', ts: '2026-11-10T00:00:00Z' };
     await submit(app, lead({ ebook_opt_in: true, email: 'Owner@Example.com', consent }), { 'X-Real-IP': '203.0.113.90' });
@@ -148,9 +148,12 @@ describe('POST /api/leads/lead', () => {
     const [a, b] = calls.map((c) => JSON.parse(String(c.init.body)) as Record<string, unknown>);
     expect(a.ebook_opt_in).toBe(true);
     expect(a.email).toBe('Owner@Example.com');
-    expect(b.ebook_opt_in).toBe(false);
-    expect(b.email).toBe('');
-    expect(b.consent).toBeNull();
+    expect(a.send_guide).toBe(true);
+    // 2026-11-18: the repeat used to arrive with email '' and never became a deal.
+    expect(b.ebook_opt_in).toBe(true);
+    expect(b.email).toBe('owner@example.com');
+    expect(b.consent).toEqual(consent);
+    expect(b.send_guide).toBe(false);
   });
 
   it('enforces the global daily guide-email cap', async () => {
@@ -158,8 +161,10 @@ describe('POST /api/leads/lead', () => {
     for (let i = 0; i < 3; i++) {
       await submit(app, lead({ ebook_opt_in: true, email: `p${i}@example.com`, consent: { explicit: true, text_version: 'v3', ts: 'x' } }), { 'X-Real-IP': `203.0.113.${100 + i}` });
     }
-    const sent = calls.map((c) => (JSON.parse(String(c.init.body)) as Record<string, unknown>).ebook_opt_in);
-    expect(sent).toEqual([true, true, false]);
+    const bodies = calls.map((c) => JSON.parse(String(c.init.body)) as Record<string, unknown>);
+    expect(bodies.map((b) => b.send_guide)).toEqual([true, true, false]);
+    // Past the cap the guide stops, but every one of the three is still a lead with a contact.
+    expect(bodies.map((b) => b.email)).toEqual(['p0@example.com', 'p1@example.com', 'p2@example.com']);
   });
 
   it('requires a passing Turnstile check when configured', async () => {
