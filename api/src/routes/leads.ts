@@ -217,15 +217,15 @@ export function leadRoutes(opts: {
 
       // Guide email: one per address per 24h, and a global daily ceiling so a
       // list of victim addresses cannot be mailed through our Brevo account.
+      // Only the EMAIL is withheld. The contact still goes to the CRM: until
+      // 2026-11-18 a repeat was forwarded with no email at all, so a returning
+      // owner (or one whose first deal failed on a LeadSimple 429) never got a
+      // deal. A second deal is recoverable; a missing one is a lost lead.
       let sendGuide = ebook;
       if (ebook) {
-        // A repeat within 24h still gets their estimate on screen, but the
-        // lead is forwarded without contact details, so no second email and
-        // no duplicate CRM deal. (Canonical schema unchanged: WF-1 only keeps
-        // email when ebook_opt_in is true.)
         const firstForAddress = await store.setIfAbsent('guide:' + sha(email.toLowerCase()), 24 * 3600_000);
         if (!firstForAddress) {
-          console.warn('[leads] guide already sent to this address in the last 24h; forwarding without contact');
+          console.warn('[leads] guide already sent to this address in the last 24h; forwarding the lead without a second guide');
           sendGuide = false;
         }
       }
@@ -241,13 +241,15 @@ export function leadRoutes(opts: {
       const forward = {
         submission_id: lead.submission_id,
         name: '',
-        email: sendGuide ? email : '',
+        email: ebook ? email : '',
         phone: '',
         zip: lead.zip,
         sqft: lead.sqft,
         bedrooms: lead.bedrooms ?? null,
-        ebook_opt_in: sendGuide,
-        consent: sendGuide && lead.consent ? lead.consent : null,
+        ebook_opt_in: ebook,
+        // WF-1 carries this to WF-2, which skips only the guide email when false.
+        send_guide: sendGuide,
+        consent: ebook && lead.consent ? lead.consent : null,
         token: lead.token,
         fax: '',
         fill_ms: lead.fill_ms ?? null,
